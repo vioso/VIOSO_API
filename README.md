@@ -6,16 +6,16 @@ It provides image based warping, suitable for most cases and, if a 3D map is pro
 
 ## Usage on Windows: 
 
-### 1. Static binding
+1. Static binding
 having VIOSOWarpBlend next to your executable or in added to %path%:
 link against VIOSOWarpBlend.lib and, in your [precompiled] header.
 #include "VIOSOWarpBlend.h"
 
-### 2. Dynamic binding  
+2. Dynamic binding  
 giving a path to load dynamic library from:
 #define VIOSOWARPBLEND_FILE with a path (relative to main executable), this defaults to VIOSOWarpBlend / VIOSOWarpBlend64
 
-### 2a) via [precompiled] header:  
+2a) via [precompiled] header:  
 in header declare functions and types:
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE
 #include "VIOSOWarpBlend.h"
@@ -29,7 +29,7 @@ in module initialization, this loads function pointers from library
 #include "VIOSOWarpBlend.h"
 
 ---
-### 2b) Single file  
+2b) Single file  
 in file on top, to declare and implement functions/objects,
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
 #include "VIOSOWarpBlend.h"
