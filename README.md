@@ -15,7 +15,7 @@ link against VIOSOWarpBlend.lib and, in your [precompiled] header.
 giving a path to load dynamic library from:
 #define VIOSOWARPBLEND_FILE with a path (relative to main executable), this defaults to VIOSOWarpBlend / VIOSOWarpBlend64
 
-2a) via [precompiled] header:  
+2. a) via [precompiled] header:  
 in header declare functions and types:
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE
 #include "VIOSOWarpBlend.h"
@@ -29,7 +29,7 @@ in module initialization, this loads function pointers from library
 #include "VIOSOWarpBlend.h"
 
 ---
-2b) Single file  
+2. b) Single file  
 in file on top, to declare and implement functions/objects,
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
 #include "VIOSOWarpBlend.h"
