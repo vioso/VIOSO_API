@@ -4,7 +4,7 @@ This library is meant to use in image generators, to do warping and blending. It
 to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
 It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamc eye warping.
 
-## Usage: 
+## Usage on Windows: 
 
 ### 1. Static binding
 having VIOSOWarpBlend next to your executable or in added to %path%:
@@ -40,6 +40,21 @@ in module initialization, this loads function pointers from library
 
 Always make sure to have your platform headers loaded before!
 To access deprecated functions #define VWB_USE_DEPRECATED_INIT
+
+## Usage on Linux:
+There is a separate linux branch which is work in progress. 
+Check it out via the command "git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git"
+
+Build it (as a shared library) using cmake: in the root folder execute the follwing command (having cmake installed - sudo apt-get install cmake):
+```mkdir build && cd build && cmake .. && make```
+and
+```make install``` 
+to make it available system wide.
+
+Link it the usual way:  
+```g++  ... -L/usr/local/lib -lVIOSOWarpBlend``` 
+(adjust -L/usr/local/lib to the place you installed it to)
+
 
 ### @Remarks
 To allocate a warper, call VWB_Create. A specified config file is read.
