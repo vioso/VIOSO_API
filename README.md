@@ -11,11 +11,11 @@ having VIOSOWarpBlend next to your executable or in added to %path%:
 link against VIOSOWarpBlend.lib and, in your [precompiled] header.
 #include "VIOSOWarpBlend.h"
 
-### 2. Dynamic binding
+### 2. Dynamic binding  
 giving a path to load dynamic library from:
 #define VIOSOWARPBLEND_FILE with a path (relative to main executable), this defaults to VIOSOWarpBlend / VIOSOWarpBlend64
 
-### 2a) via [precompiled] header:
+### 2a) via [precompiled] header:  
 in header declare functions and types:
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE
 #include "VIOSOWarpBlend.h"
@@ -29,7 +29,7 @@ in module initialization, this loads function pointers from library
 #include "VIOSOWarpBlend.h"
 
 ---
-### 2b) Single file
+### 2b) Single file  
 in file on top, to declare and implement functions/objects,
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
 #include "VIOSOWarpBlend.h"
@@ -56,7 +56,7 @@ Link it the usual way:
 (adjust -L/usr/local/lib to the place you installed it to)
 
 
-### @Remarks
+### @Remarks  
 To allocate a warper, call VWB_Create. A specified config file is read.
 You might edit all settings in warper struct. Then call VWB_Init.
 There is no logical maximum on the number of allocated warpers.
