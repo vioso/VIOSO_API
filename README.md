@@ -43,7 +43,7 @@ To access deprecated functions #define VWB_USE_DEPRECATED_INIT
 
 ## Usage on Linux:
 There is a separate linux branch which is work in progress. 
-Check it out via the command "git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git"
+Check it out via the command ```git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git```
 
 Build it (as a shared library) using cmake: in the root folder execute the follwing command (having cmake installed - sudo apt-get install cmake):
 ```mkdir build && cd build && cmake .. && make```
