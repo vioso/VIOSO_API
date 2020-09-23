@@ -54,6 +54,8 @@ Link it the usual way:
 ```g++  ... -L/usr/local/lib -lVIOSOWarpBlend``` 
 (adjust -L/usr/local/lib to the place you installed it to)
 
+In order to build the example project you'll need glfw + dependencies. use this command: ```sudo apt-get install libglfw3-dev libxcursor-dev libxi-dev libxinerama-dev freeglut3-dev```
+
 
 ### @Remarks  
 To allocate a warper, call VWB_Create. A specified config file is read.
