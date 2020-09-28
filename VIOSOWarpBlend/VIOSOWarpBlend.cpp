@@ -1171,7 +1171,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	VWB_MAT44d B = VWB_MAT44f::ptr(trans);
 	VWB_MAT44d Bi = B.Inverted();
 
-// find x and y axis from scan
+	// find x and y axis from scan
 	// find corners
 	VWB_WarpRecord* pW = wb.pWarp;
 	VWB_BlendRecord2* pB = wb.pBlend2;
