@@ -1,7 +1,6 @@
 #include "DXWarpBlend.h"
 #pragma comment( lib, "dxguid.lib" )
 #pragma comment( lib, "d3dcompiler.lib" )
-#pragma comment( lib, "dxerr.lib" )
 
 DXWarpBlend::DXWarpBlend()
 : VWB_Warper_base()
