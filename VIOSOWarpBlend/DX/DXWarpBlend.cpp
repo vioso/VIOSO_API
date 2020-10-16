@@ -48,6 +48,7 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 
 		VWB_float clip[6];
 		getClip( e, clip );
+
 		if( m_bRH )
 			P = VWB_MAT44f::DXFrustumRH( clip );
 		else
@@ -127,31 +128,91 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 
 VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
-	VWB_float view[16];
-	VWB_float clip[6];
-	VWB_ERROR ret = GetViewClip( eye, rot, view, clip );
+	VWB_ERROR ret = VWB_Warper_base::GetPosDirFov(eye, rot, pPos, pDir, pSymClip);
 	if( VWB_ERROR_NONE == ret )
 	{
+
+		VWB_MAT44f V; // the view matrix to return 
+		VWB_MAT44f P; // the projection matrix to return 
+
+		// we transform the dynamic eye-point to the constant view:
+
+		// copy eye coordinate to e
+		VWB_VEC3f e((float)m_ep.x, (float)m_ep.y, (float)m_ep.z);
+
+		// rotation matrix from angles
+		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R((VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll).Transposed() : VWB_MAT44f::RLHT((VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll);
+
+		// add eye offset rotated to platform
+		if (0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2])
+			e += VWB_VEC3f::ptr(this->eye) * R;
+
+		// translate to local coordinates
+		e = e * m_mViewIG;
+
+		VWB_MAT44f T = VWB_MAT44f::TT(-e);
+		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
+
+		if (bTurnWithView)
+			V = R * m_mViewIG;
+		else
+			V = m_mViewIG * T;
+
+		VWB_float clip[6];
+		getClip(e, clip);
+
+	
+/*		if (pView)
+		{
+			V.SetPtr(pView);
+		}
+
+		if (pClip)
+		{
+			memcpy(pClip, clip, sizeof(clip));
+		}
+*/
+
 		pSymClip[2] = clip[4];
 		pSymClip[3] = clip[5];
-		pPos[0] = view[3];
-		pPos[1] = view[7];
-		pPos[2] = view[11];
+		pPos[0] = V[3];
+		pPos[1] = V[7];
+		pPos[2] = V[11];
 
 		pSymClip[0] = atan2( clip[0], nearDist ) + atan2( clip[2], nearDist );
 		pSymClip[1] = atan2( clip[1], nearDist ) + atan2( clip[3], nearDist );
 
-		VWB_MAT33f R = Upper<VWB_float>( VWB_MAT44f::ptr( view ) );
+		VWB_MAT33f RT = Upper<VWB_float>( VWB_MAT44f::ptr( V ) );
 		if( m_bRH )
 		{
-			VWB_VEC3f::ptr( pDir ) = R.GetR_RH();
+			VWB_VEC3f::ptr( pDir ) = RT.Transposed().GetR_RH();
 		}
 		else
 		{
-			VWB_VEC3f::ptr( pDir ) = R.Transposed().GetR_LHT(); // todo: check...
+			VWB_VEC3f::ptr( pDir ) = RT.GetR_LHT(); // todo: check...
 		}
+
 		pDir[0] += ( atan2( clip[2], nearDist ) - atan2( clip[0], nearDist ) );
 		pDir[1] += ( atan2( clip[3], nearDist ) - atan2( clip[1], nearDist ) );
+
+		if( m_bRH )
+		{
+			m_mVP = m_mBaseI * VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ).Transposed() * T;
+		}
+		else
+		{
+			m_mVP = m_mBaseI * VWB_MAT44f::RLHT( VWB_VEC3f::ptr( pDir ) ) * T;
+		}		
+
+		clip[0] = clip[2] = tan( pSymClip[0] / 2.0f ) * nearDist;
+		clip[1] = clip[3] = tan( pSymClip[1] / 2.0f ) * nearDist;
+		if( m_bRH )
+			P = VWB_MAT44f::DXFrustumRH( clip );
+		else
+			P = VWB_MAT44f::DXFrustumLH( clip );
+
+		m_mVP *= P;
+
 	}
 
 	return ret;

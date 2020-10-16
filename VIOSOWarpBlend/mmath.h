@@ -401,7 +401,7 @@ struct VWB_MATRIX
 	}
 	_inline_ static VWB_MATRIX R( VWB_VECTOR3<_T> r )  // this is Rz(z) * Rx(x) * Ry(y)
 	{ 
-		return VWB_MATRIX33<_T>(
+		return VWB_MATRIX(
 			 std::cos(r.y)*std::cos(r.z)-std::sin(r.x)*std::sin(r.y)*std::sin(r.z),	std::cos(r.x)*std::sin(r.z),	-std::sin(r.x)*std::cos(r.y)*std::sin(r.z)-std::sin(r.y)*std::cos(r.z),0,
 			-std::sin(r.x)*std::sin(r.y)*std::cos(r.z)-std::cos(r.y)*std::sin(r.z),	 std::cos(r.x)*std::cos(r.z),	std::sin(r.y)*std::sin(r.z)-std::sin(r.x)*std::cos(r.y)*std::cos(r.z),0,
 			 std::cos(r.x)*std::sin(r.y),							 std::sin(r.x),		std::cos(r.x)*std::cos(r.y),0, 0,0,0,1 );
