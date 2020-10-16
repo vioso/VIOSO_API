@@ -1269,6 +1269,13 @@ struct VWB_BOX
 	_inline_ static VWB_BOX O() { return VWB_BOX( VWB_VECTOR3<T>( 0,0,0 ), VWB_VECTOR3<T>( 0,0,0 ) ); }
 };
 
+template< class T >
+VWB_MATRIX33<T> Upper( VWB_MATRIX<T> const& M )
+{
+	return VWB_MATRIX33<T>( M._11, M._12, M._13,
+						  M._21, M._22, M._23,
+						  M._31, M._32, M._33 );
+}
 #pragma pack(pop)
 
 typedef VWB_MATRIX33<VWB_float> VWB_MAT33f;

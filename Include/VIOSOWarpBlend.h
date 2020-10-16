@@ -162,7 +162,10 @@ calibIndex=0
     * @param [IN,OUT,OPT]	pRot	the new rotation in radian, if a eye point provider is present, the value is getted from there, pRot is updated
     * @param [OUT]			pView	it gets the updated view matrix to translate and rotate into the viewer's perspective
 	* @param [OUT]			pProj	it gets the updated projection matrix
-	* @param [OUT]			pClip	it gets the updated clip planes, left, top, right, bottom, near, far
+	* @param [OUT]			pClip	it gets the updated clip planes: left, top, right, bottom, near, far
+	* @param [OUT]			pPos    it gets the updated relative position: x,y,z
+	* @param [OUT]			pDir	it gets the updated relative direction: euler angles around x,y,z rotation order is y,x,z
+	* @param [OUT]			pSymFov	it gets the updated symmetric frustum: hFov, vFov, near, far
     * @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise
 	* @remarks If EyePointProvider is used, the eye point is set by calling it's getEye function. eye and rot are set to that if not NULL.
 	* Else, if eye and rot are not NULL, values taken from here.
@@ -204,12 +207,12 @@ calibIndex=0
 		a.x = -atan2( p[5], l );
 		a.z = -atan2( s * p[7] + c * p[1], s * p[6] + c * p[0] );
 		return a;
-	}
-*/
+	}*/
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewProj, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) );
-
-    /** set the view and projection matrix directly
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosRotFov, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) );
+	
+	/** set the view and projection matrix directly
 	* @param [IN]			pWarper	a valid warper
     * @param [IN]			pView	view matrix to translate and rotate into the viewer's perspective
     * @param [IN]			pProj	projection matrix
