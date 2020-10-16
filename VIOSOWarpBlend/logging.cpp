@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
+
 char g_logFilePath[MAX_PATH] = {0};
 VWB_int g_logLevel = 2;
 
@@ -38,41 +39,39 @@ int logStr( VWB_int level, char const* format, ... )
 			)
 		{
 			f = stderr;
+			err = NOERROR;
 		}
 		else
 		{
-			for (int c = 0; c != 10 && 13 == (err = fopen_s(&f, g_logFilePath, "a+")); c++)
+			int c = 0;
+			err = 13;
+			while( 10 != c++ )
 			{
-				sleep(1);
-			}
+				err = fopen_s( &f, g_logFilePath, "a+" );
+				if( 13 == err )
+					sleep( 1 );
+				else
+					break;
+			} 
 		}
-		if( 0 == err )
+		if( NOERROR == err )
 		{
-            char dest[1024 * 64];
 			va_list params;
 			
 			time_t t;
 			time( &t );
 			struct tm tm;
 			localtime_s( &tm, &t );
-			int n = sprintf_s(dest, "%02d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec );
+			int n = fprintf( f, "%02d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec );
             va_start( params, format );
-            vsprintf_s(&dest[n], 1024 * 64 - n, format, params);
+            vfprintf(f, format, params);
             va_end(params);
-            
-            fputs( dest, f );
-#if defined(WIN32) && defined(_DEBUG)
-			_CrtDbgReport( _CRT_WARN, NULL, 0, NULL, "%s", dest );
-#endif //  defined(WIN32) && defined(_DEBUG)
             fputs("\n", f);
+
 			if( f != stdout && f != stderr )
 			{
 				fclose(f);
 			}
-		}
-		else
-		{
-			int i = 0;
 		}
 	}
 	return 0;

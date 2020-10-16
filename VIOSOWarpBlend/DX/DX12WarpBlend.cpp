@@ -729,14 +729,14 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	m_cl->RSSetViewports( 1, &vp );
 	const D3D12_RECT sr{ 0, 0, (LONG)descRT.Width, (LONG)descRT.Height };
 	m_cl->RSSetScissorRects( 1, &sr );
-	const D3D12_CPU_DESCRIPTOR_HANDLE rtvs[]{ { in->rtvHandlePtr } };
+	const D3D12_CPU_DESCRIPTOR_HANDLE rtvs[]{ { SIZE_T(in->rtvHandlePtr) } };
 	m_cl->OMSetRenderTargets( _countof( rtvs ), rtvs, FALSE, nullptr );
 	if( VWB_STATEMASK_CLEARBACKBUFFER & stateMask )
 	{
 		if( in->rtvHandlePtr )
 		{
 			const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-			m_cl->ClearRenderTargetView( { in->rtvHandlePtr }, clearColor, 0, nullptr );
+			m_cl->ClearRenderTargetView( { SIZE_T(in->rtvHandlePtr) }, clearColor, 0, nullptr );
 		}
 		else
 		{

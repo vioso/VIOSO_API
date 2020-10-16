@@ -492,7 +492,7 @@ public:
 	std::string		bound;
 	int				contentLength;
 
-	HttpRequest() : state( STATE_UNDEF ), type( TYPE_UNDEF ), enctype( ENCTYPE_UNDEF ) {};
+	HttpRequest() : state( STATE_UNDEF ), type( TYPE_UNDEF ), enctype( ENCTYPE_UNDEF ), contentLength(0) {};
 	HttpRequest( HttpRequest const& other )
 		: state( other.state )
 		, type( other.type )

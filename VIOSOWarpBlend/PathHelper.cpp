@@ -180,7 +180,7 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 
 	if (NO_ERROR == fopen_s(&f, szConfigFile, "r"))
 	{
-		for (char line[32678]; NULL != fgets(line, 32677, f); )
+		for (char line[16384]; NULL != fgets(line, 32677, f); )
 		{
 			//// remove comments
 			//for( wchar_t* c = line; *c; c++ )
@@ -247,16 +247,16 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 
 VWB_int GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, char const* szConfigFile)
 {
-	char s[32678] = { 0 };
-	if (GetIniString(szSection, szKey, "", s, 32678, szConfigFile))
+	char s[16384] = { 0 };
+	if (GetIniString(szSection, szKey, "", s, 16384, szConfigFile))
 		return atoi(s);
 	return iDefault;
 }
 
 VWB_float GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char const* szConfigFile)
 {
-	char s[32678] = { 0 };
-	if (GetIniString(szSection, szKey, "", s, 32678, szConfigFile))
+	char s[16384] = { 0 };
+	if (GetIniString(szSection, szKey, "", s, 16384, szConfigFile))
 		return (VWB_float)atof(s);
 	return fDefault;
 }
@@ -267,8 +267,8 @@ VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dim
 		return NULL;
 	if (0 == dimX || 0 == dimY)
 		return NULL;
-	char s[32678] = { 0 };
-	GetIniString(szSection, szKey, "", s, 32678, szConfigFile);
+	char s[16384] = { 0 };
+	GetIniString(szSection, szKey, "", s, 16384, szConfigFile);
 	char* pS = s;
 	if( *pS != '[' )
 		return NULL;
@@ -278,7 +278,7 @@ VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dim
 	for (; 1 == sscanf_s(pS, "%f", &f[o]) && o != oE; o++)
 	{
 		char* pFS;
-		if ( (pFS = strchr( pS, ',' )) || ( pFS = strchr( pS, ';' ) ) || ( pFS = strchr( pS, ']' ) ) )
+		if ( (pFS = strchr( pS, ',' ) ) || ( pFS = strchr( pS, ';' ) ) || ( pFS = strchr( pS, ']' ) ) )
 			pS = pFS + 1;
 		else
 			break;

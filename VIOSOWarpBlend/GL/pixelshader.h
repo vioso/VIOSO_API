@@ -1,184 +1,202 @@
-GLchar const* s_szPasstrough_vertex_shader_v110 =
-"#version 110															\n"
-"uniform vec4 offsScale;												\n"
-"void main()															\n"
-"{																		\n"
-"	gl_Position=gl_Vertex;												\n"
-"	gl_TexCoord[0]=gl_MultiTexCoord0;									\n"
-"	gl_TexCoord[0].x-=offScale.x;		    							\n"
-"	gl_TexCoord[0].y-=offScale.y;		    							\n"
-"	gl_TexCoord[0].x*=offScale.z;		    							\n"
-"	gl_TexCoord[0].x*=offScale.w;		    							\n"
-"}																		\n";
+GLchar const* s_szPasstrough_vertex_shader_v110 = R"END(
+#version 110
+uniform vec4 offsScale;
+void main()
+{
+	gl_Position=gl_Vertex;			
+	gl_TexCoord[0]=gl_MultiTexCoord0;
+	gl_TexCoord[0].x-=offScale.x;	
+	gl_TexCoord[0].y-=offScale.y;	
+	gl_TexCoord[0].x*=offScale.z;	
+	gl_TexCoord[0].x*=offScale.w;	
+}
+)END";
 
-GLchar const* s_szPasstrough_vertex_shader_v330 =
-"#version 330															\n"
-"in vec2 TexCoord;														\n"
-"in vec3 Position;														\n"
-"																		\n"
-"out vec2 texcoord;														\n"
-"																		\n"
-"const vec2 pos[4] =													\n"
-"vec2[4](																		\n"
-"	vec2(-1.0, 1.0),													\n"
-"	vec2(-1.0,-1.0),													\n"
-"	vec2( 1.0, 1.0),													\n"
-"	vec2( 1.0,-1.0)														\n"
-");																		\n"
-"																		\n"
-"const vec2 tex[4] = 													\n"
-"vec2[4](																\n"
-"	vec2(0,0),															\n"
-"	vec2(0,1),															\n"
-"	vec2(1,0),															\n"
-"	vec2(1,1)															\n"
-");																		\n"
-"																		\n"
-"uniform vec4 offsScale;												\n"
-"uniform vec4 size;														\n"
-"																		\n"
-"void main(void) {														\n"
-"	gl_Position = vec4((pos[gl_VertexID].x + pos[gl_VertexID].x * size.x) * size.z, (pos[gl_VertexID].y + pos[gl_VertexID].y * size.y) * size.w, 0.0, 1.0);\n"
-//"	gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0);\n"
-"	texcoord = tex[gl_VertexID];										\n"
-"	texcoord-= offsScale.xy; 											\n"
-"	texcoord*= offsScale.zw; 											\n"
-"}																		\n";
+GLchar const* s_szPasstrough_vertex_shader_v330 = R"END(
+#version 330
+in vec2 TexCoord;
+in vec3 Position;
 
-GLchar const* s_fragment_shader_header_v110 =
-"#version 110															\n"
-"uniform sampler2D samContent, samWarp, samBlend,samBlack;				\n"
-"uniform bool bBorder;													\n"
-"uniform bool bDoNotBlend;												\n"
-"uniform bool bDoNoBlack;												\n"
-"uniform mat4 matView;													\n"
-"uniform vec4 blackBias;												\n"
-"#define texcoord gl_TexCoord[0]										\n"
-"#define FragColor gl_FragColor											\n"
-"vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture2D( sam, tex ); } \n";
+out vec2 texcoord;
 
-GLchar const* s_fragment_shader_header_v330 =
-"#version 330															\n"
-"uniform sampler2D samContent, samWarp, samBlend, samBlack;				\n"
-"uniform bool bBorder;													\n"
-"uniform bool bDoNotBlend;												\n"
-"uniform bool bDoNoBlack;												\n"
-"uniform mat4 matView;													\n"
-"uniform vec4 blackBias;												\n"
-"in vec2 texcoord;														\n"
-"out vec4 FragColor;													\n"
-"vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }   \n";
+const vec2 pos[4] =
+vec2[4](
+	vec2(-1.0, 1.0),
+	vec2(-1.0,-1.0),
+	vec2( 1.0, 1.0),
+	vec2( 1.0,-1.0)
+);
 
-GLchar const* s_func_tex2D_BC = 
-"uniform vec4 params;													\n"
-"vec4 _texture2D( sampler2D texCnt,										\n"
-"				   vec2 vPos)											\n"
-"{																		\n"
-"	vPos*= params.xy;													\n"
-"	vec2 t = floor( vPos - 0.5 ) + vec2(0.5,0.5); // the nearest pixel	\n"
-"	vec2 w0 = vec2(1,1);												\n"
-"	vec2 w1 = vPos - t;													\n"
-"	vec2 w2 = w1 * w1;													\n"
-"	vec2 w3 = w2 * w1;													\n"
-"																		\n"
-"	w0 = w2 - 0.5 * (w3 + w1);											\n"
-"	w1 = 1.5 * w3 - 2.5 * w2 + 1.0;										\n"
-"	w3 = 0.5 * (w3 - w2);												\n"
-"	w2 = 1.0 - w0 - w1 - w3;											\n"
-"																		\n"
-"	vec2 s0 = w0 + w1;													\n"
-"	vec2 s1 = w2 + w3;													\n"
-"	vec2 f0 = w1 / s0;													\n"
-"	vec2 f1 = w3 / s1;													\n"
-"																		\n"
-"	vec2 t0 = t - 1.0 + f0;												\n"
-"	vec2 t1 = t + 1.0 + f1;												\n"
-"	t0*= params.zw;														\n"
-"	t1*= params.zw;														\n"
-"																		\n"
-"	return																\n"
-"		( _tex2D( texCnt, t0 ) * s0.x +								\n"
-"		  _tex2D( texCnt, vec2( t1.x, t0.y ) ) * s1.x ) * s0.y +		\n"
-"		( _tex2D( texCnt, vec2( t0.x, t1.y ) ) * s0.x +				\n"
-"		  _tex2D( texCnt, t1 ) * s1.x ) * s1.y;						\n"
-"}																		\n";
+const vec2 tex[4] =
+vec2[4](
+	vec2(0,0),
+	vec2(0,1),
+	vec2(1,0),
+	vec2(1,1)
+);
 
-GLchar const* s_func_tex2D = 
-"vec4 _texture2D( sampler2D texCnt,										\n"
-"				   vec2 vPos)											\n"
-"{																		\n"
-"	return _tex2D( texCnt, vPos );									\n"
-"}																		\n";
+uniform vec4 offsScale;
+uniform vec4 size;
 
-GLchar const* s_bypass_fragment_shader = 
-"void main()															\n"
-"{																		\n"
-"	FragColor = _texture2D( samContent,texcoord.st );			\n"
-"	FragColor.a = 1.0;												\n"
-"}																		\n";
+void main(void) {
+	gl_Position = vec4((pos[gl_VertexID].x + pos[gl_VertexID].x * size.x) * size.z, (pos[gl_VertexID].y + pos[gl_VertexID].y * size.y) * size.w, 0.0, 1.0);
+	texcoord = tex[gl_VertexID];
+	texcoord-= offsScale.xy;
+	texcoord*= offsScale.zw;
+}
+)END";
 
-GLchar const* s_warp_blend_fragment_shader = 
-"void main()\n"
-"{																		\n"
-"	vec4 tex = _tex2D( samWarp,texcoord.st );						\n"
-"	vec4 blend = _tex2D( samBlend, texcoord.st );					\n"
-"	vec4 black = _tex2D( samBlack, texcoord.st ) * blackBias.x;		\n"
-"	if( 0.1 < blend.a )													\n"
-"	{																	\n"
-"		tex.y = 1.0 - tex.y;											\n"
-"		if( bBorder )													\n"
-"		{																\n"
-"		    tex.x*= 1.02;												\n"
-"		    tex.x-= 0.01;												\n"
-"		    tex.y*= 1.02;												\n"
-"		    tex.y-= 0.01;												\n"
-"		}																\n"
-"		tex.xy/= blend.a;													\n"
-"		FragColor = _texture2D( samContent, tex.xy );					\n"
-"		if( !bDoNotBlend )												\n"
-"			FragColor.rgb*= blend.rgb;									\n"
-"		if( !bDoNoBlack )                      \n"
-"		{                                           \n"
-"			FragColor += blackBias.y * black;\n"// offset color to get min average black
-"			FragColor *= vec4(1,1,1,1) - blackBias.z * black;\n" // scale down to avoid clipping } vOut
-"			FragColor = max( FragColor, black );\n" // do lower clamp to stay above common black, upper is done anyways
-"		}                                           \n"
-"		FragColor.a = 1.0;												\n"
-"	}																	\n"
-"	else																\n"	
-"	{																	\n"
-"		FragColor = vec4( 0.0,0.0,0.0,1.0 );							\n"
-"	}																	\n"
-"}																		\n";
-                                                                        
-GLchar const* s_warp_blend_fragment_shader_3D =
-"void main()															\n"
-"{                                               						\n"
-"	vec4 tex = _tex2D( samWarp, texcoord.st );     					\n"
-"	vec4 blend = _tex2D( samBlend, texcoord.st );  					\n"
-"	vec4 black = _tex2D( samBlack, texcoord.st ) * blackBias.x;			\n"
-"	if( 0.1 < blend.a )                            						\n"
-"	{                                           						\n"
-"		tex/= blend.a;                            						\n"
-"		tex.a = 1;                            						\n"
-"		tex = matView * tex;                    						\n"
-"		tex.xy/= tex.w;                         						\n"
-"		tex.x/=2.0;                              						\n"
-"		tex.y/=2.0;                              						\n"
-"		tex.xy+= 0.5;                           						\n"
-"		FragColor = _texture2D( samContent, tex.xy );	 				\n"
-"		if( !bDoNotBlend )												\n"
-"			FragColor.rgb*= blend.rgb;									\n"
-"		if( !bDoNoBlack )                      \n"
-"		{                                           \n"
-"			FragColor += blackBias.y * black;\n"// offset color to get min average black
-"			FragColor *= vec4(1,1,1,1) - blackBias.z * black;\n" // scale down to avoid clipping } vOut
-"			FragColor = max( FragColor, black );\n" // do lower clamp to stay above common black, upper is done anyways
-"		}                                           \n"
-"		FragColor.a = 1.0;               								\n"
-"	}                                           						\n"
-"	else																\n"
-"	{																	\n"
-"		FragColor = vec4( 0.0,0.0,0.0,1.0 );							\n"
-"	}																	\n"
-"}	\n";
+GLchar const* s_fragment_shader_header_v110 = R"END(
+#version 110				
+uniform sampler2D samContent, samWarp, samBlend,samBlack;
+uniform bool bBorder;
+uniform bool bDoNotBlend;
+uniform bool bDoNoBlack;		
+uniform mat4 matView;		
+uniform vec4 blackBias;
+#define texcoord gl_TexCoord[0]
+#define FragColor gl_FragColor
+vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture2D( sam, tex ); }
+)END";
+
+GLchar const* s_fragment_shader_header_v330 = R"END(
+"#version 330
+"uniform sampler2D samContent, samWarp, samBlend, samBlack;
+"uniform bool bBorder;	
+"uniform bool bDoNotBlend;
+"uniform bool bDoNoBlack;
+"uniform mat4 matView;	
+"uniform vec4 blackBias;
+"in vec2 texcoord;		
+"out vec4 FragColor;	
+"vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }
+)END";
+
+GLchar const* s_func_tex2D_BC = R"END(
+uniform vec4 params;
+vec4 _texture2D( sampler2D texCnt,
+				   vec2 vPos)		
+{									
+	vPos*= params.xy;				
+	vec2 t = floor( vPos - 0.5 ) + vec2(0.5,0.5); // the nearest pixel
+	vec2 w0 = vec2(1,1);
+	vec2 w1 = vPos - t;	
+	vec2 w2 = w1 * w1;	
+	vec2 w3 = w2 * w1;	
+
+	w0 = w2 - 0.5 * (w3 + w1);		
+	w1 = 1.5 * w3 - 2.5 * w2 + 1.0;	
+	w3 = 0.5 * (w3 - w2);			
+	w2 = 1.0 - w0 - w1 - w3;		
+
+	vec2 s0 = w0 + w1;				
+	vec2 s1 = w2 + w3;				
+	vec2 f0 = w1 / s0;				
+	vec2 f1 = w3 / s1;				
+
+	vec2 t0 = t - 1.0 + f0;			
+	vec2 t1 = t + 1.0 + f1;			
+	t0*= params.zw;					
+	t1*= params.zw;					
+
+	return
+		( _tex2D( texCnt, t0 ) * s0.x +
+		  _tex2D( texCnt, vec2( t1.x, t0.y ) ) * s1.x ) * s0.y +
+		( _tex2D( texCnt, vec2( t0.x, t1.y ) ) * s0.x +			
+		  _tex2D( texCnt, t1 ) * s1.x ) * s1.y;					
+}																
+)END";
+
+GLchar const* s_func_tex2D = R"END(
+vec4 _texture2D( sampler2D texCnt,								
+				   vec2 vPos)									
+{																
+	return _tex2D( texCnt, vPos );								
+}																
+)END";
+
+GLchar const* s_bypass_fragment_shader = R"END(
+void main()													
+{																
+	FragColor = _texture2D( samContent,texcoord.st );			
+	FragColor.a = 1.0;											
+}																
+)END";
+
+GLchar const* s_warp_blend_fragment_shader = R"END(
+void main()\n"
+{																
+	vec4 tex = _tex2D( samWarp,texcoord.st );					
+	vec4 blend = _tex2D( samBlend, texcoord.st );				
+	vec4 black = _tex2D( samBlack, texcoord.st ) * blackBias.x;	
+	if( 0.1 < blend.a )											
+	{															
+		tex.y = 1.0 - tex.y;									
+		if( bBorder )											
+		{														
+		    tex.x*= 1.02;										
+		    tex.x-= 0.01;										
+		    tex.y*= 1.02;										
+		    tex.y-= 0.01;										
+		}														
+		tex.xy/= blend.a;										"
+		FragColor = _texture2D( samContent, tex.xy );			
+		if( !bDoNotBlend )					
+			FragColor.rgb*= blend.rgb;		
+		if( !bDoNoBlack )               
+		{
+			// offset color to get min average black
+			FragColor += blackBias.y * black;					
+
+			// scale down to avoid clipping vOut
+			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
+	
+			// do lower clamp to stay above common black, upper is done anyways
+			FragColor = max( FragColor, black );				
+		}
+		FragColor.a = 1.0;
+	}	
+	else
+	{	
+		FragColor = vec4( 0.0,0.0,0.0,1.0 );
+	}
+}
+)END";
+
+GLchar const* s_warp_blend_fragment_shader_3D = R"END(
+void main()
+{
+	vec4 tex = _tex2D( samWarp, texcoord.st );
+	vec4 blend = _tex2D( samBlend, texcoord.st );
+	vec4 black = _tex2D( samBlack, texcoord.st ) * blackBias.x;
+	if( 0.1 < blend.a )
+	{
+		tex/= blend.a;
+		tex.a = 1;
+		tex = matView * tex;
+		tex.xy/= tex.w;
+		tex.x/=2.0;
+		tex.y/=2.0;
+		tex.xy+= 0.5;
+		FragColor = _texture2D( samContent, tex.xy );
+		if( !bDoNotBlend )
+			FragColor.rgb*= blend.rgb;
+		if( !bDoNoBlack )
+		{
+			// offset color to get min average black
+			FragColor += blackBias.y * black;					
+
+			// scale down to avoid clipping vOut
+			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
+	
+			// do lower clamp to stay above common black, upper is done anyways
+			FragColor = max( FragColor, black );				
+		}
+		FragColor.a = 1.0;
+	}
+	else
+	{
+		FragColor = vec4( 0.0,0.0,0.0,1.0 );
+	}
+}
+)END";
