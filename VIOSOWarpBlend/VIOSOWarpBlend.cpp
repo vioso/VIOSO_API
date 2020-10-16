@@ -683,6 +683,35 @@ VWB_ERROR VWB_getViewClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot
 	return VWB_ERROR_PARAMETER;
 }
 
+VWB_ERROR VWB_getPosRotFov( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+{
+	if( NULL != pEye && NULL != pRot )
+	{
+		logStr( 4, "VWB_getViewClip\n IN:   eye: (%f, %f, %f)\n"
+				"       rot: (%f, %f, %f)\n"
+				, pEye[0], pEye[1], pEye[2]
+				, pRot[0], pRot[1], pRot[2]
+		);
+	}
+	if( pWarper )
+	{
+		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosRotFov( pEye, pRot, pPos, pDir, pSymClip );
+		if( NULL != pPos && NULL != pDir && NULL != pSymClip )
+		{
+			logStr( 4,
+					" OUT: pos: (%f, %f, %f)\n"
+					"      dir: (%f, %f, %f)\n"
+					"      clip: (%f, %f, %f, %f)\n"
+					, pPos[0], pPos[1], pPos[2]
+					, pDir[0], pDir[1], pDir[2]
+					, pSymClip[0], pSymClip[1], pSymClip[2], pSymClip[3]
+			);
+		}
+		return err;
+	}
+	return VWB_ERROR_PARAMETER;
+}
+
 VWB_ERROR VWB_setViewProj( VWB_Warper* pWarper, VWB_float* pView,  VWB_float* pProj )
 {
 	if( pWarper )
@@ -1034,7 +1063,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	return ret;
 }
 
-VWB_ERROR VWB_Warper_base::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
+VWB_ERROR VWB_Warper_base::UpdateEye( VWB_float* eye, VWB_float* rot )
 {
 	// receive the current car parameters
 	if( m_hEPP && m_fnEPPGet ) // try eye porvider
@@ -1084,51 +1113,22 @@ VWB_ERROR VWB_Warper_base::GetViewProjection( VWB_float* eye, VWB_float* rot, VW
 					eye[0], eye[1], eye[2],
 					rot[0], rot[1], rot[2] );
 	}
-
 	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR VWB_Warper_base::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
+{
+	return UpdateEye( eye, rot );
 }
 
 VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip )
 {
-	// receive the current car parameters
-	::memset( &m_ep, 0, sizeof( m_ep ) );
-	if( m_hEPP && m_fnEPPGet ) // try eye porvider
-	{
-		m_fnEPPGet( m_hEPP, &m_ep );
-		if( eye )
-		{
-			eye[0] = (float)m_ep.x;
-			eye[1] = (float)m_ep.y;
-			eye[2] = (float)m_ep.z;
-		}
-		if( rot )
-		{
-			rot[0] = (float)m_ep.pitch;
-			rot[1] = (float)m_ep.yaw;
-			rot[2] = (float)m_ep.roll;
-		}
+	return UpdateEye( eye, rot );
+}
 
-		logStr( 3, "INFO: EyePointReceiver %s input for channel [%s]: pos=[%01.3f,%01.3f,%01.3f] dir=[%01.3f,%01.3f,%01.3f].\n",
-				eyeProviderParam, channel,
-				m_ep.x, m_ep.y, m_ep.z,
-				m_ep.pitch, m_ep.yaw, m_ep.roll );
-	}
-	else
-	{ // use given
-		if( eye )
-			spliceVec( m_ep.x, m_ep.y, m_ep.z, eye[0], eye[1], eye[2], ( splice >> 16 ) );
-
-		if( rot )
-			spliceVec( m_ep.pitch, m_ep.yaw, m_ep.roll, rot[0], rot[1], rot[2], splice );
-
-		if( NULL != eye && NULL != rot )
-			logStr( 3, "INFO: Eyepoint from call for channel [%s]: pos=[%01.3f,%01.3f,%01.3f] dir=[%01.3f,%01.3f,%01.3f].\n",
-					channel,
-					eye[0], eye[1], eye[2],
-					rot[0], rot[1], rot[2] );
-	}
-
-	return VWB_ERROR_NONE;
+VWB_ERROR VWB_Warper_base::GetPosRotFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+{
+	return UpdateEye( eye, rot );
 }
 
 void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float * pClip )

@@ -125,6 +125,40 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	return ret;
 }
 
+VWB_ERROR DXWarpBlend::GetPosRotFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+{
+	VWB_float view[16];
+	VWB_float clip[6];
+	VWB_ERROR ret = GetViewClip( eye, rot, view, clip );
+	if( VWB_ERROR_NONE == ret )
+	{
+		pSymClip[2] = clip[4];
+		pSymClip[3] = clip[5];
+		pPos[0] = view[3];
+		pPos[1] = view[7];
+		pPos[2] = view[11];
+
+		pSymClip[0] = atan2( clip[0], nearDist ) + atan2( clip[2], nearDist );
+		pSymClip[1] = atan2( clip[1], nearDist ) + atan2( clip[3], nearDist );
+
+		VWB_MAT33f R = Upper<VWB_float>( VWB_MAT44f::ptr( view ) );
+		if( m_bRH )
+		{
+			VWB_VEC3f::ptr( pDir ) = R.GetR_RH();
+		}
+		else
+		{
+			VWB_VEC3f::ptr( pDir ) = R.Transposed().GetR_LHT(); // todo: check...
+		}
+		pDir[0] += ( atan2( clip[2], nearDist ) - atan2( clip[0], nearDist ) );
+		pDir[1] += ( atan2( clip[3], nearDist ) - atan2( clip[1], nearDist ) );
+
+	}
+
+
+	return ret;
+}
+
 VWB_ERROR DXWarpBlend::SetViewProjection( VWB_float const* pView, VWB_float const* pProj )
 {
 	if( pView && pProj )

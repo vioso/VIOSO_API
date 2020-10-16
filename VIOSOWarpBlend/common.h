@@ -90,15 +90,19 @@ public:
     * @param [opt_INOUT] rot, if eye point provider present, receives, else set the new eye rotation angles
     * @param [opt_OUT] pView, if not NULL it gets the updated view matrix to translate and rotate into the viewer's perspective
 	* @param [opt_OUT] pProj, if not NULL it gets the updated projection matrix
-    * @param [opt_OUT] pClip, if not NULL it gets the updated clip
 	* @param [OUT]			pClip	it gets the updated clip planes, left, top, right, bottom, near, far
+	* @param [OUT]			pPos    it gets the updated relative position: x,y,z
+	* @param [OUT]			pDir	it gets the updated relative direction: euler angles around x,y,z rotation order is y,x,z
+	* @param [OUT]			pSymFov	it gets the updated symmetric frustum: hFov, vFov, near, far
 	* @return VWB_ERROR_NONE on success, otherwise @see VWB_ERROR
 	* @remarks If EyePointProvider is used, the eye point is set by calling it's getEye function. eye and rot are set to that if not NULL.
 	* Else, if eye and rot are not NULL, values taken from here.
 	* Else eye and rot are set to 0-vectors.
 	* The internal view and projection matrices are calculated to render. You should set pView and pProj to get these matrices for rendering, if updated.*/
+	VWB_ERROR UpdateEye( VWB_float* eye, VWB_float* rot );
 	virtual VWB_ERROR GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj );		// 
 	virtual VWB_ERROR GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip );		// 
+	virtual VWB_ERROR GetPosRotFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip );
 
 	/** sets internal projection and view matrix
     * @param view    the view matrix
