@@ -23,17 +23,17 @@ VWB_ERROR VWBTCPListener::add( VWB_Warper* pWarper )
 	{
 		if( *it == pWarper )
 		{
-			logStr( 0, "ERROR: VWBUDPListen: duplicate warper!\n" );
+			logStr( 0, "ERROR: VWBTCPListen: duplicate warper!\n" );
 			return VWB_ERROR_GENERIC;
 		}
 		if( 0 == strcmp( (*it)->channel, pWarper->channel ) )
 		{
-			logStr( 0, "ERROR: VWBUDPListen: duplicate warper name!\n" );
+			logStr( 0, "ERROR: VWBTCPListen: duplicate warper name!\n" );
 			return VWB_ERROR_GENERIC;
 		}
 	}
 	m_warpers.push_back( pWarper );
-	logStr( 2, "INFO: VWBUDPListen(%hu): warper \"%s\" added.\n", m_port, pWarper->channel );
+	logStr( 2, "INFO: VWBTCPListen(%hu): warper \"%s\" added.\n", m_port, pWarper->channel );
 	return VWB_ERROR_NONE;
 }
 

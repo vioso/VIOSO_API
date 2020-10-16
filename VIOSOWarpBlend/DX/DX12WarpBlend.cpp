@@ -51,7 +51,7 @@ DX12WarpBlend::~DX12WarpBlend(void)
 	SAFERELEASE( m_srvHeap );
 	SAFERELEASE( m_device );
 	SAFERELEASE( m_cl );
-	logStr( 1, "INFO: DX11-Warper destroyed.\n" );
+	logStr( 1, "INFO: DX12-Warper destroyed.\n" );
 }
 
 

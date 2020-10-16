@@ -31,6 +31,7 @@
 #include "3rdparty/delauney/DelaunayTriangles.h"
 
 VWB_size _size0 = { 0,0 };
+bool g_bFirstInstance = true;
 #ifdef WIN32
 Server g_server;
 typedef std::vector<SPtr<VWBTCPListener>> ListenerList;
@@ -84,11 +85,15 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt( "default", "logLevel", g_logLevel, path );
 		g_logLevel = GetIniInt( channel, "logLevel", iDef, path );
 
-		iDef = GetIniInt( "default", "bLogClear", 0, path );
-		if( 1 == GetIniInt( channel, "bLogClear", iDef, path ) )
-			logClear();
-		else
-			logStr( 1, "-VIOSO WARP BLEND API-\n" );
+		if (g_bFirstInstance)
+		{
+			iDef = GetIniInt("default", "bLogClear", 0, path);
+			if (1 == GetIniInt(channel, "bLogClear", iDef, path))
+				logClear();
+			else
+				logStr(1, "--- BEGIN SESSION --- BEGIN SESSION --- BEGIN SESSION --- BEGIN SESSION ---\n");
+			g_bFirstInstance = false;
+		}
 
 		iDef = GetIniInt( "default", "bTurnWithView", 0, path );
 		bTurnWithView = 0 != GetIniInt( channel, "bTurnWithView", iDef, path );

@@ -38,3 +38,8 @@
 /VIOSOWarpBlend/Debug
 /.idea
 /Examples/DirectX11/Debug/DirectX11Example.tlog
+*.aps
+/Examples/DirectX12/obj/Win32/Debug
+/Examples/DirectX11/Debug
+/VIOSOWarpBlend/x64/Debug Unity/VIOSOWarpBlend.tlog
+/VIOSOWarpBlend/x64/Debug Unity
