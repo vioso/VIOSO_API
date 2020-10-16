@@ -210,7 +210,7 @@ calibIndex=0
 	}*/
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewProj, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) );
-	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosRotFov, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) );
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosDirFov, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) );
 	
 	/** set the view and projection matrix directly
 	* @param [IN]			pWarper	a valid warper

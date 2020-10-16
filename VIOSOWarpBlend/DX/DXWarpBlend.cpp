@@ -125,7 +125,7 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	return ret;
 }
 
-VWB_ERROR DXWarpBlend::GetPosRotFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	VWB_float view[16];
 	VWB_float clip[6];
@@ -152,9 +152,7 @@ VWB_ERROR DXWarpBlend::GetPosRotFov( VWB_float* eye, VWB_float* rot, VWB_float* 
 		}
 		pDir[0] += ( atan2( clip[2], nearDist ) - atan2( clip[0], nearDist ) );
 		pDir[1] += ( atan2( clip[3], nearDist ) - atan2( clip[1], nearDist ) );
-
 	}
-
 
 	return ret;
 }

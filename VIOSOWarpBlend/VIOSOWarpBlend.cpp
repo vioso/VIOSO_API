@@ -683,7 +683,7 @@ VWB_ERROR VWB_getViewClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot
 	return VWB_ERROR_PARAMETER;
 }
 
-VWB_ERROR VWB_getPosRotFov( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR VWB_getPosDirFov( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	if( NULL != pEye && NULL != pRot )
 	{
@@ -695,7 +695,7 @@ VWB_ERROR VWB_getPosRotFov( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRo
 	}
 	if( pWarper )
 	{
-		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosRotFov( pEye, pRot, pPos, pDir, pSymClip );
+		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosDirFov( pEye, pRot, pPos, pDir, pSymClip );
 		if( NULL != pPos && NULL != pDir && NULL != pSymClip )
 		{
 			logStr( 4,
@@ -1126,7 +1126,7 @@ VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_floa
 	return UpdateEye( eye, rot );
 }
 
-VWB_ERROR VWB_Warper_base::GetPosRotFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR VWB_Warper_base::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	return UpdateEye( eye, rot );
 }
