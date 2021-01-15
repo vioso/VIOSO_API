@@ -59,7 +59,7 @@ namespace VIOSOWarpBlend
         public static extern int VWB_getViewProj(IntPtr warper, ref VWB_VEC3 eye, ref VWB_VEC3 dir, ref VWB_MAT4X4 view, ref VWB_MAT4X4 proj );
         //VIOSOWARPBLEND_API( VWB_ERROR, VWB_render, ( VWB_Warper* pWarper, VWB_param src, VWB_uint stateMask ) );  
         [DllImport("VIOSOWarpBlend.dll", EntryPoint = "VWB_render", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int VWB_render(IntPtr warper, UInt32 stateMask );
+        public static extern int VWB_render(IntPtr warper, IntPtr src, UInt32 stateMask );
 
         IntPtr _warper = Marshal.AllocHGlobal(sizeof(Int64));
 
@@ -89,9 +89,9 @@ namespace VIOSOWarpBlend
             return (ERROR)VWB_Init(_warper);
         }
 
-        public ERROR Render(UInt32 stateMask)
+        public ERROR Render(IntPtr src, UInt32 stateMask)
         {
-            return (ERROR)VWB_render(_warper,stateMask);
+            return (ERROR)VWB_render(_warper, src, stateMask);
         }
 
         public ERROR GetViewProj(ref VWB_MAT4X4 view, ref VWB_MAT4X4 proj)
