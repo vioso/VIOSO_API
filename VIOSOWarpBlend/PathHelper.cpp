@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #endif
 
+#include <fstream>
+#include <string>
+
 char* MkPath(char* path, VWB_uint nMaxPath, char const* ext)
 {
 	if (NULL == path || 0 == path[0])
@@ -171,16 +174,17 @@ char* MkPath(char* path, VWB_uint nMaxPath, char const* ext)
 bool GetIniString(char const* szSection, char const* szKey, char const* szDefault, char* s, VWB_uint sz, char const* szConfigFile)
 {
 	bool bRet = false;
-	FILE* f = NULL;
 	bool bInChannel = false;
 	if (szDefault)
 		strcpy_s(s, sz, szDefault);
 	else
 		*s = 0;
 
-	if (NO_ERROR == fopen_s(&f, szConfigFile, "r"))
+	std::ifstream fs( szConfigFile );
+	if (!fs.bad())
 	{
-		for (char line[16384]; NULL != fgets(line, 32677, f); )
+		std::string line;
+		while( std::getline( fs, line ) )
 		{
 			//// remove comments
 			//for( wchar_t* c = line; *c; c++ )
@@ -190,7 +194,7 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 			//		break;
 			//	}
 			// remove white spaces at front and end
-			char* b = line;
+			char* b = &line[0];
 			char* e = b;
 			for (; *b; b++)
 				if (' ' != *b && '\t' != *b)
@@ -240,56 +244,83 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 				}
 			}
 		}
-		fclose(f);
 	}
 	return bRet;
 }
 
 VWB_int GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, char const* szConfigFile)
 {
-	char s[16384] = { 0 };
-	if (GetIniString(szSection, szKey, "", s, 16384, szConfigFile))
-		return atoi(s);
+	std::string s(16384,0);
+	if (GetIniString(szSection, szKey, "", &s[0], 16384, szConfigFile))
+		return atoi(s.c_str());
 	return iDefault;
 }
 
 VWB_float GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char const* szConfigFile)
 {
-	char s[16384] = { 0 };
-	if (GetIniString(szSection, szKey, "", s, 16384, szConfigFile))
-		return (VWB_float)atof(s);
+	std::string s( 16384, 0 );
+	if (GetIniString(szSection, szKey, "", &s[0], 16384, szConfigFile))
+		return (VWB_float)atof(s.c_str());
 	return fDefault;
 }
 
-VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, char const* szConfigFile)
+VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, char const* szConfigFile, bool bTranspose)
 {
 	if (NULL == f)
 		return NULL;
 	if (0 == dimX || 0 == dimY)
 		return NULL;
-	char s[16384] = { 0 };
-	GetIniString(szSection, szKey, "", s, 16384, szConfigFile);
-	char* pS = s;
-	if( *pS != '[' )
-		return NULL;
-	pS++;
-	int o = 0;
-	int oE = dimX * dimY;
-	for (; 1 == sscanf_s(pS, "%f", &f[o]) && o != oE; o++)
+	std::string s( 16384, 0 );
+	GetIniString(szSection, szKey, "", &s[0], 16384, szConfigFile);
+	char const* pS = s.c_str();
+	if( *pS == '[' )
 	{
-		char* pFS;
-		if ( (pFS = strchr( pS, ',' ) ) || ( pFS = strchr( pS, ';' ) ) || ( pFS = strchr( pS, ']' ) ) )
-			pS = pFS + 1;
+		pS++;
+		int o = 0;
+		int oE = dimX * dimY;
+		if( bTranspose )
+		{
+			for( int i = 0; i != dimX; i++ )
+			{
+				for( o = 0; 1 == sscanf_s( pS, "%f", &f[o + i] ) && o != oE; o += dimX )
+				{
+					char const* pFS = strchr( pS, ',' );
+					char const* pFSn = strchr( pS, ';' );
+					if( NULL != pFSn && pFSn < pFS )
+						pFS = pFSn;
+					if( pFS || ( pFS = strchr( pS, ']' ) ) )
+						pS = pFS + 1;
+					else
+					{
+						i = dimX - 1;
+						break;
+					}
+				}
+			}
+		}
 		else
-			break;
+		{
+			for( ; 1 == sscanf_s( pS, "%f", &f[o] ) && o != oE; o++ )
+			{
+				char const* pFS = strchr( pS, ',' );
+				char const* pFSn = strchr( pS, ';' );
+				if( NULL != pFSn && pFSn < pFS )
+					pFS = pFSn;
+				if( pFS || ( pFS = strchr( pS, ']' ) ) )
+					pS = pFS + 1;
+				else
+					break;
+			}
+		}
+		if( oE == o )
+			return f;
 	}
-	if (oE == o)
-		return f;
-	if (NULL != fDefault)
+	if( NULL != fDefault )
 	{
-		memcpy(f, fDefault, sizeof(VWB_float) * dimX * dimY);
+		memcpy( f, fDefault, sizeof( VWB_float ) * dimX * dimY );
 		return f;
 	}
+
 	for (int y = 0; y != dimY; y++)
 		for (int x = 0; x != dimX; x++)
 			f[dimX * y + x] = 0.0f;

@@ -684,7 +684,7 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		}
 	}
 
-	// update constent buffer
+	// update constant buffer
 	if( m_cbMap )
 	{
 		// the constant buffer is still mapped

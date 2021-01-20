@@ -43,3 +43,23 @@
 /Examples/DirectX11/Debug
 /VIOSOWarpBlend/x64/Debug Unity/VIOSOWarpBlend.tlog
 /VIOSOWarpBlend/x64/Debug Unity
+/bin/VIOSOWarpBlend64.pdb
+/bin/VIOSOWarpBlend64.ipdb
+/bin/VIOSOWarpBlend64.iobj
+/bin/VIOSOWarpBlend.pdb
+/bin/VIOSOWarpBlend.ipdb
+/bin/VIOSOWarpBlend.iobj
+/Examples/DirectX11/x64/Release
+/Examples/DirectX12/obj/x64/Release
+/Examples/DirectX9/Release
+/Examples/DirectX9Ex/Release
+/Examples/DirectX9_render/x64/Release
+/Examples/OpenGL_4/x64/Release
+/EyePointProvider/x64/Release
+/lib/VIOSOWarpBlend.exp
+/lib/VIOSOWarpBlend64.exp
+/Release
+/TrackerSim/x64/Release
+/VIOSOWarpBlend/Release
+/VIOSOWarpBlend/x64/Release
+/x64/Release

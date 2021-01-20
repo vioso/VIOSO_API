@@ -77,14 +77,15 @@ GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char c
 /// @param [IN] key a key name
 /// @param [IN] iDefault the default value
 /// @param [IN] szConfigFile the path to the ini file
+/// @param [IN|OPT] transpose matrix; this will transpose while reading from file, default must also be transposed in case
 /// @return f in case of success; this includes , NULL otherwise
 /// if fDefault is NULL, an empty matrix (all 0.0f) is returned
 VWB_float*
-GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, char const* szConfigFile);
+GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, char const* szConfigFile, bool bTranspose = false );
 template< int sz>
 VWB_float*
-GetIniMat(char const* szSection, char const* szKey, VWB_float const* fDefault, VWB_float(&f)[sz], char const* szConfigFile) 
-{ return GetIniMat(szSection, szKey, sz, 1, fDefault, f, szConfigFile); }
+GetIniMat(char const* szSection, char const* szKey, VWB_float const* fDefault, VWB_float(&f)[sz], char const* szConfigFile, bool bTranspose = false ) 
+{ return GetIniMat(szSection, szKey, sz, 1, fDefault, f, szConfigFile, bTranspose); }
 
 #endif //ndef VWB_PATH_HELPER_HPP
 

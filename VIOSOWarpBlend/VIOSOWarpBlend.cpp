@@ -78,6 +78,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		char s[1024];
 		char sDef[MAX_PATH + 1024];
 		int iDef;
+		float fDef;
 
 		GetIniString( "default", "logFile", g_logFilePath, sDef, MAX_PATH, path );
 		GetIniString( channel, "logFile", sDef, g_logFilePath, MAX_PATH, path );
@@ -127,29 +128,46 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 			calibIndex = -1 * ( GetIniInt( channel, "calibAdapterOrdinal", iDef, path ) );
 		}
 	
-		VWB_float const _Zero[16] = { 0 };
-		GetIniMat("default", "eye", 3, 1, _Zero, eye, path);
+		VWB_float const _defFoV[4] = { 35.0f,30.0f,35.0f,30.0f };
+		VWB_float const _defMat[16] = { 
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f
+		};
+		VWB_float vDef[16] = { 0 };
 
-		GetIniString( "default", "dir", "[0,0,0]", sDef, 1024, path );
-		GetIniString( channel, "dir", sDef, s, 1024, path );
-		sscanf_s( s, "[%f,%f,%f]", &dir[0], &dir[1], &dir[2] );
+		GetIniMat( "default", "eye", 3, 1, nullptr, vDef, path );
+		GetIniMat( channel, "eye", 3, 1, vDef, eye, path );
 
-		GetIniString( "default", "fov", "[35,30,35,30]", sDef, 1024, path );
-		GetIniString( channel, "fov", sDef, s, 1024, path );
-		sscanf_s( s, "[%f,%f,%f,%f]", &fov[0], &fov[1], &fov[2], &fov[3] );
+		GetIniMat( "default", "dir", 3, 1, nullptr, vDef, path );
+		GetIniMat( channel, "dir", 3, 1, vDef, dir, path );
 
-		GetIniString( "default", "near", "0.1", sDef, 1024, path );
-		GetIniString( channel, "near", sDef, s, 1024, path );
-		sscanf_s( s, "%f", &nearDist );
+		GetIniMat( "default", "fov", 4, 1, _defFoV, vDef, path );
+		GetIniMat( channel, "fov", 4, 1, vDef, fov, path );
 
-		GetIniString( "default", "far", "10000", sDef, 1024, path );
-		GetIniString( channel, "far", sDef, s, 1024, path );
-		sscanf_s( s, "%f", &farDist );
+		fDef = GetIniFloat( "default", "near", 0.125f, path );
+		nearDist = GetIniFloat( channel, "near", fDef, path );
 
-		GetIniString( "default", "screen", "2000", sDef, 1024, path );
-		GetIniString( channel, "screen", sDef, s, 1024, path );
-		sscanf_s( s, "%f", &screenDist );
+		fDef = GetIniFloat( "default", "far", 20000.0f, path );
+		farDist = GetIniFloat( channel, "far", fDef, path );
 
+		fDef = GetIniFloat( "default", "screen", 1.0f, path );
+		screenDist = GetIniFloat( channel, "screen", fDef, path );
+
+		if( NULL == GetIniMat( "default", "trans", 4, 4, nullptr, vDef, path, false ) )
+		{
+			if( NULL == GetIniMat( channel, "trans", 4, 4, nullptr, trans, path, false ) )
+			{
+				GetIniMat( "default", "base", 4, 4, _defMat, vDef, path, true );
+				GetIniMat( channel, "base", 4, 4, vDef, trans, path, true );
+			}
+		}
+		else
+		{
+			GetIniMat( channel, "trans", vDef, trans, path, false );
+		}
+		/*
 		GetIniString( "default", "trans", "", sDef, 1024, path );
 		GetIniString( channel, "trans", sDef, s, 1024, path );
 		if(	16 != sscanf_s( s, "[%f,%f,%f,%f;%f,%f,%f,%f;%f,%f,%f,%f;%f,%f,%f,%f]", 
@@ -167,7 +185,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 						&trans[2], &trans[6], &trans[10], &trans[14],
 						&trans[3], &trans[7], &trans[11], &trans[15] );
 		}
-
+		*/
 		iDef = GetIniInt( "default", "mode", -1, path );
 		iDef = GetIniInt( channel, "mode", iDef, path );
 		if( -1 != iDef )

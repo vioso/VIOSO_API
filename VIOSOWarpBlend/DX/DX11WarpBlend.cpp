@@ -800,6 +800,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			}
 			SAFERELEASE( pRes );
 		}
+
 		if( NULL == m_texBB )
 		{
 			D3D11_TEXTURE2D_DESC descTex;
@@ -827,7 +828,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			desc.Texture2D.MostDetailedMip = 0;
 
 			res = m_device->CreateShaderResourceView( pTexIn, &desc, &m_texBB );
-			pTexIn->Release();
 			if( FAILED( res ) )
 			{
 				logStr( 2, "Failed to create resource view from input texture.\n" );
@@ -863,6 +863,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					, descTex.MiscFlags
 			);
 		}
+
 		SAFERELEASE( pTexIn );
 	}
 

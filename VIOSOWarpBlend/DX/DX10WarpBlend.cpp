@@ -477,7 +477,7 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			pResIn->GetDesc( &descTex );
 			D3D10_SHADER_RESOURCE_VIEW_DESC desc;
 			desc.Format = descTex.Format;
-			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
 			desc.Texture2D.MipLevels = 1;
 			desc.Texture2D.MostDetailedMip = 0;
 
