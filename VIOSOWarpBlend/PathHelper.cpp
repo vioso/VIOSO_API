@@ -250,17 +250,17 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 
 VWB_int GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, char const* szConfigFile)
 {
-	std::string s(16384,0);
-	if (GetIniString(szSection, szKey, "", &s[0], 16384, szConfigFile))
-		return atoi(s.c_str());
+	char s[512] = { 0 };
+	if (GetIniString(szSection, szKey, "", s, 512, szConfigFile))
+		return atoi(s);
 	return iDefault;
 }
 
 VWB_float GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char const* szConfigFile)
 {
-	std::string s( 16384, 0 );
-	if (GetIniString(szSection, szKey, "", &s[0], 16384, szConfigFile))
-		return (VWB_float)atof(s.c_str());
+	char  s[512]= { 0 };
+	if (GetIniString(szSection, szKey, "", s, 512, szConfigFile))
+		return (VWB_float)atof(s);
 	return fDefault;
 }
 
@@ -270,9 +270,9 @@ VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dim
 		return NULL;
 	if (0 == dimX || 0 == dimY)
 		return NULL;
-	std::string s( 16384, 0 );
-	GetIniString(szSection, szKey, "", &s[0], 16384, szConfigFile);
-	char const* pS = s.c_str();
+	char s[512] = { 0 };
+	GetIniString(szSection, szKey, "", s, 512, szConfigFile);
+	char const* pS = s;
 	if( *pS == '[' )
 	{
 		pS++;
@@ -282,7 +282,7 @@ VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dim
 		{
 			for( int i = 0; i != dimX; i++ )
 			{
-				for( o = 0; 1 == sscanf_s( pS, "%f", &f[o + i] ) && o != oE; o += dimX )
+				for( o = 0; o != oE && 1 == sscanf_s( pS, "%f", &f[o + i] ); o += dimX )
 				{
 					char const* pFS = strchr( pS, ',' );
 					char const* pFSn = strchr( pS, ';' );

@@ -60,16 +60,16 @@ vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture2D( sam, tex ); }
 )END";
 
 GLchar const* s_fragment_shader_header_v330 = R"END(
-"#version 330
-"uniform sampler2D samContent, samWarp, samBlend, samBlack;
-"uniform bool bBorder;	
-"uniform bool bDoNotBlend;
-"uniform bool bDoNoBlack;
-"uniform mat4 matView;	
-"uniform vec4 blackBias;
-"in vec2 texcoord;		
-"out vec4 FragColor;	
-"vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }
+#version 330
+uniform sampler2D samContent, samWarp, samBlend, samBlack;
+uniform bool bBorder;	
+uniform bool bDoNotBlend;
+uniform bool bDoNoBlack;
+uniform mat4 matView;	
+uniform vec4 blackBias;
+in vec2 texcoord;		
+out vec4 FragColor;	
+vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }
 )END";
 
 GLchar const* s_func_tex2D_BC = R"END(

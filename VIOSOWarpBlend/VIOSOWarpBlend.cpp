@@ -128,6 +128,15 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 			calibIndex = -1 * ( GetIniInt( channel, "calibAdapterOrdinal", iDef, path ) );
 		}
 	
+		fDef = GetIniFloat( "default", "near", 0.125f, path );
+		nearDist = GetIniFloat( channel, "near", fDef, path );
+
+		fDef = GetIniFloat( "default", "far", 20000.0f, path );
+		farDist = GetIniFloat( channel, "far", fDef, path );
+
+		fDef = GetIniFloat( "default", "screen", 1.0f, path );
+		screenDist = GetIniFloat( channel, "screen", fDef, path );
+
 		VWB_float const _defFoV[4] = { 35.0f,30.0f,35.0f,30.0f };
 		VWB_float const _defMat[16] = { 
 			1.0f, 0.0f, 0.0f, 0.0f,
@@ -135,6 +144,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 			0.0f, 0.0f, 1.0f, 0.0f,
 			0.0f, 0.0f, 0.0f, 1.0f
 		};
+
 		VWB_float vDef[16] = { 0 };
 
 		GetIniMat( "default", "eye", 3, 1, nullptr, vDef, path );
@@ -146,15 +156,6 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		GetIniMat( "default", "fov", 4, 1, _defFoV, vDef, path );
 		GetIniMat( channel, "fov", 4, 1, vDef, fov, path );
 
-		fDef = GetIniFloat( "default", "near", 0.125f, path );
-		nearDist = GetIniFloat( channel, "near", fDef, path );
-
-		fDef = GetIniFloat( "default", "far", 20000.0f, path );
-		farDist = GetIniFloat( channel, "far", fDef, path );
-
-		fDef = GetIniFloat( "default", "screen", 1.0f, path );
-		screenDist = GetIniFloat( channel, "screen", fDef, path );
-
 		if( NULL == GetIniMat( "default", "trans", 4, 4, nullptr, vDef, path, false ) )
 		{
 			if( NULL == GetIniMat( channel, "trans", 4, 4, nullptr, trans, path, false ) )
@@ -165,27 +166,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		}
 		else
 		{
-			GetIniMat( channel, "trans", vDef, trans, path, false );
+			GetIniMat( channel, "trans", 4, 4, vDef, trans, path, false );
 		}
-		/*
-		GetIniString( "default", "trans", "", sDef, 1024, path );
-		GetIniString( channel, "trans", sDef, s, 1024, path );
-		if(	16 != sscanf_s( s, "[%f,%f,%f,%f;%f,%f,%f,%f;%f,%f,%f,%f;%f,%f,%f,%f]", 
-						&trans[0], &trans[1], &trans[2], &trans[3],
-						&trans[4], &trans[5], &trans[6], &trans[7],
-						&trans[8], &trans[9], &trans[10], &trans[11],
-						&trans[12], &trans[13], &trans[14], &trans[15] )
-		  )
-		{
-			GetIniString( "default", "base", "[1,0,0,0;0,1,0,0;0,0,1,0;0,0,0,1]", sDef, 1024, path );
-			GetIniString( channel, "base", sDef, s, 1024, path );
-			sscanf_s( s, "[%f,%f,%f,%f;%f,%f,%f,%f;%f,%f,%f,%f;%f,%f,%f,%f]", 
-						&trans[0], &trans[4], &trans[8], &trans[12],
-						&trans[1], &trans[5], &trans[9], &trans[13],
-						&trans[2], &trans[6], &trans[10], &trans[14],
-						&trans[3], &trans[7], &trans[11], &trans[15] );
-		}
-		*/
+
 		iDef = GetIniInt( "default", "mode", -1, path );
 		iDef = GetIniInt( channel, "mode", iDef, path );
 		if( -1 != iDef )
