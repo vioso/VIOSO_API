@@ -222,8 +222,6 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( NULL == m_PixelShader || NULL == m_device )
 		return VWB_ERROR_GENERIC;
 
-	// set viewport
-
 	LPDIRECT3DTEXTURE9 pSrc;
 	// do backbuffer copy if necessary
 	if( NULL == inputTexture ||
@@ -275,8 +273,13 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	float oldFVals[24] = {0};
 	IDirect3DBaseTexture9* ppOldTex[5] = {NULL};
 	D3DMATRIX mOldView,mOldWorld,mOldProj;
-
     // Record rendering state
+	D3DVIEWPORT9 vp;
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_device->GetViewport( &vp );
+		m_device->SetViewport( &m_vp );
+	}
 
 	if( VWB_STATEMASK_VERTEX_BUFFER & stateMask )
 		m_device->GetStreamSource( 0, &pOldVtx, &oldOffset, &oldStride );
@@ -325,7 +328,7 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
     SetTexture(0, pSrc);
     res = m_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_GAUSSIANQUAD); // GAUSSIANQUAD is a little better as it preserves fine structures, while sampling in the source texture
     res = m_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_GAUSSIANQUAD);
-    SetTexture(1, m_texWarp);
+    SetTexture( 1, m_texWarp);
 	SetTexture( 2, m_texBlend );
 
 	if (m_bDynamicEye)
@@ -566,6 +569,10 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			pOldVtx->Release();
 		}
 
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_device->SetViewport( &vp );
+	}
 	logStr( 4, "Render end." );
 	return VWB_ERROR_NONE;
 }

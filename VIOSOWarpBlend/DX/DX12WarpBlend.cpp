@@ -725,7 +725,16 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	m_cl->SetGraphicsRootConstantBufferView( 0, m_cb->GetGPUVirtualAddress() );
 	m_cl->SetGraphicsRootDescriptorTable( 1, m_srvHeap->GetGPUDescriptorHandleForHeapStart() );
 
-	const D3D12_VIEWPORT vp{ 0.0f, 0.0f, (FLOAT)descRT.Width, (FLOAT)descRT.Height, 0.0f, 1.0f };
+
+	D3D12_VIEWPORT vp;
+	if( 0 != in->viewport[2] && 0 != in->viewport[3] )
+	{
+		vp = { in->viewport[0], in->viewport[1], in->viewport[2], in->viewport[3], in->viewport[4], in->viewport[5] };
+	}
+	else
+	{
+		vp = { 0.0f, 0.0f, (FLOAT)descRT.Width, (FLOAT)descRT.Height, 0.0f, 1.0f };
+	}
 	m_cl->RSSetViewports( 1, &vp );
 	const D3D12_RECT sr{ 0, 0, (LONG)descRT.Width, (LONG)descRT.Height };
 	m_cl->RSSetScissorRects( 1, &sr );

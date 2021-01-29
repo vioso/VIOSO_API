@@ -304,6 +304,11 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	D3DMATRIX mOldView, mOldWorld, mOldProj;
 
 	// Record rendering state
+	D3DVIEWPORT9 vp;
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_device->GetViewport( &vp );
+	}
 
 	if( VWB_STATEMASK_VERTEX_BUFFER & stateMask )
 		m_device->GetStreamSource( 0, &pOldVtx, &oldOffset, &oldStride );
@@ -583,6 +588,11 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_device->SetStreamSource( 0, pOldVtx, oldOffset, oldStride );
 			pOldVtx->Release();
 		}
+
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_device->SetViewport( &vp );
+	}
 
 	return VWB_ERROR_NONE;
 }

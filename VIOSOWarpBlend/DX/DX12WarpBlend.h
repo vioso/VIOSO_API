@@ -25,13 +25,13 @@ protected:
 	ID3D12Resource*				m_texBB;
 	ID3D12Resource*				m_cb; // the constant buffer
 	void*						m_cbMap; // the constant buffer map address
+	D3D12_VIEWPORT				m_vp;				// the viewport, if width and height is set, use it on begin of rendering
 
 	//ID3D11ShaderResourceView*	m_texWarp;          // the warp lookup texture, in case of 3D it contains the real world 3D coordinates of the screen
 	//ID3D11ShaderResourceView*	m_texBlend;         // the blend lookup texture view
 	//ID3D11ShaderResourceView*	m_texBB;			// backbuffer copy or source texture view
 	//ID3D11ShaderResourceView*	m_texWarpCalc;		// the caclulated warp after model inscription
 	//ID3D11ShaderResourceView*	m_texCur;			// the mouse cursor texture
-	//D3D11_VIEWPORT				m_vp;				// the viewport, if width and height is set, use it on begin of rendering
 	//HWND						m_focusWnd;			// the focus window handle
 
 	//ID3D11Buffer*				m_VertexBuffer;		// the 

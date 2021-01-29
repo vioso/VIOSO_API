@@ -193,6 +193,7 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <MinimalRebuild />
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
@@ -382,10 +383,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DX11Example.cpp" />
+    <ClCompile Include="DX11Program.cpp" />
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DX11Program.h" />
     <CLInclude Include="resource.h" />
     <ResourceCompile Include="DX11Example.rc" />
   </ItemGroup>

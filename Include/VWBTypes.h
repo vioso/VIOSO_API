@@ -50,7 +50,7 @@ typedef enum VWB_ERROR
 } VWB_ERROR;
 
 typedef enum VWB_STATEMASK
-{   
+{
 	///< mask to capture and restore pipeline states and settings. All things are set by the warper
 	///< consider not restoring things you set each frame anyway
 	VWB_STATEMASK_STANDARD = 0, ///< VWB_STATEMASK_VERTEX_BUFFER | VWB_STATEMASK_INPUT_LAYOUT | VWB_STATEMASK_PRIMITIVE_TOPOLOGY | VWB_STATEMASK_RASTERSTATE
@@ -65,6 +65,7 @@ typedef enum VWB_STATEMASK
 	VWB_STATEMASK_SHADER_RESOURCE = 0x00000100, // shader resource 0 to 2 or texture register t0 to t2
 	VWB_STATEMASK_SAMPLER = 0x00001000, // Sampler state resource 0 to 2 in DX10 and later, DX9 sampler state is captured in state block
 	VWB_STATEMASK_CLEARBACKBUFFER = 0x00002000, // set to clear backbuffer
+	VWB_STATEMASK_VIEWPORT = 0x00004000, // set viewport to render target size and restores previous state REMARK this flag does not affect DX12
 	VWB_STATEMASK_ALL = 0x1FFFFFFF, // All
 	VWB_STATEMASK_DEFAULT = VWB_STATEMASK_VERTEX_BUFFER | VWB_STATEMASK_INPUT_LAYOUT | VWB_STATEMASK_PRIMITIVE_TOPOLOGY | VWB_STATEMASK_RASTERSTATE,
 	VWB_STATEMASK_DEFAULT_D3D12 = 0
@@ -585,6 +586,7 @@ typedef struct VWB_D3D12_RENDERINPUT
 	IUnknown* textureResource; // ID3D12Resource*, if NULL we use rendertarget as source and issue a copy, must be in D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE state
 	IUnknown* renderTarget; // ID3D12Resource* must be set to add a barrier to command list or to use as copy source, must be in D3D12_RESOURCE_STATE_PRESENT state
 	UINT64    rtvHandlePtr; // ptr value from D3D12_CPU_DESCRIPTOR_HANDLE of render target descriptor heap
+	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftX, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
 } VWB_D3D12_RENDERINPUT;
 
 //typedef struct VWB_D3D12Helper

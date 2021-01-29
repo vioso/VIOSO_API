@@ -1045,7 +1045,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
-	m_mViewIG = m_bRH ? VWB_MAT44f::R( DEG2RAD(dir[0]), DEG2RAD(dir[1]), DEG2RAD(dir[2]) ).Transposed() : VWB_MAT44f::RLHT( DEG2RAD(dir[0]), DEG2RAD(dir[1]), DEG2RAD(dir[2]) );
+	m_mViewIG = m_bRH ? VWB_MAT44f::R( DEG2RAD(dir[0]), DEG2RAD(dir[1]), DEG2RAD(dir[2]) ).Transposed() : VWB_MAT44f::RLHT( DEG2RAD(dir[0]), DEG2RAD(dir[1]), DEG2RAD(dir[2]) ); // TODO: BUG
 
 	// scale and shift back to original, to cancel out clipping scale/offset
 	m_mBaseI*= S.Inverted();
@@ -1129,6 +1129,8 @@ VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_floa
 
 VWB_ERROR VWB_Warper_base::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
+	if( !pDir || !pSymClip )
+		return VWB_ERROR_PARAMETER;
 	return UpdateEye( eye, rot );
 }
 
@@ -1238,7 +1240,11 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	}
 	else
 	{
-		logStr( 2, "INFO: AutoView mapping display corners (%.4f,%.4f,%.4f)-(%.4f,%.4f,%.4f).\n", ptl->x,ptl->y,ptl->z,pbr->x,pbr->y,pbr->z );
+		logStr( 3, "INFO: AutoView mapping display corners: tl(%.4f,%.4f,%.4f) tr(%.4f,%.4f,%.4f) bl(%.4f,%.4f,%.4f) br(%.4f,%.4f,%.4f).\n", 
+				ptl->x, ptl->y, ptl->z,
+				ptr->x, ptr->y, ptr->z,
+				pbl->x, pbl->y, pbl->z,
+				pbr->x,pbr->y,pbr->z );
 	}
 
 	// use corners to calculate 
@@ -1270,14 +1276,16 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	// getting rotation angles from local coords in global 
 	if( m_bRH )
 	{
-		VWB_VEC3f::ptr(dir) = M.Transposed().GetR_RH() * ( 180.0 / M_PI );
+		VWB_VEC3f::ptr( dir ) = M.Transposed().GetR_RH() * ( 180.0 / M_PI );
 	}
 	else
 	{
-		VWB_VEC3f::ptr(dir) = M.GetR_LHT() * ( 180.0 / M_PI );
+		VWB_VEC3f::ptr( dir ) = M.GetR_LHT() * ( 180.0 / M_PI );
 	}
 
-	
+	#if _DEBUG
+	VWB_MAT33d Mc = VWB_MAT33d::R( dir[0], dir[1], dir[2] );
+	#endif
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
 	double maxEL = FLT_MAX, maxET = FLT_MAX, maxER = -FLT_MAX, maxEB = -FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom throughout moving space

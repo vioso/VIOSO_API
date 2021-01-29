@@ -519,6 +519,14 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	ID3D10PixelShader* pOldPS = NULL;
 	ID3D10ShaderResourceView* ppOldSRV[5] = {0};
 	ID3D10SamplerState* ppOldSS[5] = {0};
+	D3D10_VIEWPORT vp[D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT];
+	UINT nVP = D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT;
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_device->RSGetViewports( &nVP, nullptr );
+		m_device->RSGetViewports( &nVP, vp );
+		m_device->RSSetViewports( 1, &m_vp );
+	}
 
 	if( VWB_STATEMASK_VERTEX_BUFFER & stateMask )
 		m_device->IAGetVertexBuffers( 0, 1, &pOldVtx, &oldStride, &oldOffset );
@@ -595,7 +603,7 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	m_device->PSSetShaderResources( 0, ARRAYSIZE(ppRes), ppRes );
 	m_device->PSSetSamplers( 0, 5, ppSam );
 
-////////////// draw
+	////////////// draw
 	if( VWB_STATEMASK_CLEARBACKBUFFER )
 	{
 		if( pDSV )
@@ -673,6 +681,11 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_device->IASetVertexBuffers( 0, 1, &pOldVtx, &oldStride, &oldOffset );
 			pOldVtx->Release();
 		}
+
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_device->RSSetViewports( nVP, vp );
+	}
 
 	return SUCCEEDED(res) ? VWB_ERROR_NONE : VWB_ERROR_GENERIC;
 }

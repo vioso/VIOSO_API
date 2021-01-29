@@ -266,7 +266,8 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					D3D11_TEXTURE2D_DESC desc;
 					pTex->GetDesc( &desc );
 					pTex->Release();
-
+					m_sizeIn.cx = desc.Width;
+					m_sizeIn.cy = desc.Height;
 					m_vp.Width = (FLOAT)desc.Width;
 					m_vp.Height = (FLOAT)desc.Height;
 					m_vp.TopLeftX = 0;
@@ -282,9 +283,10 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		if(FAILED(hr))
 		{
-			logStr( 0, "ERROR: Output buffer not found.\n" );
-			return VWB_ERROR_GENERIC;
+			logStr( 0, "WARNING: Render target not set; cannot check, if mapping dimensions fit.\n" );
 		}
+		else if( m_sizeIn.cx != m_sizeMap.cx || m_sizeIn.cy != m_sizeMap.cy )
+			logStr( 1, "WARNING: Input texture size does not match mapping size. This will produce sampling artefacts." );
 
 		D3D11_TEXTURE2D_DESC descTexW = {
 			(UINT)m_sizeMap.cx,//UINT Width;
@@ -604,7 +606,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;
 
-	logStr( 5, "RenderDX11..." );
+	logStr( 4, "RenderDX11..." );
 	if( NULL == m_PixelShader || NULL == m_device )
 	{
 		logStr( 3, "DX device or shader program not available.\n" );
@@ -718,6 +720,10 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					m_sizeIn.cy = desc.Height;
 					m_vp.Width = (FLOAT)desc.Width;
 					m_vp.Height = (FLOAT)desc.Height;
+					m_vp.TopLeftX = 0.0f;
+					m_vp.TopLeftY = 0.0f;
+					m_vp.MinDepth = 0.0f;
+					m_vp.MaxDepth = 1.0f;
 					if( SUCCEEDED( res ) )
 					{
 						D3D11_SHADER_RESOURCE_VIEW_DESC descSRV;
@@ -734,6 +740,8 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 						if( SUCCEEDED( res ) )
 						{
 							logStr( 2, "Backbuffer cloned." );
+							if( m_sizeIn.cx != m_sizeMap.cx || m_sizeIn.cy != m_sizeMap.cy )
+								logStr( 1, "WARNING: Backbuffer size does not match mapping size. This will produce sampling artefacts." );
 						}
 						else
 						{
@@ -838,6 +846,10 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_sizeIn.cy = descTex.Height;
 			m_vp.Width = (FLOAT)descTex.Width;
 			m_vp.Height = (FLOAT)descTex.Height;
+			m_vp.TopLeftX = 0.0f;
+			m_vp.TopLeftY = 0.0f;
+			m_vp.MinDepth = 0.0f;
+			m_vp.MaxDepth = 1.0f;
 			logStr( 2, "Input texture resource attached." );
 			logStr( 3, "Input texture desc:\n"
                     "Width           = %i\n"
@@ -862,6 +874,8 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					, descTex.CPUAccessFlags
 					, descTex.MiscFlags
 			);
+			if( m_sizeIn.cx != m_sizeMap.cx || m_sizeIn.cy != m_sizeMap.cy )
+				logStr( 1, "WARNING: Input texture size does not match mapping size. This will produce sampling artefacts." );
 		}
 
 		SAFERELEASE( pTexIn );
@@ -894,7 +908,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			logStr( 3, "Could not get input resource." );
 		}
 	}
-	logStr( 5, "RenderDX11, input tex set." );
+	logStr( 4, "RenderDX11, input tex set." );
 
 /////////////// save state
 	ID3D11Buffer* pOldVtx = NULL;
@@ -919,6 +933,12 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	UINT oldNVP = 0;
 	D3D11_VIEWPORT pOldVP[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE] = { 0 };
 
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+	{
+		m_dc->RSGetViewports( &oldNVP, nullptr );
+		m_dc->RSGetViewports( &oldNVP, pOldVP );
+		m_dc->RSSetViewports( 1, &m_vp );
+	}
 	if( VWB_STATEMASK_VERTEX_BUFFER & stateMask )
 		m_dc->IAGetVertexBuffers( 0, 1, &pOldVtx, &oldStride, &oldOffset );
 	if( VWB_STATEMASK_INPUT_LAYOUT & stateMask )
@@ -927,8 +947,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	    m_dc->IAGetPrimitiveTopology( &oldTopo );
 	if( VWB_STATEMASK_RASTERSTATE & stateMask )
 	{
-		m_dc->RSGetViewports( &oldNVP, NULL );
-		m_dc->RSGetViewports( &oldNVP, pOldVP );
 		m_dc->RSGetState( &pOldRS );
 		m_dc->OMGetBlendState( &pOldBS, bf, &dsm );
 		m_dc->OMGetDepthStencilState( &pOldDS, 0 );
@@ -1116,7 +1134,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	m_dc->VSSetConstantBuffers( 0, 1, &m_ConstantBuffer );
 
 	m_dc->RSSetState( m_RasterState );
-	//m_dc->RSSetViewports( 1, &m_vp );
 	m_dc->PSSetShader( m_PixelShader, NULL, 0 );
 	m_dc->PSSetConstantBuffers( 0, 1, &m_ConstantBuffer );
 
@@ -1226,6 +1243,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_dc->IASetVertexBuffers( 0, 1, &pOldVtx, &oldStride, &oldOffset );
 			pOldVtx->Release();
 		}
+
+	if( VWB_STATEMASK_VIEWPORT & stateMask )
+		m_dc->RSSetViewports( oldNVP, pOldVP );
 
 	return SUCCEEDED(res) ? VWB_ERROR_NONE : VWB_ERROR_GENERIC;
 }

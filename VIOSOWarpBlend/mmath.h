@@ -6,13 +6,16 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <float.h>
+#include <limits>
 #include "../Include/VWBTypes.h"
 
-#define DEG2RAD( v ) ( (v) * VWB_float(M_PI / 180) )
-#define RAD2DEG( v ) ( (v) * VWB_float(180 / M_PI) )
-#define DEG2RADf( v ) ( (v) * VWB_float(M_PI / 180) )
-#define RAD2DEGf( v ) ( (v) * VWB_float(180 / M_PI) )
-#define DEG2RADd( v ) ( (v) * VWB_double(M_PI / 180) )
+#define PI 3.14159265358979323846
+#define PIDIV2 (3.14159265358979323846 / 2)
+#define DEG2RAD( v ) ( (v) * VWB_float(PI / 180) )
+#define RAD2DEG( v ) ( (v) * VWB_float(180 / PI) )
+#define DEG2RADf( v ) ( (v) * VWB_float(PI / 180) )
+#define RAD2DEGf( v ) ( (v) * VWB_float(180 / PI) )
+#define DEG2RADd( v ) ( (v) * VWB_double(PI / 180) )
 #define RAD2DEGd( v ) ( (v) * VWB_double(180 / M_PI) )
 
 template<class T>
