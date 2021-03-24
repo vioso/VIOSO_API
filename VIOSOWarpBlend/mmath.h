@@ -35,7 +35,8 @@ struct VWB_VECTOR3
 	T y;
 	T z;
 	_inline_ VWB_VECTOR3() {};
-	_inline_ VWB_VECTOR3( VWB_VECTOR3 const& other ) { memcpy( this, &other, sizeof( *this ) ); }
+	template< class _T2 >
+	_inline_ VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
     // without the following initualizer commented out gcc complains about amiguity (with the preceding initialzer?)
 	//_inline_ VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR3( T _x, T _y, T _z ) : x(_x), y(_y), z(_z) {}
@@ -219,8 +220,10 @@ struct VWB_VECTOR4
 	T z;
 	T w;
 	_inline_ VWB_VECTOR4() {};
-	_inline_ VWB_VECTOR4( VWB_VECTOR4 const& other ) { memcpy( this, &other, sizeof( *this ) ); }
-	_inline_ VWB_VECTOR4( VWB_VECTOR3<T> const& other ) { memcpy( this, &other, sizeof( other ) ); w = 1; }
+	template< class _T2>
+	_inline_ VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
+	template< class _T2>
+	_inline_ VWB_VECTOR4( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)1 ) {}
 	_inline_ VWB_VECTOR4( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR4( T _x, T _y, T _z, T _w ) : x(_x), y(_y), z(_z), w(_w) {}
 	_inline_ static VWB_VECTOR4 const& ptr( T const* p ) { return *(VWB_VECTOR4 const*)p; }
@@ -392,49 +395,33 @@ struct VWB_MATRIX
 	_inline_ static VWB_MATRIX T( VWB_VECTOR3<_T> const& t ) { VWB_MATRIX res( 1,0,0,t.x,0,1,0,t.y,0,0,1,t.z,0,0,0,1); return res;}
 	_inline_ static VWB_MATRIX T( _T x, _T y, _T z ) { VWB_MATRIX res( 1,0,0,x,0,1,0,y,0,0,1,z,0,0,0,1); return res;}
 
-	_inline_ static VWB_MATRIX Rx( _T x ) { return VWB_MATRIX( 1,0,0,0,  0,std::cos(x),-std::sin(x),0,  0,std::sin(x),std::cos(x),0, 0,0,0,1 ); }
-	_inline_ static VWB_MATRIX Ry( _T y ) { return VWB_MATRIX( std::cos(y),0,-std::sin(y),0,  0,1,0,0, std::sin(y),0,std::cos(y),0, 0,0,0,1 ); } 
-	_inline_ static VWB_MATRIX Rz( _T z ) { return VWB_MATRIX( std::cos(z),std::sin(z),0,0,  -std::sin(z),std::cos(z),0,0, 0,0,1,0, 0,0,0,1 ); }
+	// DONE:
+	_inline_ static VWB_MATRIX Rx( _T x ) { return VWB_MATRIX( 1, 0, 0, 0,   0, std::cos( x ), std::sin( x ), 0,   0, -std::sin( x ), std::cos( x ), 0,   0, 0, 0, 1 ); }
+	_inline_ static VWB_MATRIX Ry( _T y ) { return VWB_MATRIX( std::cos( y ), 0, std::sin( y ), 0,   0, 1, 0, 0,   -std::sin( y ), 0, std::cos( y ), 0,   0, 0, 0, 1 ); }
+	_inline_ static VWB_MATRIX Rz( _T z ) { return VWB_MATRIX( std::cos( z ), -std::sin( z ), 0, 0,   std::sin( z ), std::cos( z ), 0, 0,   0, 0, 1, 0,   0, 0, 0, 1 ); }
+
 	_inline_ static VWB_MATRIX R( _T x, _T y, _T z )  // this is Rz(z) * Rx(x) * Ry(y)
-	{ 
+	{
 		return VWB_MATRIX(
-			 std::cos(y)*std::cos(z)-std::sin(x)*std::sin(y)*std::sin(z),	std::cos(x)*std::sin(z),	-std::sin(x)*std::cos(y)*std::sin(z)-std::sin(y)*std::cos(z),0,
-			-std::sin(x)*std::sin(y)*std::cos(z)-std::cos(y)*std::sin(z),	 std::cos(x)*std::cos(z),	 std::sin(y)*std::sin(z)-std::sin(x)*std::cos(y)*std::cos(z),0,
-			 std::cos(x)*std::sin(y),							 std::sin(x),		std::cos(x)*std::cos(y),0, 0,0,0,1 );
+			std::cos( y ) * std::cos( z ) + std::sin( x ) * std::sin( y ) * std::sin( z ), -std::cos( x ) * std::sin( z ), -std::sin( x ) * std::cos( y ) * std::sin( z ) + std::sin( y ) * std::cos( z ), 0,
+			std::sin( x ) * std::sin( y ) * std::cos( z ) + std::cos( y ) * std::sin( z ), std::cos( x ) * std::cos( z ), std::sin( y ) * std::sin( z ) + std::sin( x ) * std::cos( y ) * std::cos( z ), 0,
+			-std::cos( x ) * std::sin( y ), -std::sin( x ), std::cos( x ) * std::cos( y ), 0,
+			0, 0, 0, 1 );
 	}
-	_inline_ static VWB_MATRIX R( VWB_VECTOR3<_T> r )  // this is Rz(z) * Rx(x) * Ry(y)
-	{ 
-		return VWB_MATRIX(
-			 std::cos(r.y)*std::cos(r.z)-std::sin(r.x)*std::sin(r.y)*std::sin(r.z),	std::cos(r.x)*std::sin(r.z),	-std::sin(r.x)*std::cos(r.y)*std::sin(r.z)-std::sin(r.y)*std::cos(r.z),0,
-			-std::sin(r.x)*std::sin(r.y)*std::cos(r.z)-std::cos(r.y)*std::sin(r.z),	 std::cos(r.x)*std::cos(r.z),	std::sin(r.y)*std::sin(r.z)-std::sin(r.x)*std::cos(r.y)*std::cos(r.z),0,
-			 std::cos(r.x)*std::sin(r.y),							 std::sin(r.x),		std::cos(r.x)*std::cos(r.y),0, 0,0,0,1 );
-	}
+	_inline_ static VWB_MATRIX R( VWB_VECTOR3<_T> r ) { return R( r.x, r.y, r.z ); }
 
-	// transposed ones
-	_inline_ static VWB_MATRIX TT( VWB_VECTOR3<_T> const& t ) { VWB_MATRIX res( 1,0,0,0,0,1,0,0,0,0,1,0,t.x,t.y,t.z,1); return res;}
-	_inline_ static VWB_MATRIX TT( _T x, _T y, _T z ) { VWB_MATRIX res( 1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1); return res;}
 	// transposed matrices
-	_inline_ static VWB_MATRIX RxLHT( _T x ) { return VWB_MATRIX( 1,0,0,0,  0,std::cos(x),std::sin(x),0,  0,-std::sin(x),std::cos(x),0, 0,0,0,1 ); }
-	_inline_ static VWB_MATRIX RyLHT( _T y ) { return VWB_MATRIX(std::cos(y),0,-std::sin(y),0,  0,1,0,0, std::sin(y),0,std::cos(y),0,  0,0,0,1 ); } 
-	_inline_ static VWB_MATRIX RzLHT( _T z ) { return VWB_MATRIX(std::cos(z),std::sin(z),0,0,  -std::sin(z),std::cos(z),0,0, 0,0,1,0,  0,0,0,1 ); }
-	_inline_ static VWB_MATRIX RLHT( _T x, _T y, _T z ) // this is RyT(y) * RxT(x) * RzT(z)
-	{ 
-		return VWB_MATRIX( 
-			 std::cos(y)*std::cos(z)-std::sin(x)*std::sin(y)*std::sin(z),	-std::sin(x)*std::sin(y)*std::cos(z)-std::cos(y)*std::sin(z),	-std::cos(x)*std::sin(y), 0,
-			 std::cos(x)*std::sin(z),							std::cos(x)*std::cos(z),						 -std::sin(x), 0,
-			 std::sin(x)*std::cos(y)*std::sin(z)+std::sin(y)*std::cos(z),	-std::sin(y)*std::sin(z)+std::sin(x)*std::cos(y)*std::cos(z),	 std::cos(x)*std::cos(y), 0, 
-			 0,0,0,1 );
-	}
-	_inline_ static VWB_MATRIX RLHT( VWB_VECTOR3<_T> r) // this is RyT(y) * RxT(x) * RzT(z)
-	{ 
-		return VWB_MATRIX( 
-			 std::cos(r.y)*std::cos(r.z)-std::sin(r.x)*std::sin(r.y)*std::sin(r.z),	-std::sin(r.x)*std::sin(r.y)*std::cos(r.z)-std::cos(r.y)*std::sin(r.z),	-std::cos(r.x)*std::sin(r.y),0,
-			 std::cos(r.x)*std::sin(r.z),							std::cos(r.x)*std::cos(r.z),						 -std::sin(r.x),0,
-			 std::sin(r.x)*std::cos(r.y)*std::sin(r.z)+std::sin(r.y)*std::cos(r.z),	-std::sin(r.y)*std::sin(r.z)+std::sin(r.x)*std::cos(r.y)*std::cos(r.z),	 std::cos(r.x)*std::cos(r.y),0,
-			 0,0,0,1 );
-	}
+	_inline_ static VWB_MATRIX Rx_LHT( _T x ) { return VWB_MATRIX::Rx( -x ); }
+	_inline_ static VWB_MATRIX Ry_LHT( _T y ) { return VWB_MATRIX::Ry( -y ); }
+	_inline_ static VWB_MATRIX Rz_LHT( _T z ) { return VWB_MATRIX::Rz( -z ); }
+	// this is RyLHT(y) * RxLHT(x) * RzLHT(z)
+	_inline_ static VWB_MATRIX R_LHT( _T x, _T y, _T z ) { return VWB_MATRIX::R( -x, -y, -z ); }
+	_inline_ static VWB_MATRIX R_LHT( VWB_VECTOR3<_T> r ) { return R_LHT( r.x, r.y, r.z ); }
 
-	_inline_ static VWB_MATRIX PLHT( VWB_VECTOR4<_T> const& viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> const& eye )
+	_inline_ static VWB_MATRIX T_T( VWB_VECTOR3<_T> const& t ) { VWB_MATRIX res( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, t.x, t.y, t.z, 1 ); return res; }
+	_inline_ static VWB_MATRIX T_T( _T x, _T y, _T z ) { VWB_MATRIX res( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1 ); return res; }
+
+	_inline_ static VWB_MATRIX P_LHT( VWB_VECTOR4<_T> const& viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> const& eye )
 	{
 		//2*zn/(r-l)   0            0              0
 		//0            2*zn/(t-b)   0              0
@@ -471,7 +458,7 @@ struct VWB_MATRIX
 			(_T)0 );
 	}
 
-	_inline_ static VWB_MATRIX PRHT( VWB_VECTOR4<_T> const& viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
+	_inline_ static VWB_MATRIX P_RHT( VWB_VECTOR4<_T> const& viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
 	{
 		return VWB_MATRIX(
 			(_T)2 * ( screenDist + eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
@@ -495,7 +482,7 @@ struct VWB_MATRIX
 			(_T)0 );
 	}
 
-	_inline_ static VWB_MATRIX PRH( VWB_VECTOR4<_T> viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
+	_inline_ static VWB_MATRIX P( VWB_VECTOR4<_T> viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
 	{
 		return VWB_MATRIX(
 			/* 0*/ (_T)2 * ( screenDist + eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
@@ -518,7 +505,7 @@ struct VWB_MATRIX
 			/*14*/ (_T)2 * nearDist * farDist / ( nearDist - farDist ),
 			/*15*/ (_T)0 );
 	}
-	_inline_ static VWB_MATRIX PLH( VWB_VECTOR4<_T> viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
+	_inline_ static VWB_MATRIX P_LH( VWB_VECTOR4<_T> viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
 	{
 		return VWB_MATRIX(
 			/* 0*/ (_T)2 * ( screenDist - eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
@@ -615,6 +602,7 @@ struct VWB_MATRIX
 			/*14*/ (_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
 			/*15*/ (_T)0 );
 	}
+
 	_inline_ static VWB_MATRIX GLFrustumLH( _T const* pClip )
 	{
 		return VWB_MATRIX(
@@ -638,7 +626,6 @@ struct VWB_MATRIX
 			/*14*/ (_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
 			/*15*/ (_T)0 );
 	}
-
 
 	_inline_ _T& operator()(unsigned int row, unsigned int col) { return m[row][col]; }
 	_inline_ _T const& operator()(unsigned int row, unsigned int col) const { return m[row][col]; }
@@ -718,6 +705,33 @@ struct VWB_MATRIX
 		return res;
 	}
 
+	_inline_ VWB_MATRIX& operator+=( VWB_MATRIX const& other )
+	{
+		for( int i = 0; i != 16; i++ )
+			p[i] += other.p[i];
+		return *this;
+	}
+	_inline_ VWB_MATRIX& operator-=( VWB_MATRIX const& other )
+	{
+		for( int i = 0; i != 16; i++ )
+			p[i] -= other.p[i];
+		return *this;
+	}
+	_inline_ VWB_MATRIX operator+( VWB_MATRIX const& other ) const
+	{
+		VWB_MATRIX res;
+		for( int i = 0; i != 16; i++ )
+			res[i] = p[i] + other.p[i];
+		return res;
+	}
+	_inline_ VWB_MATRIX operator-( VWB_MATRIX const& other ) const
+	{
+		VWB_MATRIX res;
+		for( int i = 0; i != 16; i++ )
+			res[i] = p[i] - other.p[i];
+		return res;
+	}
+
 	_inline_ void SetPtr( _T* p ) const
 	{
 		memcpy( p, this, sizeof( *this ) );
@@ -752,7 +766,7 @@ struct VWB_MATRIX
 		return *this;
 	}
 
-	_inline_ VWB_MATRIX Transposed()	{ return VWB_MATRIX ( _11, _21, _31, _41, _12, _22, _32, _42, _13, _23, _33, _43,_14, _24, _34, _44 ); }
+	_inline_ VWB_MATRIX Transposed() const { return VWB_MATRIX ( _11, _21, _31, _41, _12, _22, _32, _42, _13, _23, _33, _43,_14, _24, _34, _44 ); }
 
 	_inline_ VWB_MATRIX& Invert()
 	{
@@ -959,60 +973,47 @@ struct VWB_MATRIX33
 	_inline_ static VWB_MATRIX33 O() { VWB_MATRIX33 res; memset( res, 0, sizeof( res ) ); return res;}
 	_inline_ static VWB_MATRIX33 S( VWB_VECTOR3<_T> const& scale) { return VWB_MATRIX33( scale.x, 0, 0,  0, scale.y, 0,  0, 0, scale.z );}
 	_inline_ static VWB_MATRIX33 S( _T const& sx, _T const& sy, _T const& sz ) { return VWB_MATRIX33( sx, 0, 0,  0, sy, 0,  0, 0, sz );}
-	_inline_ static VWB_MATRIX33 Rx( _T x ) { VWB_MATRIX33 res(1,0,0,  0,std::cos(x),-std::sin(x),  0,std::sin(x),std::cos(x) ); return res; }
-	_inline_ static VWB_MATRIX33 Ry( _T y ) { VWB_MATRIX33 res(std::cos(y),0,-std::sin(y),  0,1,0, std::sin(y),0,std::cos(y) ); return res; } 
-	_inline_ static VWB_MATRIX33 Rz( _T z ) { VWB_MATRIX33 res(std::cos(z),std::sin(z),0,  -std::sin(z),std::cos(z),0, 0,0,1 ); return res; }
+
+	// DONE:
+	_inline_ static VWB_MATRIX33 Rx( _T x ) { return VWB_MATRIX33( 1, 0, 0,   0, std::cos( x ), std::sin( x ),   0, -std::sin( x ), std::cos( x ) ); }
+	_inline_ static VWB_MATRIX33 Ry( _T y ) { return VWB_MATRIX33( std::cos( y ), 0, std::sin( y ),   0, 1, 0,   -std::sin( y ), 0, std::cos( y ) ); }
+	_inline_ static VWB_MATRIX33 Rz( _T z ) { return VWB_MATRIX33( std::cos( z ), -std::sin( z ), 0,   std::sin( z ), std::cos( z ), 0,   0, 0, 1 ); }
+
 	_inline_ static VWB_MATRIX33 R( _T x, _T y, _T z )  // this is Rz(z) * Rx(x) * Ry(y)
 	{ 
 		return VWB_MATRIX33(
-			 std::cos(y)*std::cos(z)-std::sin(x)*std::sin(y)*std::sin(z),	std::cos(x)*std::sin(z),	-std::sin(x)*std::cos(y)*std::sin(z)-std::sin(y)*std::cos(z),
-			-std::sin(x)*std::sin(y)*std::cos(z)-std::cos(y)*std::sin(z),	 std::cos(x)*std::cos(z),	 std::sin(y)*std::sin(z)-std::sin(x)*std::cos(y)*std::cos(z),
-			 std::cos(x)*std::sin(y),							 std::sin(x),		std::cos(x)*std::cos(y)						);
+			 std::cos(y)*std::cos(z)+std::sin(x)*std::sin(y)*std::sin(z),	-std::cos(x)*std::sin(z),	-std::sin(x)*std::cos(y)*std::sin(z)+std::sin(y)*std::cos(z),
+			 std::sin(x)*std::sin(y)*std::cos(z)+std::cos(y)*std::sin(z),	 std::cos(x)*std::cos(z),	 std::sin(y)*std::sin(z)+std::sin(x)*std::cos(y)*std::cos(z),
+			-std::cos(x)*std::sin(y),							            -std::sin(x),		         std::cos(x)*std::cos(y) );
 	}
-	_inline_ static VWB_MATRIX33 R( VWB_VECTOR3<_T> r )  // this is Rz(z) * Rx(x) * Ry(y)
-	{ 
-		return VWB_MATRIX33(
-			 std::cos(r.y)*std::cos(r.z)-std::sin(r.x)*std::sin(r.y)*std::sin(r.z),	std::cos(r.x)*std::sin(r.z),	-std::sin(r.x)*std::cos(r.y)*std::sin(r.z)-std::sin(r.y)*std::cos(r.z),
-			-std::sin(r.x)*std::sin(r.y)*std::cos(r.z)-std::cos(r.y)*std::sin(r.z),	 std::cos(r.x)*std::cos(r.z),	std::sin(r.y)*std::sin(r.z)-std::sin(r.x)*std::cos(r.y)*std::cos(r.z),
-			 std::cos(r.x)*std::sin(r.y),							 std::sin(r.x),		std::cos(r.x)*std::cos(r.y)						);
-	}
+	_inline_ static VWB_MATRIX33 R( VWB_VECTOR3<_T> r ) { return R( r.x, r.y, r.z ); }
 
 	// transposed matrices
-	_inline_ static VWB_MATRIX33 RxLHT( _T x ) { VWB_MATRIX33 res( 1,0,0,  0,std::cos(x),std::sin(x),  0,-std::sin(x),std::cos(x) ); return res; }
-	_inline_ static VWB_MATRIX33 RyLHT( _T y ) { VWB_MATRIX33 res(std::cos(y),0,-std::sin(y),  0,1,0, std::sin(y),0,std::cos(y) ); return res; } 
-	_inline_ static VWB_MATRIX33 RzLHT( _T z ) { VWB_MATRIX33 res(std::cos(z),std::sin(z),0,  -std::sin(z),std::cos(z),0, 0,0,1 ); return res; }
-	_inline_ static VWB_MATRIX33 RLHT( _T x, _T y, _T z ) // this is RyT(y) * RxT(x) * RzT(z)
-	{ 
-		return VWB_MATRIX33( 
-			 std::cos(y)*std::cos(z)-std::sin(x)*std::sin(y)*std::sin(z),	-std::sin(x)*std::sin(y)*std::cos(z)-std::cos(y)*std::sin(z),	-std::cos(x)*std::sin(y),
-			 std::cos(x)*std::sin(z),							std::cos(x)*std::cos(z),						 -std::sin(x),
-			 std::sin(x)*std::cos(y)*std::sin(z)+std::sin(y)*std::cos(z),	-std::sin(y)*std::sin(z)+std::sin(x)*std::cos(y)*std::cos(z),	 std::cos(x)*std::cos(y) );
-	}
-	_inline_ static VWB_MATRIX33 RLHT( VWB_VECTOR3<_T> r) // this is RyT(y) * RxT(x) * RzT(z)
-	{ 
-		return VWB_MATRIX33( 
-			 std::cos(r.y)*std::cos(r.z)-std::sin(r.x)*std::sin(r.y)*std::sin(r.z),	-std::sin(r.x)*std::sin(r.y)*std::cos(r.z)-std::cos(r.y)*std::sin(r.z),	-std::cos(r.x)*std::sin(r.y),
-			 std::cos(r.x)*std::sin(r.z),							std::cos(r.x)*std::cos(r.z),						 -std::sin(r.x),
-			 std::sin(r.x)*std::cos(r.y)*std::sin(r.z)+std::sin(r.y)*std::cos(r.z),	-std::sin(r.y)*std::sin(r.z)+std::sin(r.x)*std::cos(r.y)*std::cos(r.z),	 std::cos(r.x)*std::cos(r.y) );
-	}
+	_inline_ static VWB_MATRIX33 Rx_LHT( _T x ) { return VWB_MATRIX33::Rx( -x ); }
+	_inline_ static VWB_MATRIX33 Ry_LHT( _T y ) { return VWB_MATRIX33::Ry( -y ); }
+	_inline_ static VWB_MATRIX33 Rz_LHT( _T z ) { return VWB_MATRIX33::Rz( -z ); }
+	// this is RyLHT(y) * RxLHT(x) * RzLHT(z)
+	_inline_ static VWB_MATRIX33 R_LHT( _T x, _T y, _T z ) { return VWB_MATRIX33::R( -x, -y, -z ); }
+	_inline_ static VWB_MATRIX33 R_LHT( VWB_VECTOR3<_T> r ) { return R_LHT( r.x, r.y, r.z ); }
 
 	// give device x and y axis
 	_inline_ static VWB_MATRIX33 base( VWB_VECTOR3<_T> dx, VWB_VECTOR3<_T> dy )
 	{
 		VWB_MATRIX33 res;
-		dx.normalize();
-		dy.normalize();
 		res._11 = dx.x;
 		res._12 = dx.y;
 		res._13 = dx.z;
 		// y * x gives us a view direction aka base z in right handed system
-		res._31 = dx.y*dy.z - dx.z*dy.y;
-		res._32 = dx.z*dy.x - dx.x*dy.z;
-		res._33 = dx.x*dy.y - dx.y*dy.x;
+		res._31 = dx.y * dy.z - dx.z * dy.y;
+		res._32 = dx.z * dy.x - dx.x * dy.z;
+		res._33 = dx.x * dy.y - dx.y * dy.x;
 		// z * x gives us a up aka y
-		res._21 = dx.z*res._32 - dx.y*res._33;
-		res._22 = dx.x*res._33 - dx.z*res._31;
-		res._23 = dx.y*res._31 - dx.x*res._32;
+		res._21 = dx.z * res._32 - dx.y * res._33;
+		res._22 = dx.x * res._33 - dx.z * res._31;
+		res._23 = dx.y * res._31 - dx.x * res._32;
+		res.X().normalize();
+		res.Y().normalize();
+		res.Z().normalize();
 		return res;
 	}
 
@@ -1076,6 +1077,33 @@ struct VWB_MATRIX33
 			_31 * other.x + _32 * other.y + _33 * other.z );
 	}
 
+	_inline_ VWB_MATRIX33& operator+=( VWB_MATRIX33 const& other )
+	{
+		for( int i = 0; i != 9; i++ )
+			p[i] += other.p[i];
+		return *this;
+	}
+	_inline_ VWB_MATRIX33& operator-=( VWB_MATRIX33 const& other )
+	{
+		for( int i = 0; i != 9; i++ )
+			p[i] -= other.p[i];
+		return *this;
+	}
+	_inline_ VWB_MATRIX33 operator+( VWB_MATRIX33 const& other ) const
+	{
+		VWB_MATRIX33 res;
+		for( int i = 0; i != 9; i++ )
+			res[i] = p[i] + other.p[i];
+		return res;
+	}
+	_inline_ VWB_MATRIX33 operator-( VWB_MATRIX33 const& other ) const
+	{
+		VWB_MATRIX33 res;
+		for( int i = 0; i != 9; i++ )
+			res[i] = p[i] - other.p[i];
+		return res;
+	}
+
 	_inline_ void SetPtr( _T* p ) const
 	{
 		memcpy( p, this, sizeof( *this ) );
@@ -1087,15 +1115,15 @@ struct VWB_MATRIX33
 	// positive rotation around y turns (yaw) right
 	// positive rotation around z turns (roll) clockwise
 	// rotation order is y-x-z, this corresponds to R()
-	_inline_ VWB_VECTOR3<_T> GetR_RH() const
+	_inline_ VWB_VECTOR3<_T> GetR() const
 	{
 		VWB_VECTOR3<_T> a; 
-		a.y = atan2( p[6], p[8] );
-		_T s = -std::sin( a.y );
+		a.y = -atan2( p[6], p[8] );
+		_T s = std::sin( a.y );
 		_T c = std::cos( a.y );
 		_T l = sqrt( p[6] * p[6] + p[8] * p[8] );
-		a.x = atan2( p[7], l );
-		a.z = -atan2( s * p[5] + c * p[3], s * p[2] + c * p[0] );
+		a.x = -atan2( p[7], l );
+		a.z = atan2( s * p[5] + c * p[3], s * p[2] + c * p[0] );
 		return a;
 	}
 
@@ -1105,17 +1133,7 @@ struct VWB_MATRIX33
 	// positive rotation around y turns (yaw) right
 	// positive rotation around z turns (roll) clockwise
 	// rotation order is y-x-z, this corresponds to RT()
-	_inline_ VWB_VECTOR3<_T> GetR_LHT() const
-	{
-		VWB_VECTOR3<_T> a;
-		a.y = atan2( -p[2], p[8] );
-		_T s = std::sin( a.y );
-		_T c = std::cos( a.y );
-		_T l = sqrt( p[2] * p[2] + p[8] * p[8] );
-		a.x = -atan2( p[5], l );
-		a.z = -atan2( s * p[7] + c * p[1], s * p[6] + c * p[0] );
-		return a;
-	}
+	_inline_ VWB_VECTOR3<_T> GetR_LHT() const {	return -Transposed().GetR();	}
 
 	_inline_ VWB_MATRIX33& Transpose()
 	{
@@ -1134,7 +1152,7 @@ struct VWB_MATRIX33
 		return *this;
 	}
 
-	_inline_ VWB_MATRIX33 Transposed()	{ return VWB_MATRIX33 ( _11, _21, _31,  _12, _22, _32,  _13, _23, _33 ); }
+	_inline_ VWB_MATRIX33 Transposed() const	{ return VWB_MATRIX33 ( _11, _21, _31,  _12, _22, _32,  _13, _23, _33 ); }
 
 	_inline_ VWB_MATRIX33& Invert()
 	{

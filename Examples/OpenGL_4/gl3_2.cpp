@@ -37,7 +37,8 @@ GLuint iVATex = -1;				// the vertex array for texture
 GLuint locVAPos = -1;			// the location of the position input
 GLuint locVACol = -1;			// the location of the color input
 GLuint locVATex = -1;			// the location of the texture input
-GLuint locMatViewProj = -1;     // the location of the view/proj matrix
+GLuint locMatProj = -1;			// the location of the projection matrix
+GLuint locMatView = -1;			// the location of the view matrix
 
 __declspec(align(4)) struct Vertex
 {
@@ -48,32 +49,31 @@ __declspec(align(4)) struct Vertex
 std::vector<Vertex> vertices;
 
 GLchar const* pszShaders[] = {
-"#version 330 core													\n"
-"uniform mat4 matViewProj;											\n"
-"layout( location = 0 ) in vec3 in_position;						\n"
-"layout( location = 1 ) in vec4 in_color;							\n"
-//"layout( location = 2 ) in vec2 in_tex;								\n"
-"out vec4 vtx_color;												\n"
-"																	\n"
-"void main(void) {													\n"
-"	gl_Position = vec4(in_position.xyz, 1.0);						\n"
-"	gl_Position*= matViewProj;										\n"
-"	gl_Position.x/= gl_Position.w;									\n"
-"	gl_Position.y/= gl_Position.w;									\n"
-"	gl_Position.z/= gl_Position.w;									\n"
-"	gl_Position.w/= 1.0;											\n"
-//"	vtx_color = vec4(1.0,0.9,0.4,1.0);											\n"
-"	vtx_color = in_color;											\n"
-"}																	\n",
-"#version 330 core														\n"
-"precision highp float; // Video card drivers require this line to function properly\n"
-"in vec4 vtx_color;													\n"
-"out vec4 out_color;												\n"
-"void main()														\n"
-"{																	\n"
-//"	out_color = vec4(1.0,1.0,1.0,1.0);								\n"
-"	out_color = vtx_color;											\n"
-"}																	\n"
+R"END(#version 330 core
+uniform mat4 matView;
+uniform mat4 matProj;
+layout( location = 0 ) in vec3 in_position;
+layout( location = 1 ) in vec4 in_color;
+//layout( location = 2 ) in vec2 in_tex;
+out vec4 vtx_color;
+//out vec2 vtx_tex;
+
+void main(void) {
+	vec4 viewSpace = matView * vec4(in_position.xyz, 1.0);
+	gl_Position = matProj * viewSpace;
+	vtx_color = in_color;
+//	vtx_tex = in_tex;
+})END",
+R"END(#version 330 core
+precision highp float; // Video card drivers require this line to function properly
+in vec4 vtx_color;
+//in vec2 vtx_tex;
+out vec4 out_color;
+void main()
+{
+//	out_color = vec4(1.0,1.0,1.0,1.0);
+	out_color = vtx_color;
+})END"
 };
 
 HDC			hDC=NULL;		// Private GDI Device Context
@@ -297,10 +297,10 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	glDebugMessageCallback(&glLog, nullptr);
 #endif
 
-	//glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
+	glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
 	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
 	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
-	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
+	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 
 	// vertex shader
 	iVert = glCreateShader( GL_VERTEX_SHADER );
@@ -357,7 +357,8 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 		return FALSE;
 	}
 
-	locMatViewProj = glGetUniformLocation(iProg, "matViewProj");
+	locMatProj = glGetUniformLocation( iProg, "matProj" );
+	locMatView = glGetUniformLocation( iProg, "matView" );
 	locVAPos = glGetAttribLocation(iProg, "in_position");
 	locVACol = glGetAttribLocation(iProg, "in_color");
 	locVATex = glGetAttribLocation(iProg, "in_tex");
@@ -370,49 +371,92 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 		return FALSE;
 	}
 
+	// render some cubes around 0,0,0
+	static const int s_nCubes = 9;
+	static const int s_nnCubes = 2 * s_nCubes * s_nCubes + 2 * s_nCubes * ( s_nCubes - 2 ) + 2 * ( s_nCubes - 2 ) * ( s_nCubes - 2 );
+	static const float sz = 10.0f / ( 3 * s_nCubes - 1 );
+	static const int gg = s_nCubes / 2;
 	vertices.clear();
-	GLfloat b = 0.5f * GLfloat(M_PI) / c_numTri;
-	for (int i = 0; i != c_numTri; i++)
+	vertices.reserve( s_nnCubes );
+
+	// cube corners calculated from cube center
+	//     E/-----/|F       ^y
+	//     /  6  / |        |
+	//   A|-----|B2|        |---->x
+	//   5|  3  | / G      /
+	//    |-----|/        /z     
+	//   D   1   C
+	static const float corners[8][3] =
 	{
-		GLfloat a = 4.0f * b * i;
-		Vertex v = {0};
+		{ -sz,  sz,  sz }, //A 0
+		{  sz,  sz,  sz	}, //B 1
+		{  sz, -sz,  sz	}, //C 2
+		{ -sz, -sz,  sz	}, //D 3
+		{ -sz,  sz, -sz	}, //E 4
+		{  sz,  sz, -sz	}, //F 5
+		{  sz, -sz, -sz	}, //G 6
+		{ -sz, -sz, -sz	}  //H 7
+	};
 
-		v.x = -c_rad * sinf(a-b);
-		v.y = 1;
-		v.z = -c_rad * cosf(a-b);
-		v.r = 1;
-		v.g = 0;
-		v.b = 0;
-		v.a = 1;
-		v.u = 0;
-		v.v = 1;
-		vertices.push_back( v );
+	// faces
+	//  1: quad DCGH tri DCG DGH
+	//  2: quad BFGC tri BFG BGC
+	//  3: quad ABCD tri ABC ACD
+	//  4: quad FEHG tri FEH FHG
+	//  5: quad EADH tri EAD EDH
+	//  6: quad AEFB tri AEF AFB
+	static const int faces[6][4] = {
+		{ 3, 2, 6, 7 }, // face "1"
+		{ 1, 5, 6, 2 }, // face "2"
+		{ 0, 1, 2, 3 }, // face "3"
+		{ 5, 4, 7, 6 }, // face "4"
+		{ 4, 0, 3, 7 }, // face "5"
+		{ 0, 4, 5, 2 }  // face "6"
+	};
 
-		v.x = -c_rad * sinf(a+b);
-		v.y = 1;
-		v.z = -c_rad * cosf(a+b);
-		v.r = 0;
-		v.g = 1;
-		v.b = 0;
-		v.a = 1;
-		v.u = 1;
-		v.v = 1;
+	// faces for uv's, faces are packed into a rectangular image:
+	//  1 2 3       0.0,0.0 - 0.3333,0.5 ; 0.3333,0.0 - 0.6666,0.5 ; 0.66666,0.0 - 1.0,0.5
+	//  4 5 6  ==>  0.5,0.0 - 0.3333,1.0 ; 0.3333,0.5 - 0.6666,1.0 ; 0.66666,0.5 - 1.0,1.0
+	static const float uv[6][4][2] = {
+		{ { 0.0f, 0.0f }, { 0.33333f, 0.0f }, { 0.3333f, 0.5f }, { 0.0f, 0.5f } },
+		{ { 0.33333f, 0.0f }, { 0.66666f, 0.0f }, { 0.66666f, 0.5f }, { 0.333333f, 0.5f } },
+		{ { 0.66666f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.5f }, { 0.66666f, 0.5f } },
+		{ { 0.0f, 0.5f }, { 0.33333f, 0.5f }, { 0.3333f, 1.0f }, { 0.0f, 1.0f } },
+		{ { 0.33333f, 0.5f }, { 0.66666f, 0.5f }, { 0.66666f, 1.0f }, { 0.333333f, 1.0f } },
+		{ { 0.66666f, 0.5f }, { 1.0f, 0.5f }, { 1.0f, 1.0f }, { 0.66666f, 1.0f } }
+	};
 
-		GLfloat c = 0.5f * ( v.x + vertices.back().x );
-		GLfloat d = 0.5f * ( v.z + vertices.back().z );
-		vertices.push_back( v );
-
-		v.x = c;
-		v.y = -1;
-		v.z = d;
-		v.r = 0;
-		v.g = 0;
-		v.b = 1;
-		v.a = 1;
-		v.u = 0.5f;
-		v.v = 1;
-		vertices.push_back( v );
-
+	for( int z = 0; z != s_nCubes; z++ )
+	//int z = 0;
+	{
+		float fz = ( z - gg ) * 3.0f * sz;
+		for( int y = 0; y != s_nCubes; y++ )
+		//int y = 0;
+		{
+			float fy = ( y - gg ) * 3.0f * sz;
+			for( int x = 0; x != s_nCubes; x++ )
+			//int x = 0;
+			{
+				float fx = ( x - gg ) * 3.0f * sz;
+				if( ( 0 == x ) || ( 2 * gg == x ) || ( 0 == y ) || ( 2 * gg == y ) || ( 0 == z ) || ( 2 * gg == z ) )
+				{
+					const float col[3] = { float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( s_nCubes - z ) / ( s_nCubes - 1 ) };
+					for( int i = 0; i != ARRAYSIZE( uv ); i++ )
+					{
+						for( int j = 0; j != 3; j++ )
+						{
+							vertices.push_back( Vertex{ fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2], col[0], col[1], col[2], 1.0f, uv[i][j][0], uv[i][j][1] } );
+						}
+						vertices.push_back( Vertex{ fx + corners[faces[i][0]][0], fy + corners[faces[i][0]][1], fz + corners[faces[i][0]][2], col[0], col[1], col[2], 1.0f, uv[i][0][0], uv[i][0][1] } );
+						for( int j = 2; j != 4; j++ )
+						{
+							vertices.push_back( Vertex{ fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2], col[0], col[1], col[2], 1.0f, uv[i][j][0], uv[i][j][1] } );
+						}
+						//break;
+					}
+				}
+			}
+		}
 	}
 
 	glGenBuffers(1, &iVAData);
@@ -434,11 +478,38 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	return TRUE;										// Initialization Went OK
 }
 
+void GLFrustumRH( float(&M)[16], float const pClip[6] )
+{
+	 const float R[16]{
+		/* 0*/ 2.0f * pClip[4] / ( pClip[2] + pClip[0] ),
+		/* 1*/ 0,
+		/* 2*/ 0,
+		/* 3*/ 0,
+
+		/* 4*/ 0,
+		/* 5*/ 2.0f * pClip[4] / ( pClip[3] + pClip[1] ),
+		/* 6*/ 0,
+		/* 7*/ 0,
+
+		/* 8*/ ( pClip[2] - pClip[0] ) / ( pClip[0] + pClip[2] ),
+		/* 9*/ ( pClip[3] - pClip[1] ) / ( pClip[1] + pClip[3] ),
+		/*10*/ ( pClip[5] + pClip[4] ) / ( pClip[4] - pClip[5] ),
+		/*11*/ -1.0f,
+
+		/*12*/ 0,
+		/*13*/ 0,
+		/*14*/ 2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
+		/*15*/ 0 };
+	 memcpy( M, R, sizeof( M ) );
+}
+
 bool DrawGLScene(GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
 {
+	//#ifdef WIN32
+	//OutputDebugStringA( "." );
+	//#endif
 #ifdef USE_VIOSO_API
 	//< start VIOSO API code
-	GLfloat M[16] = {0};
 	GLfloat view[16], proj[16];
 	GLfloat eye[3] = {0,0,0};
 	GLfloat rot[3] = {0,0,0};
@@ -446,22 +517,20 @@ bool DrawGLScene(GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat 
 	if( pWarper && VWB_getViewProj )
 	{
 		VWB_getViewProj( pWarper, eye, rot, view, proj );
-		for( int i = 0; i != 4; i++ )
-			for( int j = 0; j != 4; j++ )
-			{
-				M[i*4+j] = view[i*4] * proj[j];
-				for( int k = 1; k != 4; k++ )
-					M[i*4+j]+= view[i*4+k] * proj[k*4+j];
-			}
 	}
+
+	//// TODO: delete; temp override view and proj matix to test only warper side
+	//GLfloat cView[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+	//memcpy( view, cView, sizeof( view ) );
+	//float clip[6] = { 0.128f,0.08f,0.128f,0.08f,0.128f,1000.0f };
+	//GLFrustumRH( proj, clip );
+
 	//< end VIOSO API code
 #else
-    GLfloat M[16] =	{
-        2*n/(r-l),			0,     0,				       0,
-                0,	2*n/(t-b),     0,			           0,
-(r + l) / (r - l), (t + b) / (t - b), -(f + n) / (f - n), -1,
-                0,			       0,  2 * f*n / (f - n),  0
-	};
+	GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+	GLfloat proj[16] = { 0 };
+	float clip[6] = { 0.128f,0.08f,0.128f,0.08f,0.128f,1000.0f };
+	GLFrustumRH( proj, clip );
 #endif //def USE_VIOSO_API
 
 
@@ -471,7 +540,8 @@ bool DrawGLScene(GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat 
 	/* Clear background with BLACK colour */
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glUniformMatrix4fv(locMatViewProj, 1, GL_TRUE, M);
+	glUniformMatrix4fv( locMatProj, 1, GL_FALSE, proj );
+	glUniformMatrix4fv( locMatView, 1, GL_FALSE, view );
 
 	glBindVertexArray(iVAPos);
 	glBindBuffer(GL_ARRAY_BUFFER, iVAData);
@@ -487,8 +557,8 @@ bool DrawGLScene(GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat 
 
 	if (-1 != locVATex)
 	{
-		glEnableVertexAttribArray(locVACol);
-		glVertexAttribPointer(locVACol, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u)); // color
+		glEnableVertexAttribArray( locVATex );
+		glVertexAttribPointer( locVATex, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u)); // color
 	}
 	/* Actually draw the triangle, giving the number of vertices provided by invoke glDrawArrays
 	   while telling that our data is a triangle and we want to draw 0-3 vertexes
@@ -786,16 +856,19 @@ int WINAPI WinMain(	HINSTANCE	hInstance,			// Instance
 
 	while(!done)									// Loop That Runs While done=FALSE
 	{
-		if (active && !PeekMessage(&msg,NULL,0,0,PM_REMOVE)) // we are active, Is There A Message Waiting?
+		if (!PeekMessage(&msg,NULL,0,0,PM_REMOVE)) // we are active, Is There A Message Waiting?
 		{
-			// Draw The Scene.  Watch For ESC Key And Quit Messages From DrawGLScene()
-			if (!DrawGLScene(-0.5,0.5,-0.5,0.5,2,200))	// Active?  Was There A Quit Received?
+			//if( active )
 			{
-				done=TRUE;							// ESC or DrawGLScene Signalled A Quit
-			}
-			else									// Not Time To Quit, Update Screen
-			{
-				SwapBuffers(hDC);					// Swap Buffers (Double Buffering)
+				// Draw The Scene.  Watch For ESC Key And Quit Messages From DrawGLScene()
+				if( !DrawGLScene( -0.1280f, 0.1280f, -0.0800f, 0.0800f, 0.3f, 2048.0f ) )	// Active?  Was There A Quit Received?
+				{
+					done = TRUE;							// ESC or DrawGLScene Signalled A Quit
+				}
+				else									// Not Time To Quit, Update Screen
+				{
+					SwapBuffers( hDC );					// Swap Buffers (Double Buffering)
+				}
 			}
 		}
 		else if (

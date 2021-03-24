@@ -757,6 +757,7 @@ VWB_ERROR VWB_destroyWarpBlendMesh( VWB_Warper* pWarper, VWB_WarpBlendMesh& mesh
 		if( mesh.vtx )
 			delete[] mesh.vtx;
 		mesh = VWB_WarpBlendMesh{ 0 };
+		return VWB_ERROR_NONE;
 	}
 	return VWB_ERROR_PARAMETER;
 }
@@ -1045,7 +1046,14 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
-	m_mViewIG = m_bRH ? VWB_MAT44f::R( DEG2RAD(dir[0]), DEG2RAD(dir[1]), DEG2RAD(dir[2]) ).Transposed() : VWB_MAT44f::RLHT( DEG2RAD(dir[0]), DEG2RAD(dir[1]), DEG2RAD(dir[2]) ); // TODO: BUG
+	if( m_bRH )
+	{
+		m_mViewIG = VWB_MAT44d::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+	}
+	else
+	{
+		m_mViewIG = VWB_MAT44d::R_LHT( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+	}
 
 	// scale and shift back to original, to cancel out clipping scale/offset
 	m_mBaseI*= S.Inverted();
@@ -1119,33 +1127,30 @@ VWB_ERROR VWB_Warper_base::UpdateEye( VWB_float* eye, VWB_float* rot )
 
 VWB_ERROR VWB_Warper_base::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	return UpdateEye( eye, rot );
+	return VWB_ERROR_NOT_IMPLEMENTED;
 }
 
 VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip )
 {
-	return UpdateEye( eye, rot );
+	return VWB_ERROR_NOT_IMPLEMENTED;
 }
 
 VWB_ERROR VWB_Warper_base::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
-	if( !pDir || !pSymClip )
-		return VWB_ERROR_PARAMETER;
-	return UpdateEye( eye, rot );
+	return VWB_ERROR_NOT_IMPLEMENTED;
 }
 
 void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float * pClip )
 {
 	//VWB_float dd = nearDist / ( screenDist -e.z );
 	VWB_float dd = nearDist / ( screenDist + ( m_bRH ? e.z : -e.z ) );
-	pClip[0] = ( m_viewSizes[2] + e.x ) * dd;
-	pClip[1] = ( m_viewSizes[3] + e.y ) * dd;
-	pClip[2] = ( m_viewSizes[0] - e.x ) * dd;
-	pClip[3] = ( m_viewSizes[1] - e.y ) * dd;
+	pClip[0] = ( m_viewSizes[0] + e.x ) * dd;
+	pClip[1] = ( m_viewSizes[1] + e.y ) * dd;
+	pClip[2] = ( m_viewSizes[2] - e.x ) * dd;
+	pClip[3] = ( m_viewSizes[3] - e.y ) * dd;
 	pClip[4] = nearDist;
 	pClip[5] = farDist;
 }
-
 
 void VWB_Warper_base::Defaults()
 {
@@ -1240,7 +1245,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	}
 	else
 	{
-		logStr( 3, "INFO: AutoView mapping display corners: tl(%.4f,%.4f,%.4f) tr(%.4f,%.4f,%.4f) bl(%.4f,%.4f,%.4f) br(%.4f,%.4f,%.4f).\n", 
+		logStr( 3, "INFO: AutoView mapping display corners:\n tl(%.4f,%.4f,%.4f)\n tr(%.4f,%.4f,%.4f)\n bl(%.4f,%.4f,%.4f)\n br(%.4f,%.4f,%.4f).\n", 
 				ptl->x, ptl->y, ptl->z,
 				ptr->x, ptr->y, ptr->z,
 				pbl->x, pbl->y, pbl->z,
@@ -1273,19 +1278,17 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 	logStr( 1, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
 			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
-	// getting rotation angles from local coords in global 
+
 	if( m_bRH )
-	{
-		VWB_VEC3f::ptr( dir ) = M.Transposed().GetR_RH() * ( 180.0 / M_PI );
-	}
+		VWB_VEC3f::ptr( dir ) = M.GetR() * ( 180.0 / M_PI );
 	else
 	{
-		VWB_VEC3f::ptr( dir ) = M.GetR_LHT() * ( 180.0 / M_PI );
+		VWB_VEC3f::ptr( dir ) = M.Transposed().GetR_LHT() * ( 180.0 / M_PI ); // we need to transpose, because M is not DX-style yet
 	}
 
-	#if _DEBUG
-	VWB_MAT33d Mc = VWB_MAT33d::R( dir[0], dir[1], dir[2] );
-	#endif
+	VWB_MAT33d Md = VWB_MAT33d::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+	VWB_MAT33d Ml = VWB_MAT33d::R_LHT( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
 	double maxEL = FLT_MAX, maxET = FLT_MAX, maxER = -FLT_MAX, maxEB = -FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom throughout moving space
@@ -1501,7 +1504,7 @@ VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
 
 		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::RLHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::R_LHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
 
 		// add eye offset rotated to platform
 		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
@@ -1510,7 +1513,7 @@ VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		// translate to local coordinates
 		e = e * m_mViewIG;
 
-		VWB_MAT44f T = VWB_MAT44f::TT( -e );
+		VWB_MAT44f T = VWB_MAT44f::T_T( -e );
 		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
 
 		if( bTurnWithView )
@@ -1522,9 +1525,9 @@ VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		getClip( e, clip );
 
 		if( m_bRH )
-			P = VWB_MAT44f::PRHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::P_RHT( m_viewSizes, nearDist, farDist, screenDist, e );
 		else
-			P = VWB_MAT44f::PLHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::P_LHT( m_viewSizes, nearDist, farDist, screenDist, e );
 
 		m_mVP *= P;
 
@@ -1555,7 +1558,7 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
 
 		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::RLHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::R_LHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
 
 		// add eye offset rotated to platform
 		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
@@ -1564,7 +1567,7 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 		// translate to local coordinates
 		e = e * m_mViewIG;
 
-		VWB_MAT44f T = VWB_MAT44f::TT( -e );
+		VWB_MAT44f T = VWB_MAT44f::T_T( -e );
 		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
 
 		if( bTurnWithView )
@@ -1576,9 +1579,9 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 		getClip( e, clip );
 
 		if( m_bRH )
-			P = VWB_MAT44f::PRHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::P_RHT( m_viewSizes, nearDist, farDist, screenDist, e );
 		else
-			P = VWB_MAT44f::PLHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::P_LHT( m_viewSizes, nearDist, farDist, screenDist, e );
 
 		m_mVP *= P;
 
@@ -2404,7 +2407,7 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 			{
 				for( int x = 0; x != wGrid; x++, pO++, pN++ )
 				{
-					*pN = SPPair3f::_empty;
+					*pN = SPPair3f{ 0 };
 
 					if( 0.5f <= pO->lPt2[2] )
 						continue;
@@ -2556,8 +2559,8 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 		lTriangleIdx.clear();
 		lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
 
-		std::vector< ptrdiff_t > lGrid;
-		lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
+		//std::vector< ptrdiff_t > lGrid;
+		//lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
 
 		lPoints.clear();
 		lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
@@ -2570,7 +2573,7 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 				long x = xG * ( width - 1 ) / ( wGrid - 1 );
 
 				ptrdiff_t i = ptrdiff_t( y ) * width + x;
-				lGrid.push_back( i );
+				//lGrid.push_back( i );
 
 				VWB_WarpRecord const* pW = pSrcD + i;
 				VWB_BlendRecord2 const* pB = pSrcDB + i;
@@ -2579,8 +2582,8 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 					0, 0, 
 					{ float(x), float(y), 0 },
 					{ pW->x, pW->y, pW->z },
-					{ float(pB->r) / 65535.0f, float( pB->g ) / 65535.0f },
-					{ float( pB->b) / 65535.0f,float( pB->a) / 65535.0f } } );
+					{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
+					{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f } } );
 			}
 		}
 
@@ -2631,7 +2634,7 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 			{ { POS_REL_TLTL, POS_REL_TL } },
 		};
 
-		for( auto pt : lPoints )
+		for( auto& pt : lPoints )
 		{
 			if( 0.5f > pt.lPt2[2] )
 			{
@@ -2674,15 +2677,15 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 					pt.lTangDescX[1] = 0;
 					pt.lTangDescY[0] = 0;
 					pt.lTangDescY[1] = 0;
-					for( auto candidate : candidates )
+					for( auto const& candidate : candidates )
 					{
 						pt.lPt2[0] += 2.0f * pSrcD[candidate.ind1].x - pSrcD[candidate.ind2].x;
 						pt.lPt2[1] += 2.0f * pSrcD[candidate.ind1].y - pSrcD[candidate.ind2].y;
 						pt.lPt2[2] += 2.0f * pSrcD[candidate.ind1].z - pSrcD[candidate.ind2].z;
-						pt.lTangDescX[0] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].r ) / float( 65535 ) - float( pSrcDB[candidate.ind2].r ) / float( 65535 ) ) );
-						pt.lTangDescX[1] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].g ) / float( 65535 ) - float( pSrcDB[candidate.ind2].g ) / float( 65535 ) ) );
-						pt.lTangDescY[0] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].b ) / float( 65535 ) - float( pSrcDB[candidate.ind2].b ) / float( 65535 ) ) );
-						pt.lTangDescY[1] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].a ) / float( 65535 ) - float( pSrcDB[candidate.ind2].a ) / float( 65535 ) ) );
+						pt.lTangDescX[0] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].r ) / 65535.0f - float( pSrcDB[candidate.ind2].r ) / 65535.0f ) );
+						pt.lTangDescX[1] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].g ) / 65535.0f - float( pSrcDB[candidate.ind2].g ) / 65535.0f ) );
+						pt.lTangDescY[0] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].b ) / 65535.0f - float( pSrcDB[candidate.ind2].b ) / 65535.0f ) );
+						pt.lTangDescY[1] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].a ) / 65535.0f - float( pSrcDB[candidate.ind2].a ) / 65535.0f ) );
 					}
 					pt.lPt2[0] /= candidates.size();
 					pt.lPt2[1] /= candidates.size();
@@ -2694,6 +2697,7 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 				}
 			}
 		}
+
 
 		// repair grid (a little)
 		RepairUniformGrid( lPoints, wGrid, hGrid, 1 );
@@ -2721,27 +2725,27 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 				long pt3 = y * wGrid + x;
 				long pt4 = y * wGrid + ( x - 1 );
 
-				if( 0.5f <= pSrcD[lGrid[pt1]].z )
+				if( 0.5f <= lPoints[pt1].lPt2[2] )
 				{ // pt1 valid
-					if( 0.5f <= pSrcD[lGrid[pt3]].z )
+					if( 0.5f <= lPoints[pt3].lPt2[2] )
 					{
-						if( 0.5f <= pSrcD[lGrid[pt2]].z )
-						{
-							// triangle A valid, add it
-							lTriangleIdx.push_back( pt1 );
-							lTriangleIdx.push_back( pt3 );
-							lTriangleIdx.push_back( pt2 );
-						}
-						if( 0.5f <= pSrcD[lGrid[pt4]].z )
+						if( 0.5f <= lPoints[pt4].lPt2[2] )
 						{
 							// triangle B valid, add it
 							lTriangleIdx.push_back( pt1 );
 							lTriangleIdx.push_back( pt4 );
 							lTriangleIdx.push_back( pt3 );
 						}
+						if( 0.5f <= lPoints[pt2].lPt2[2] )
+						{
+							// triangle A valid, add it
+							lTriangleIdx.push_back( pt1 );
+							lTriangleIdx.push_back( pt3 );
+							lTriangleIdx.push_back( pt2 );
+						}
 					}
-					else if( 0.5f <= pSrcD[lGrid[pt2]].z &&
-							 0.5f <= pSrcD[lGrid[pt4]].z )
+					else if( 0.5f <= lPoints[pt2].lPt2[2] &&
+							 0.5f <= lPoints[pt4].lPt2[2] )
 					{ 
 						// tiangle C valid
 						lTriangleIdx.push_back( pt1 );
@@ -2749,363 +2753,17 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 						lTriangleIdx.push_back( pt2 );
 					}
 				}
-				else if( 0.5f <= pSrcD[lGrid[pt2]].z &&
-						 0.5f <= pSrcD[lGrid[pt3]].z && 
-						 0.5f <= pSrcD[lGrid[pt4]].z )
+				else if( 0.5f <= lPoints[pt2].lPt2[2] &&
+						 0.5f <= lPoints[pt3].lPt2[2] &&
+						 0.5f <= lPoints[pt4].lPt2[2] )
 				{
 					// tiangle D valid
-					lTriangleIdx.push_back( pt1 );
-					lTriangleIdx.push_back( pt4 );
+					lTriangleIdx.push_back( pt2 );
 					lTriangleIdx.push_back( pt3 );
+					lTriangleIdx.push_back( pt4 );
 				}
 			}
 		}
-
-		/*
-		// find all border points, which do not have 8 neighbors (left, top-left, top, top-right, right, bottom-right, bottom, bottom-left )
-
-		long pos2off[] = {
-			-1,			// left
-			-width - 1,	// top-left
-			-width,		// top
-			-width + 1, // top-right
-			1,			// right
-			width + 1,	// bottom-right
-			width,		// bottom
-			width - 1	// bottom-left
-		};
-		std::list< long > borderMapIdx;
-		//borderMapIdx.reserve( 2 * width * height );
-		VWB_WarpRecord const* pW = pSrcD;
-		// first row
-		for( long i = 0; i != width; i++ )
-		{
-			if( 0.5f <= pSrcD[i].z )
-			{
-				borderMapIdx.push_back( i );
-			}
-		}
-		// first column
-		for( long i = 0, iE = width * height; i != iE; i += width )
-		{
-			if( 0.5f <= pSrcD[i].z )
-			{
-				borderMapIdx.push_back( i );
-			}
-		}
-		// last row
-		for( long i = width * ( height - 1 ), iE = width * height; i != iE; i++ )
-		{
-			if( 0.5f <= pSrcD[i].z )
-			{
-				borderMapIdx.push_back( i );
-			}
-		}
-		// last column
-		for( long i = ( width - 1 ), iE = width * ( height + 1 ) - 1; i != iE; i += width )
-		{
-			if( 0.5f <= pSrcD[i].z )
-			{
-				borderMapIdx.push_back( i );
-			}
-		}
-		
-		// inner
-		for( VWB_WarpRecord const* pW = pSrcD + ( width + 1 ), *pWE = pSrcD + ( height * width + 1 ); pW != pWE; pW+= 2 )
-		{
-			for( VWB_WarpRecord const* pWLE = pW + ( width - 1 ); pW != pWLE; pW++ )
-			{
-				if( 0.5f <= pW->z ) // is valid
-				{
-					for( long i = 0; i != ARRAYSIZE( pos2off ); i++ )
-					{
-						VWB_WarpRecord const* pO = pW + pos2off[i];
-						if( 0.5f > pO->z )
-						{
-							borderMapIdx.push_back( long(pSrcD - pW) );
-							break;
-						}
-					}
-				}
-			}
-		}
-
-		// now gather outline(s) and holes
-		std::vector< std::list<long> > outlines;
-		std::vector< std::list<long> > holes;
-
-		lPoints.clear();
-		lTriangleIdx.clear();
-
-		if( !( pSrcD && ( width > 0 ) && ( height > 0 ) ) )
-			return 0;
-		if( ( width == 1 ) || ( height == 1 ) )
-			return 1;
-
-		int f;
-		float yF;
-		SPPair3f* pP;
-		long i, j, k, idx;
-		VWB_WarpRecord* pW, * pW1;
-		VWB_BlendRecord3* pB;
-		std::vector<long> IdxD;
-
-		idx = width * height;
-		IdxD.resize( idx, 0 );
-		size_t q;
-		long* pL, * pL1, * pL2;
-		DynLongPtrList lLnPtr;
-		DynDWORDList lPtsPerLn;
-		unsigned int q1, q2, qH, qV, qHMin, qRgnH, qRgnV, qRgn;
-
-		if( qConsolidateSteps )
-		{
-			lLnPtr.reserve( (size_t)height );
-			lPtsPerLn.reserve( (size_t)height );
-		}
-
-		lPoints.reserve( (size_t)idx );
-
-		idx *= 6;
-		lTriangleIdx.reserve( (size_t)idx );
-
-		pL = &IdxD[0];
-		pW = pSrcD;
-		pB = pSrcDB;
-
-		long w = width - 1;
-		long h = height - 1;
-
-		// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
-		for( idx = 0, i = 0; i <= h; i++ )
-		{
-			for( yF = (float)i, j = 0; j <= w; j++, pW++, pL++, pB++ )
-			{
-				if( pW->z > 0.5f ) // test if valid
-				{
-					SPPair3f d;
-					lPoints.push_back( d );
-					pP = &lPoints.back();
-					pP->Empty();
-					pP->lPt2[0] = pW->x;
-					pP->lPt2[1] = pW->y;
-					pP->lPt1[0] = (float)j;
-					pP->lPt1[1] = yF;
-					pP->lTangDescX[0] = pB->r;
-					pP->lTangDescX[1] = pB->g;
-					pP->lTangDescY[0] = pB->b;
-					pP->lTangDescY[1] = pB->a;
-					if( i < h ) // look below
-					{
-						pW1 = pW + width;
-						if( pW1->z > 0.5f ) // point is valid
-						{
-							pP->fPos |= FLAG_CTRLPT_POS_BORDER_BOTTOM;
-							pP->fUse++;
-						}
-					}
-					else
-					{
-						pW1 = NULL;
-					}
-					if( j < w )
-					{
-						if( pW1 )
-						{
-							pW1++; // look below right
-							if( pW1->z > 0.5f ) // valid
-							{
-								pP->fPos |= FLAG_CTRLPT_POS_BORDER_DIAGONAL;
-								pP->fUse++;
-							}
-						}
-						pW1 = pW + 1; // look right
-						if( pW1->z > 0.5f )
-						{
-							pP->fPos |= FLAG_CTRLPT_POS_BORDER_RIGHT;
-							pP->fUse++;
-						}
-					}
-					*pL = idx; // set index
-					idx++;
-				}
-				else
-				{
-					*pL = -1; // mark index as invalid
-				}
-			}
-		}
-
-		pL = &IdxD[0];
-		for( i = 0; i < h; i++, pL++ )
-		{
-			for( j = 0; j < w; j++, pL++ )
-			{
-				idx = *pL;
-				if( idx < 0 )
-					continue;
-				pP = &lPoints[idx];
-				k = pP->fUse;
-				if( k <= 1 )
-					continue; // no neighboars
-
-				pL2 = pL + width; // this is the point below
-				if( k == 2 )
-				{
-					// add one triangle
-					q = lTriangleIdx.size();
-					lTriangleIdx.insert( lTriangleIdx.end(), 3, 0 );
-					pL1 = &lTriangleIdx[q];
-					pL1[0] = idx;
-					f = pP->fPos;
-					if( f & FLAG_CTRLPT_POS_BORDER_DIAGONAL )
-					{
-						if( f & FLAG_CTRLPT_POS_BORDER_RIGHT )
-						{
-							pL1[1] = pL[1];
-							pL1[2] = pL2[1];
-						}
-						else
-						{
-							pL1[1] = pL2[1];
-							pL1[2] = pL2[0];
-						}
-					}
-					else
-					{
-						pL1[1] = pL[1];
-						pL1[2] = pL2[0];
-					}
-				}
-				else if( qConsolidateSteps )
-				{
-					lLnPtr.clear();
-					lPtsPerLn.clear();
-
-					// find maximum rect smaller than step x step with all valid points
-
-					// go from current point down
-					qHMin = width; // initialize with maximum
-					for( pL1 = pL, qV = 0; qV <= qConsolidateSteps; qV++, pL1 += width )
-					{
-						// go from current point right
-						for( pL2 = pL1, qH = 0; qH <= qConsolidateSteps; qH++, pL2++ )
-						{
-							if( !( lPoints[*pL2].fPos & FLAG_CTRLPT_POS_BORDER_RIGHT ) )
-							{ // point has no right neighboar
-								qH++;
-								break;
-							}
-						}
-						if( qH == 1 ) // no valid points at right, break outer loop because we reached minimum
-						{
-							qHMin = 1;
-							break;
-						}
-
-						lLnPtr.push_back( pL1 ); // remind position pointer in that line
-						lPtsPerLn.push_back( qH ); // remind number of points gone right in that line
-
-						// assign 
-						if( qH < qHMin )
-							qHMin = qH;
-
-						// break loop if no valid bottom point is there
-						if( !( lPoints[*pL1].fPos & FLAG_CTRLPT_POS_BORDER_BOTTOM ) )
-						{
-							break;
-						}
-					}
-
-					qH = lPtsPerLn[0];
-					qRgnV = (unsigned int)lLnPtr.size();
-					qRgnH = qHMin;
-					qRgn = qRgnH * qRgnV;
-
-					// try make a bigger rect with less lines
-					for( q1 = 1; q1 < qV; q1++ )
-						if( lPtsPerLn[q1] < qH )
-							break;
-
-					if( q1 == 1 )
-					{
-						q2 = 2 * lPtsPerLn[1];
-						if( q2 > qRgn )
-						{
-							qRgnV = 2;
-							qRgnH = lPtsPerLn[1];
-							qRgn = q2;
-						}
-					}
-					else
-					{
-						q2 = q1 * qH;
-						if( q2 > qRgn ) // take other rect
-						{
-							qRgnV = q1;
-							qRgnH = qH;
-							qRgn = q2;
-						}
-					}
-
-					// look for the biggest square
-					qHMin = MIN( lPtsPerLn[0], lPtsPerLn[1] );
-					for( q1 = 2; q1 < qV; q1++ )
-					{
-						q2 = lPtsPerLn[q1];
-						if( q2 < qHMin )
-							qHMin = q2;
-						if( qHMin <= q1 )
-							break;
-					}
-					// look for the biggest square
-					if( qHMin < q1 )
-						q1 = qHMin;
-					q2 = q1 * q1;
-					if( q2 > qRgn )
-					{
-						qRgnV = q1;
-						qRgnH = q1;
-						qRgn = q2;
-					}
-
-					qRgnH--;
-					qRgnV--;
-					pL2 = lLnPtr[qRgnV] + qRgnH;
-
-					// save the triangles' indices
-					q = lTriangleIdx.size();
-					lTriangleIdx.insert( lTriangleIdx.end(), 6, 0 );
-					pL1 = &lTriangleIdx[q];
-					pL1[0] = idx;
-					pL1[1] = pL[qRgnH];
-					pL1[2] = *pL2;
-					pL1[3] = idx;
-					pL1[4] = *pL2;
-					pL1[5] = *( lLnPtr[qRgnV] );
-
-					// mark points as unused
-					for( qV = 0; qV < qRgnV; qV++ )
-						for( pL1 = lLnPtr[qV], qH = 0; qH < qRgnH; qH++, pL1++ )
-							if( 0 <= *pL1 )
-								lPoints[*pL1].fUse = 0;
-				}
-				else
-				{
-					// save the triangles' indices
-					q = lTriangleIdx.size();
-					lTriangleIdx.insert( lTriangleIdx.end(), 6, 0 );
-					pL1 = &lTriangleIdx[q];
-					pL1[0] = idx;
-					pL1[1] = pL[1];
-					pL1[2] = pL2[1];
-					pL1[3] = idx;
-					pL1[4] = pL2[1];
-					pL1[5] = pL2[0];
-				}
-			}
-		}
-	*/
 		return 1;
 	}
 VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
@@ -3122,7 +2780,8 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 		return VWB_ERROR_NOT_IMPLEMENTED;
 	}
 
-	if( cols < 129 )
+/*
+if( cols < 129 )
 	{
 		logStr( 1, "WARNING: getWarpMesh too few cols specified set to 129.\n" );
 		cols = 129;
@@ -3133,7 +2792,7 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 		logStr( 1, "WARNING: getWarpMesh too few rows specified set to 129.\n" );
 		rows = 129;
 	}
-
+*/
 	VWB_int& w = m_wb.header.width;
 	VWB_int& h = m_wb.header.height;
 	int nRecords = w * h;
@@ -3153,21 +2812,21 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 
 		DynSPPointPairList3f points;
 		DynLongList	indices;
-//		if( ComputeTriangluation( points, indices, wbInv.pWarp, wbInv.pBlend3, w, h, (DWORD)sqrt( (float)w * h / 20000 ) ) )
 		if( ComputeTriangluation2( points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows ) )
 		{
 			logStr( 2, "INFO: getWarpMesh: triangulation.\n" );
-			DynLongList indTrans; indTrans.resize( points.size(), -1 );
 			mesh.nIdx = (VWB_uint)indices.size();
 			mesh.idx = new VWB_uint[ mesh.nIdx ];
 	
-			VWB_uint nRes = mesh.nIdx / 2;
-			mesh.vtx = new VWB_WarpBlendVertex[nRes];
 			mesh.nVtx = 0;
 
 			mesh.dim.cx = w;
 			mesh.dim.cy = h;
 
+			#if 0
+			VWB_uint nRes = mesh.nIdx / 2;
+			mesh.vtx = new VWB_WarpBlendVertex[nRes];
+			DynLongList indTrans; indTrans.resize( points.size(), -1 );
 			DynLongList::iterator iSrc = indices.begin();
 			logStr( 2, "INFO: getWarpMesh: resize.\n" );
 			for( VWB_uint* iDst = mesh.idx, *iDstE = iDst+mesh.nIdx; iDst != iDstE; iDst++, iSrc++ )
@@ -3196,47 +2855,26 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 				}
 				*iDst = (VWB_uint)j;
 			}
+			#else
+			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
+			mesh.nVtx = (VWB_uint)points.size();
+			for( VWB_uint i = 0; i != points.size(); i++ )
+			{
+				mesh.vtx[i] = VWB_WarpBlendVertex{
+					{points[i].lPt1[0] / w, points[i].lPt1[1] / h ,0},
+					{points[i].lPt2[0],points[i].lPt2[1]},
+					{	points[i].lTangDescX[0] * points[i].lTangDescY[1],
+						points[i].lTangDescX[1] * points[i].lTangDescY[1],
+						points[i].lTangDescY[0] * points[i].lTangDescY[1]
+				    } };
+			}
+			for( VWB_uint i = 0; i != indices.size(); i++ )
+			{
+				mesh.idx[i] = indices[i];
+			}
+			#endif
 			logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
 
-#ifdef _DEBUG
-			for( VWB_uint i = 0; i != mesh.nIdx; i+= 3 )
-			{
-				VWB_WarpBlendVertex tri[3] = { mesh.vtx[mesh.idx[i]], mesh.vtx[mesh.idx[i+1]], mesh.vtx[mesh.idx[i+2]] };
-				if( 
-					!( 0< tri[0].pos[0] && tri[0].pos[0] < 1 ) &&
-					!( 0< tri[0].pos[1] && tri[0].pos[1] < 1 ) ||
-					!( 0< tri[1].pos[0] && tri[1].pos[0] < 1 ) &&
-					!( 0< tri[1].pos[1] && tri[1].pos[1] < 1 ) ||
-					!( 0< tri[2].pos[0] && tri[2].pos[0] < 1 ) &&
-					!( 0< tri[2].pos[1] && tri[2].pos[1] < 1 )
-					)
-				{
-					int j = 0;
-				}
-			}
-
-			struct sdm_vertex
-			{
-				VWB_float _vtx[2];    // 
-				VWB_word  _uv[2];    // normalized ushort2
-				VWB_uint _alpha;   // 
-			};
-
-			sdm_vertex*  vtx = new sdm_vertex[mesh.nVtx];
-			for (VWB_uint i = 0; i != mesh.nVtx; i++)
-			{
-				vtx[i]._vtx[0] = mesh.vtx[i].pos[0];
-				vtx[i]._vtx[1] = mesh.vtx[i].pos[1];
-				vtx[i]._uv[0] = (VWB_word)MIN(65535, MAX(0, mesh.vtx[i].uv[0] * 65535));
-				vtx[i]._uv[1] = (VWB_word)MIN(65535, MAX(0, mesh.vtx[i].uv[1] * 65535));
-				vtx[i]._alpha = (VWB_uint)MAX(0, (mesh.vtx[i].rgb[0] + mesh.vtx[i].rgb[1] + mesh.vtx[i].rgb[2]) / 3.0f * 4294967295L);
-			}
-
-			VWB_uint* idx = new VWB_uint[mesh.nIdx];
-			for (VWB_uint i = 0; i != mesh.nIdx; i++)
-				idx[i] = mesh.idx[i];
-
-#endif
 		}
 		else
 		{
@@ -3244,225 +2882,7 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 			return VWB_ERROR_GENERIC;
 		}
 		return VWB_ERROR_NONE;
-		
-#if 0
-	// triangulate points
-
-		mesh.idx.clear();
-		mesh.vtx.clear();
-		mesh.dim.cx = w;
-		mesh.dim.cy = h;
-		typedef std::vector< VWB_WarpBlendMesh::idx_t > RefList;
-		RefList refs; refs.resize(nRecords);
-		
-		mesh.idx.reserve( nRecords * 2 );
-		mesh.vtx.reserve( nRecords );
-		VWB_WarpRecord   *pW  = wbInv.pWarp  ;
-		VWB_BlendRecord2 *pB  = wbInv.pBlend2;
-		VWB_WarpRecord const* pWE = pW + nRecords - w;
-
-
-						//i3 = newIndex[o+w];
-						//if( -1 == i3 )
-						//{
-						//	VWB_BlendRecord2* pB3 = pB+w;
-						//	VWB_WarpBlendVertex const v3 = { {pW3->x, pW3->y, pW3->z}, {VWB_float(x),VWB_float(y+1)}, {pB3->r, pB3->g, pB3->b} };
-						//	i3 = (VWB_uint)mesh.vtx.size();
-						//	mesh.vtx.push_back( v3 );
-						//	newIndex[o+w] = i3;
-						//}
-								//		VWB_BlendRecord2* pB1 = pB+1;
-								//VWB_WarpBlendVertex const v1 = { {pW1->x, pW1->y, pW1->z}, {VWB_float(x+1),VWB_float(y)}, {pB1->r, pB1->g, pB1->b} };
-								//i1 = (VWB_uint)mesh.vtx.size();
-								//mesh.vtx.push_back( v1 );
-								//newIndex[o+1] = i2;
-
-//       P0----P1
-//     / | \ A |
-//    /  |  \  |
-//   / C | B \ |
-// P4----P3----P2
-
-//       P0----P1
-//     / |    /
-//    /  | D /
-//   / C |  /
-// P4----P3
-//
-
-		std::vector< VWB_int > fixed; fixed.resize( nRecords, 0 );
-		for( VWB_uint y = 0, o = 0; pWE != pW; pW++, pB++, y++, o++ )
-		{
-			VWB_WarpRecord const *pWLE = pW + w - 1;
-			for( VWB_uint x = 0; pWLE != pW; pW++, pB++, x++, o++ )
-			{
-				if( 0.5f < pW->z )
-				{
-					VWB_WarpRecord* pW3 = pW+w;   // bottom
-					VWB_WarpRecord* pW2 = pW+w+1; // bottomright
-					VWB_WarpRecord* pW1 = pW+1; // right
-					if( 0.5f < pW2->z )
-					{
-						if( 0.5f < pW1->z ) // Triangle A
-						{
-							VWB_uint iTri = (VWB_uint)mesh.idx.size();
-							mesh.idx.push_back( o );
-							mesh.idx.push_back( o+1 );
-							mesh.idx.push_back( o+w+1 );
-							refs[o].push_back( iTri );
-							refs[o+1].push_back( iTri );
-							refs[o+w+1].push_back( iTri );
-						}
-
-						if( 0.5f < pW3->z )  // Triangle B
-						{
-							VWB_uint iTri = (VWB_uint)mesh.idx.size();
-							mesh.idx.push_back( o );
-							mesh.idx.push_back( o+w+1 );
-							mesh.idx.push_back( o+w );
-							refs[o].push_back( iTri );
-							refs[o+w+1].push_back( iTri );
-							refs[o+w].push_back( iTri );
-						}
-					}
-					else
-					{
-						if( 0.5f < pW1->z ) // Triangle D
-						{
-							VWB_uint iTri = (VWB_uint)mesh.idx.size();
-							mesh.idx.push_back( o );
-							mesh.idx.push_back( o+1 );
-							mesh.idx.push_back( o+w );
-							refs[o].push_back( iTri );
-							refs[o+1].push_back( iTri );
-							refs[o+w].push_back( iTri );
-						}
-					}
-
-					// add extra triangle, if previous point is invalid and therefore not added in previous step
-					VWB_WarpRecord* pW4 = pW+w-1; // bottom-left
-					if( pW4 > pWLE &&   // Triangle C
-						0.5f < pW3->z &&
-						0.5f < pW4->z &&
-						0.5f > (pW-1)->z )
-					{
-						VWB_uint iTri = (VWB_uint)mesh.idx.size();
-						mesh.idx.push_back( o );
-						mesh.idx.push_back( o+w );
-						mesh.idx.push_back( o+w-1 );
-						refs[o].push_back( iTri );
-						refs[o+w].push_back( iTri );
-						refs[o+w-1].push_back( iTri );
-					}
-				}
-				else
-					fixed[o] = 3; // point not available
-			}
-		}
-		// thinning
-		// we connect the trail of left-over triangle edges
-		VWB_WarpBlendMesh::idx_t trail; trail.reserve( 40 );
-
-		for( VWB_uint i = 0; i != nRecords; i++ )
-		{
-			if( 0 == fixed[i] )
-			{
-				RefList::value_type& l = refs[i];
-				VWB_uint sz = (VWB_uint)l.size();
-				if( 3 <= sz )
-				{
-					VWB_uint j;
-					VWB_float x0 = wbInv.pWarp[i].x;
-					VWB_float y0 = wbInv.pWarp[i].y;
-					VWB_word r0 = wbInv.pBlend2[i].r;
-					VWB_word g0 = wbInv.pBlend2[i].g;
-					VWB_word b0 = wbInv.pBlend2[i].b;
-					do
-					{
-AGAIN:
-						// sort edges
-						j = l[0]; // this is the first triangle in index list
-						//push in the triangle index
-						trail.clear();
-						// then the vertex offset in that triangle of the dangeling end of the remaining triangle edge
-						// we always go clockwise, so this keeps beeing that way
-						if( i == mesh.idx[j] ) // we picked point itself, so 
-						{
-							trail.push_back(1); // second point is start
-							trail.push_back(2); // third point is dangeling end
-						}
-						else if( i == mesh.idx[j+1] ) // the next point clockwise is itself
-						{
-							trail.push_back(2); // last point is start
-							trail.push_back(0); // and first point dangles
-						}
-						else
-						{
-							trail.push_back(0); // first point is start
-							trail.push_back(1); // second point dangles otherwise
-						}
-						VWB_int lastDangelingEnd = mesh.idx[j+trail.back()];
-						for( VWB_uint pushed = 1; pushed != sz; )
-						{
-							for( VWB_uint k = pushed; ; )
-							{
-								// we look for a triangle containing the same point as lastDangelingEnd
-								VWB_uint n = l[pushed];
-								for( VWB_int m = 0; m != 3; m++ )
-								{
-									if( lastDangelingEnd == mesh.idx[n+m] )
-									{ // found
-										if( 2 == m )
-											trail.push_back( 0 );
-										else
-											trail.push_back( ++m );
-										pushed++;
-										lastDangelingEnd = mesh.idx[n+m];
-										goto DONE;
-									}
-								}
-								// swap and try next
-								k++;
-								if( k == sz )
-									break;
-								VWB_uint tmp = l[pushed];
-								l[pushed] = l[k];
-								l[k] = tmp;
-							}
-							// nothing found; we have an open trail
-							// swap last with first triangle, and start over again
-							// maybe find better criteria... 
-							VWB_uint tmp = l[sz-1];
-							l[sz-1] = l[0];
-							l[0] = tmp;
-							goto AGAIN;
-DONE:	
-							(NULL);
-						}
-					}while(0);
-
-					// we can remove last edge from trail if it closes
-					VWB_uint fr = mesh.idx[l.front()+trail.front()];
-					VWB_uint ba = mesh.idx[l.back()+trail.back()];
-					if( fr == ba )
-						trail.pop_back();
-
-					// build new submesh
-					VWB_WarpBlendMesh::idx_t newL;
-					VWB_WarpBlendMesh::idx_t newTrail;
-					VWB_WarpBlendMesh::idx_t newIdx;
-
-					subMesh( mesh.idx, l, trail, newIdx, newL, newTrail );
-				}
-				else
-					fixed[i] = 1;
-			}
-		}
-#endif
-		//DeleteVWF( wbInv );
 	}
-	//else
-	//	logStr( 0, "ERROR: getWarpMesh: invertWB failed.\n" ); 
 	return VWB_ERROR_FALSE;
 }
 

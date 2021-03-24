@@ -6,7 +6,14 @@
 #include "Platform.h"
 
 // C RunTime Header Files
+#ifdef _DEBUG
+#define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
+#include <crtdbg.h>
+#else
+#include <stdlib.h>
+#endif //def _DEBUG
+
 #ifdef WIN32
 #include <malloc.h>
 #endif

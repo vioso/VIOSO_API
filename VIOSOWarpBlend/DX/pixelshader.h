@@ -315,10 +315,12 @@ float4 PSWB( VS_OUT vIn ) : SV_Target
 	vOut.a = 1;                                 
 	return vOut;                                
 }                                               
-                                                
-float4 PSWB3D( VS_OUT vIn ) : SV_Target             
-{                                               
-	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
+
+float4 PSWB3D( VS_OUT vIn ) : SV_Target
+{
+	uint w,h;
+	texWarp.GetDimensions( w, h );
+	float4 tex = texWarp.Load( int3( w * vIn.tex.x, h * vIn.tex.y, 0 ) );     
 	float4 blend = texBlend.Sample( samLin, vIn.tex );  
 	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
 	float4 vOut = float4( 0,0,0,1);             

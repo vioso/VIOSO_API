@@ -1,16 +1,187 @@
 #include "DX10WarpBlend.h"
 #include "pixelshader.h"
 
-//#define XTDEBUG
-
-#ifdef XTDEBUG
-#include "../3rdparty/d3dX/Include/D3DX10.h"
-#pragma comment( lib, "d3dx10.lib" )
-#endif
-
-//#pragma comment( lib, "d3d11.lib" )
+#pragma comment( lib, "d3d10.lib" )
 
 const FLOAT _black[4] = {0,0,0,1};
+
+bool SaveTex( LPCSTR path, ID3D10Device* dev, ID3D10Texture2D* tex )
+{
+	bool ret = false;
+	// create CPU accessable texture
+	D3D10_TEXTURE2D_DESC descI = { 0 };
+	D3D10_TEXTURE2D_DESC desc = { 0 };
+	tex->GetDesc( &descI );
+	logStr( 3, "Input texture dump desc:\n"
+			"Width           = %i\n"
+			"Height          = %i\n"
+			"MipLevels       = %i\n"
+			"ArraySize       = %i\n"
+			"Format          = %i\n"
+			"SampleDesc      = {Count = %i, Quality = %i}\n"
+			"Usage           = %i\n"
+			"BindFlags       = %i\n"
+			"CPUAccessFlags  = %i\n"
+			"MiscFlags       = %i\n"
+			, descI.Width
+			, descI.Height
+			, descI.MipLevels
+			, descI.ArraySize
+			, descI.Format
+			, descI.SampleDesc.Count
+			, descI.SampleDesc.Quality
+			, descI.Usage
+			, descI.BindFlags
+			, descI.CPUAccessFlags
+			, descI.MiscFlags
+	);
+
+
+	desc.Format = descI.Format;
+	desc.Width = descI.Width;
+	desc.Height = descI.Height;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D10_USAGE_STAGING;
+	desc.CPUAccessFlags = D3D10_CPU_ACCESS_READ | D3D10_CPU_ACCESS_WRITE;
+
+	ID3D10Texture2D* pTexMem = NULL;
+	HRESULT hr = dev->CreateTexture2D( &desc, NULL, &pTexMem );
+	if( SUCCEEDED( hr ) )
+	{
+		dev->CopyResource( pTexMem, tex );
+		D3D10_MAPPED_TEXTURE2D res = { 0 };
+		if( SUCCEEDED( pTexMem->Map( 0, D3D10_MAP_READ, 0, &res ) ) )
+		{
+			if( DXGI_FORMAT_R8G8B8A8_UNORM == desc.Format ||
+				DXGI_FORMAT_R8G8B8A8_TYPELESS == desc.Format ||
+				DXGI_FORMAT_R8G8B8A8_UNORM_SRGB == desc.Format ||
+				DXGI_FORMAT_R8G8B8A8_UINT == desc.Format ||
+				DXGI_FORMAT_R8G8B8A8_SNORM == desc.Format ||
+				DXGI_FORMAT_R8G8B8A8_SINT == desc.Format
+				)
+			{
+				const LONG pitch = 4 * desc.Width;
+				BITMAPINFOHEADER hdr = { 0 };
+				hdr.biSize = sizeof( hdr );
+				hdr.biWidth = desc.Width;
+				hdr.biHeight = -LONG( desc.Height );
+				hdr.biPlanes = 1;
+				hdr.biBitCount = 32;
+				hdr.biSizeImage = pitch * desc.Height;
+
+				BITMAPFILEHEADER fh = { 0 };
+				fh.bfType = 'MB';
+				fh.bfOffBits = sizeof( fh ) + hdr.biSize;
+				fh.bfSize = fh.bfOffBits + hdr.biSizeImage;
+
+				// swivel RGBA to BGRA
+				unsigned char t = 0;
+				const LONG padd = res.RowPitch - pitch;
+				for( unsigned char* px = (unsigned char*)res.pData, *pxE = ( (unsigned char*)res.pData ) + hdr.biSizeImage;
+					 px != pxE; px += padd )
+				{
+					for( const unsigned char* pxLE = px + pitch; px != pxLE; px += 4 )
+					{
+						t = px[0];
+						px[0] = px[2];
+						px[2] = t;
+					}
+				}
+
+
+				FILE* f = NULL;
+				if( NO_ERROR == fopen_s( &f, path, "wb" ) )
+				{
+					fwrite( &fh, sizeof( fh ), 1, f );
+					fwrite( &hdr, sizeof( hdr ), 1, f );
+					fwrite( res.pData, hdr.biSizeImage, 1, f );
+					fclose( f );
+					ret = true;
+					logStr( 3, "Texture dumped to %s", path );
+				}
+				else
+				{
+					logStr( 3, "Could not write file %s", path );
+				}
+			}
+			else if( DXGI_FORMAT_R16G16B16A16_TYPELESS == desc.Format ||
+					 DXGI_FORMAT_R16G16B16A16_UNORM == desc.Format ||
+					 DXGI_FORMAT_R16G16B16A16_UINT == desc.Format ||
+					 DXGI_FORMAT_R16G16B16A16_SNORM == desc.Format ||
+					 DXGI_FORMAT_R16G16B16A16_SINT == desc.Format
+					 )
+			{
+				const LONG pitch = 4 * desc.Width;
+
+				BITMAPINFOHEADER hdr = { 0 };
+				hdr.biSize = sizeof( hdr );
+				hdr.biWidth = desc.Width;
+				hdr.biHeight = -LONG( desc.Height );
+				hdr.biPlanes = 1;
+				hdr.biBitCount = 32;
+				hdr.biSizeImage = desc.Height * pitch;
+
+				BITMAPFILEHEADER fh = { 0 };
+				fh.bfType = 'MB';
+				fh.bfOffBits = sizeof( fh ) + hdr.biSize;
+				fh.bfSize = fh.bfOffBits + hdr.biSizeImage;
+
+				// swivel RGBA to BGRA
+				unsigned short* pxS = (unsigned short*)res.pData;
+
+				unsigned char t = 0;
+				unsigned char* pDst = new unsigned char[hdr.biSizeImage];
+				unsigned char* pxD = pDst;
+				for( UINT y = 0; y != desc.Height; y++ )
+				{
+					const unsigned short* pxS = (unsigned short*)( ( (unsigned char*)res.pData ) + ptrdiff_t( y ) * res.RowPitch );
+					for( const unsigned short* pxLE = pxS + ptrdiff_t( 4 ) * desc.Width; pxS != pxLE; pxS += 4, pxD += 4 )
+					{
+						pxD[0] = unsigned char( pxS[1] >> 8 );
+						pxD[1] = unsigned char( pxS[2] >> 8 );
+						pxD[2] = unsigned char( pxS[0] >> 8 );
+						pxD[3] = unsigned char( pxS[3] >> 8 );
+					}
+				}
+
+				FILE* f = NULL;
+				if( NO_ERROR == fopen_s( &f, path, "wb" ) )
+				{
+					fwrite( &fh, sizeof( fh ), 1, f );
+					fwrite( &hdr, sizeof( hdr ), 1, f );
+					fwrite( res.pData, hdr.biSizeImage, 1, f );
+					fclose( f );
+					ret = true;
+					logStr( 3, "Texture dumped to %s", path );
+				}
+				else
+				{
+					logStr( 3, "Could not write file %s", path );
+				}
+
+				delete[] pDst;
+			}
+			else
+			{
+				logStr( 3, "Could not dump texture unknown format %i.", desc.Format );
+			}
+			pTexMem->Unmap( 0 );
+		}
+		else
+		{
+			logStr( 3, "Could not map dump texture." );
+		}
+		SAFERELEASE( pTexMem );
+	}
+	else
+	{
+		logStr( 3, "Could not create dump texture (%08x).", hr );
+	}
+	return ret;
+}
+
 
 DX10WarpBlend::DX10WarpBlend( ID3D10Device* pDevice )
 :	DXWarpBlend(),
@@ -29,7 +200,8 @@ DX10WarpBlend::DX10WarpBlend( ID3D10Device* pDevice )
 	m_texBB( NULL ),
 	m_texWarpCalc( NULL ),
 	m_RasterState( NULL ),
-	m_Layout( NULL )
+	m_Layout( NULL ),
+	m_vp( D3D10_VIEWPORT{0})
 {
 	if( NULL == m_device )
 		throw( VWB_ERROR_PARAMETER );
@@ -489,22 +661,6 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_sizeIn.cy = descTex.Height;
 		}
 	}
-
-#ifdef XTDEBUG
-	if( 0) 
-	{
-		ID3D10Resource* pRes = NULL;
-		m_texBlend->GetResource( &pRes );
-		D3DX10SaveTextureToFile( pRes, D3DX10_IFF_BMP, "D:\\Res_Blend.bmp" );
-		SAFERELEASE( pRes )
-		m_texWarp->GetResource( &pRes );
-		D3DX10SaveTextureToFile( pRes, D3DX10_IFF_BMP, "D:\\Res_Warp.bmp" );
-		SAFERELEASE( pRes )
-		m_texBB->GetResource( &pRes );
-		D3DX10SaveTextureToFile( pRes, D3DX10_IFF_BMP, "D:\\Res_BB.bmp" );
-		SAFERELEASE( pRes )
-	}
-#endif
 
 /////////////// save state
 	ID3D10Buffer* pOldVtx = NULL;

@@ -1,8 +1,8 @@
 #include "DX11WarpBlend.h"
 #include "pixelshader.h"
+#include <DirectXMath.h>
 
-//#pragma comment( lib, "d3d11.lib" )
-
+#pragma comment( lib, "d3d11.lib" )
 
 bool SaveTex( LPCSTR path, ID3D11Device* dev, ID3D11DeviceContext* dc, ID3D11Texture2D* tex )
 {
@@ -193,6 +193,7 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
   m_SSClamp(NULL),
   m_SSLin(NULL),
   m_ConstantBuffer(NULL),
+  m_texRT( NULL ),
   m_texWarp(NULL),
   m_texBlend( NULL ),
   m_texBlack( NULL ),
@@ -205,6 +206,62 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
   m_BlendState( NULL ),
   m_Layout(NULL)
 {
+
+	#ifdef _DEBUG
+	{
+		using namespace DirectX;
+		struct { VWB_VEC3d x, y; } d[] =
+		{
+			{ VWB_VEC3d( 1, 0, 0 ), VWB_VEC3d( 0, 1, 0 ) },  // ( 0, 0, 0 )
+
+			{ VWB_VEC3d( 1, 1, 0 ), VWB_VEC3d( -1, 1, 0 ) }, // ( 0, 0, -45 )
+			{ VWB_VEC3d( 1, -1, 0 ), VWB_VEC3d( 1, 1, 0 ) }, // ( 0, 0, 45 )
+
+			{ VWB_VEC3d( 1, 0, -1 ), VWB_VEC3d( 0, 1, 0 ) },  // ( 0, -45, 0 )
+			{ VWB_VEC3d( 1, 0, 1 ), VWB_VEC3d( 0, 1, 0 ) }, // ( 0, 45, 0 )
+
+			{ VWB_VEC3d( 1, 0, 0 ), VWB_VEC3d( 0, 1, -1 ) },  // ( -45, 0 , 0 )
+			{ VWB_VEC3d( 1, 0, 0 ), VWB_VEC3d( 0, 1, 1 ) }, // ( 45, 0, 0 )
+
+			{ VWB_VEC3d( 12, 22, 3 ), VWB_VEC3d( -18, 10, -5 ) },
+		};
+
+		VWB_MAT33d R2L( 1, 0, 0,
+						0, 1, 0,
+						0, 0, -1 );
+		for( int i = 0; i != ARRAYSIZE( d ); i++ )
+		{
+			VWB_MAT33d M = VWB_MAT33d::base( d[i].x, d[i].y );
+			VWB_VEC3d r = M.GetR();
+			VWB_VEC3d rDeg = r * 180 / PI;
+
+			VWB_MAT33d ML = M * R2L;
+
+			VWB_MAT33d R = VWB_MAT33d::R( r );
+			VWB_MAT33d Rx = VWB_MAT33d::Rx( r.x );
+			VWB_MAT33d Ry = VWB_MAT33d::Ry( r.y );
+			VWB_MAT33d Rz = VWB_MAT33d::Rz( r.z );
+			VWB_MAT33d RM = Rz * Rx * Ry;
+			VWB_MAT33d D = R - RM;
+			VWB_MAT33d D2 = M - R;
+			VWB_MAT33d D3 = M - RM;
+			XMMATRIX MMR = XMMatrixRotationRollPitchYaw( (FLOAT)r.x, (FLOAT)-r.y, (FLOAT)-r.z );
+
+			
+			VWB_MAT33d L = VWB_MAT33d::R_LHT( r );
+			VWB_MAT33d Lx = VWB_MAT33d::Rx_LHT( r.x );
+			VWB_MAT33d Ly = VWB_MAT33d::Ry_LHT( r.y );
+			VWB_MAT33d Lz = VWB_MAT33d::Rz_LHT( r.z );
+			VWB_MAT33d LM = Ly * Lx * Lz;
+			VWB_MAT33d E = L - LM;
+			VWB_MAT33d E2 = ML - L;
+			VWB_MAT33d E3 = ML - RM;
+			XMMATRIX MML = XMMatrixRotationRollPitchYaw( (FLOAT)-r.x, (FLOAT)r.y, (FLOAT)r.z );
+			int ikk = 0;
+		}
+	}
+	#endif //def _DEBUG
+
 	if( NULL == m_device )
 		throw( VWB_ERROR_PARAMETER );
 	else
@@ -229,6 +286,7 @@ DX11WarpBlend::~DX11WarpBlend(void)
 	SAFERELEASE( m_texWarp ); 
 	SAFERELEASE( m_texBlend );
 	SAFERELEASE( m_texBlack );
+	SAFERELEASE( m_texRT );
 	SAFERELEASE( m_PixelShader );
 	SAFERELEASE( m_VertexShader );
 	SAFERELEASE( m_VertexBuffer );
@@ -244,6 +302,27 @@ DX11WarpBlend::~DX11WarpBlend(void)
 
 VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
+	// make reinit OK
+	SAFERELEASE( m_Layout );
+	SAFERELEASE( m_DepthState );
+	SAFERELEASE( m_BlendState );
+	SAFERELEASE( m_RasterState );
+	SAFERELEASE( m_texCur );
+	SAFERELEASE( m_texWarpCalc );
+	SAFERELEASE( m_texBB );
+	SAFERELEASE( m_texWarp );
+	SAFERELEASE( m_texBlend );
+	SAFERELEASE( m_texBlack );
+	SAFERELEASE( m_texRT );
+	SAFERELEASE( m_PixelShader );
+	SAFERELEASE( m_VertexShader );
+	SAFERELEASE( m_VertexBuffer );
+	//SAFERELEASE( m_VertexBufferModel );
+	//SAFERELEASE( m_IndexBufferModel );
+	SAFERELEASE( m_SSLin );
+	SAFERELEASE( m_SSClamp );
+	SAFERELEASE( m_ConstantBuffer );
+
 	m_focusWnd = ::GetActiveWindow();
 	VWB_ERROR err = VWB_Warper_base::Init( wbs );
 	HRESULT hr = E_FAIL;
@@ -631,6 +710,57 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		logStr( 3, "Render target not available.\n" );
 		return VWB_ERROR_GENERIC;
 	}
+	else
+	{
+		if( m_texRT != pRTV )
+		{
+			ID3D11Resource* pRes = NULL;
+			pRTV->GetResource( &pRes );
+			if( pRes )
+			{
+				ID3D11Texture2D* pTex;
+				if( SUCCEEDED( pRes->QueryInterface( &pTex ) ) )
+				{
+					D3D11_TEXTURE2D_DESC desc;
+					pTex->GetDesc( &desc );
+					pTex->Release();
+					m_vp.Width = (FLOAT)desc.Width;
+					m_vp.Height = (FLOAT)desc.Height;
+					m_vp.TopLeftX = 0.0f;
+					m_vp.TopLeftY = 0.0f;
+					m_vp.MinDepth = 0.0f;
+					m_vp.MaxDepth = 1.0f;
+
+					logStr( 3, "found render target:\n"
+							"Width           = %i\n"
+							"Height          = %i\n"
+							"MipLevels       = %i\n"
+							"ArraySize       = %i\n"
+							"Format          = %i\n"
+							"SampleDesc      = {Count = %i, Quality = %i}\n"
+							"Usage           = %i\n"
+							"BindFlags       = %i\n"
+							"CPUAccessFlags  = %i\n"
+							"MiscFlags       = %i\n"
+							, desc.Width
+							, desc.Height
+							, desc.MipLevels
+							, desc.ArraySize
+							, desc.Format
+							, desc.SampleDesc.Count
+							, desc.SampleDesc.Quality
+							, desc.Usage
+							, desc.BindFlags
+							, desc.CPUAccessFlags
+							, desc.MiscFlags
+					);
+					if( desc.Width != m_sizeMap.cx || desc.Height != m_sizeMap.cy )
+						logStr( 1, "WARNING: Backbuffer size does not match mapping size. This will produce sampling artefacts." );
+				}
+			}
+			pRes->Release();
+		}
+	}
 
 	// do backbuffer copy if necessary
 	if( NULL == inputTexture ||
@@ -657,30 +787,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					desc.Width != m_sizeIn.cx ||
 					desc.Height != m_sizeIn.cy )
 				{
-					logStr( 1, "new backbuffer texture resource attached." );
-					logStr( 3, "Backbuffer texture desc:\n"
-							"Width           = %i\n"
-							"Height          = %i\n"
-							"MipLevels       = %i\n"
-							"ArraySize       = %i\n"
-							"Format          = %i\n"
-							"SampleDesc      = {Count = %i, Quality = %i}\n"
-							"Usage           = %i\n"
-							"BindFlags       = %i\n"
-							"CPUAccessFlags  = %i\n"
-							"MiscFlags       = %i\n"
-							, desc.Width
-							, desc.Height
-							, desc.MipLevels
-							, desc.ArraySize
-							, desc.Format
-							, desc.SampleDesc.Count
-							, desc.SampleDesc.Quality
-							, desc.Usage
-							, desc.BindFlags
-							, desc.CPUAccessFlags
-							, desc.MiscFlags
-					);
 
 					pTex = NULL;
 					//desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
@@ -691,7 +797,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					desc.MipLevels = 1;
 					desc.MiscFlags = 0;
 
-					logStr( 3, "Clone texture desc:\n"
+					logStr( 3, "creating clone texture:\n"
 							"Width           = %i\n"
 							"Height          = %i\n"
 							"MipLevels       = %i\n"
@@ -718,12 +824,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					res = m_device->CreateTexture2D( &desc, NULL, &pTex );
 					m_sizeIn.cx = desc.Width;
 					m_sizeIn.cy = desc.Height;
-					m_vp.Width = (FLOAT)desc.Width;
-					m_vp.Height = (FLOAT)desc.Height;
-					m_vp.TopLeftX = 0.0f;
-					m_vp.TopLeftY = 0.0f;
-					m_vp.MinDepth = 0.0f;
-					m_vp.MaxDepth = 1.0f;
 					if( SUCCEEDED( res ) )
 					{
 						D3D11_SHADER_RESOURCE_VIEW_DESC descSRV;
@@ -739,9 +839,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 						pTex->Release();
 						if( SUCCEEDED( res ) )
 						{
-							logStr( 2, "Backbuffer cloned." );
-							if( m_sizeIn.cx != m_sizeMap.cx || m_sizeIn.cy != m_sizeMap.cy )
-								logStr( 1, "WARNING: Backbuffer size does not match mapping size. This will produce sampling artefacts." );
+							logStr( 2, "clone texture created." );
 						}
 						else
 						{
@@ -844,12 +942,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 			m_sizeIn.cx = descTex.Width;
 			m_sizeIn.cy = descTex.Height;
-			m_vp.Width = (FLOAT)descTex.Width;
-			m_vp.Height = (FLOAT)descTex.Height;
-			m_vp.TopLeftX = 0.0f;
-			m_vp.TopLeftY = 0.0f;
-			m_vp.MinDepth = 0.0f;
-			m_vp.MaxDepth = 1.0f;
 			logStr( 2, "Input texture resource attached." );
 			logStr( 3, "Input texture desc:\n"
                     "Width           = %i\n"
@@ -924,11 +1016,11 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	ID3D11Buffer* pOldCBVS = NULL;
 	ID3D11Buffer* pOldCBPS = NULL;
 	ID3D11PixelShader* pOldPS = NULL;
-	ID3D11ShaderResourceView* ppOldSRV[4] = {0};
+	ID3D11ShaderResourceView* ppOldSRV[5] = {0};
 	FLOAT bf[4] = { 1,1,1,1 };
 	UINT dsm = 0xFFFFFFFF;
 
-	ID3D11SamplerState* ppOldSS[4] = {0};
+	ID3D11SamplerState* ppOldSS[5] = {0};
 
 	UINT oldNVP = 0;
 	D3D11_VIEWPORT pOldVP[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE] = { 0 };
@@ -957,9 +1049,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
 		m_dc->PSGetShader( &pOldPS, NULL, NULL );
 	if( VWB_STATEMASK_SHADER_RESOURCE & stateMask )
-		m_dc->PSGetShaderResources( 0, 4, ppOldSRV );
+		m_dc->PSGetShaderResources( 0, 5, ppOldSRV );
 	if( VWB_STATEMASK_SAMPLER & stateMask )
-		m_dc->PSGetSamplers( 0, 4, ppOldSS );
+		m_dc->PSGetSamplers( 0, 5, ppOldSS );
 	if( VWB_STATEMASK_CONSTANT_BUFFER & stateMask )
 	{
 		m_dc->VSGetConstantBuffers( 0, 1, &pOldCBVS );
@@ -1151,17 +1243,16 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if( pDSV )
 		{
 			m_dc->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0f, 0 );
-			pDSV->Release();
 		}
 		if( pRTV )
 		{
 			m_dc->ClearRenderTargetView( pRTV, _black );
-			pRTV->Release();
 		}
 	}
+	SAFERELEASE( pDSV );
+	SAFERELEASE( pRTV );
 	m_dc->Draw( 6, 0 );
 	res = S_OK;
-
 /////////// restore state
 	if( VWB_STATEMASK_CONSTANT_BUFFER & stateMask )
 	{
@@ -1171,20 +1262,27 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( VWB_STATEMASK_SAMPLER & stateMask )
 	{
-		m_dc->PSSetSamplers( 0, 4, ppOldSS );
+		m_dc->PSSetSamplers( 0, 5, ppOldSS );
 		SAFERELEASE( ppOldSS[0] );
 		SAFERELEASE( ppOldSS[1] );
 		SAFERELEASE( ppOldSS[2] );
 		SAFERELEASE( ppOldSS[3] );
+		SAFERELEASE( ppOldSS[4] );
 	}
 
 	if( VWB_STATEMASK_SHADER_RESOURCE & stateMask )
 	{
-		m_dc->PSSetShaderResources( 0, 4, ppOldSRV );
+		m_dc->PSSetShaderResources( 0, 5, ppOldSRV );
 		SAFERELEASE( ppOldSRV[0] );
 		SAFERELEASE( ppOldSRV[1] );
 		SAFERELEASE( ppOldSRV[2] );
 		SAFERELEASE( ppOldSRV[3] );
+		SAFERELEASE( ppOldSRV[4] );
+	}
+	else if( inputTexture )
+	{ // at least unbind input texture
+		ID3D11ShaderResourceView* const p[] = { nullptr };
+		m_dc->PSSetShaderResources( 4, 1, p );
 	}
 
 	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )

@@ -47,6 +47,7 @@ public:
     ///< the destructor
 	virtual ~DXWarpBlend();
 
+	VWB_MAT44f UpdateView( VWB_VEC3f& e );
 	virtual VWB_ERROR GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj );
 	virtual VWB_ERROR GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip );
 	virtual VWB_ERROR GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) override;

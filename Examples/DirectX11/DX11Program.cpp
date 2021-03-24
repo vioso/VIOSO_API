@@ -204,7 +204,7 @@ LRESULT OutputWindow::wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
     return 0;
 }
 
-OutputWindow::OutputWindow( HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
+OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
 : m_hWnd( 0 )
 , m_driverType( D3D_DRIVER_TYPE_NULL )
 , m_featureLevel( D3D_FEATURE_LEVEL_11_0 )
@@ -222,7 +222,7 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, int x, int y, int width, int he
     wcex.hCursor = LoadCursor( NULL, IDC_ARROW );
     wcex.hbrBackground = (HBRUSH)( COLOR_WINDOW + 1 );
     wcex.lpszMenuName = NULL;
-    wcex.lpszClassName = _T( "DX11DemoWindowClass" );
+    wcex.lpszClassName = _T( "OutputWindowClass" );
     wcex.hIconSm = LoadIcon( wcex.hInstance, (LPCTSTR)_T( "directx.ico" ) );
     if( !RegisterClassEx( &wcex ) )
         throw exception( "failed to register window class" );
@@ -240,7 +240,7 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, int x, int y, int width, int he
         AdjustWindowRect( &rc, WS_POPUPWINDOW, FALSE );
     }
     m_hWnd = CreateWindow(
-        _T( "DX11DemoWindowClass" ), _T( "Direct3D 11 Demo" ), WS_POPUPWINDOW,
+        _T( "OutputWindowClass" ), windowName, WS_POPUPWINDOW,
         rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
         NULL, NULL, hInstance, NULL );
     if( ! m_hWnd )

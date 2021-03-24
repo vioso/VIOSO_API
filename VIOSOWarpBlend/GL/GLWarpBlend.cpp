@@ -505,6 +505,8 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 		logStr( 1, "SUCCESS: OGL-Warper initialized.\n" );
 
+		//// invert view matrix
+		//m_mViewIG.Transpose();
 	} catch( VWB_ERROR e )
 	{
 		return e;
@@ -512,54 +514,89 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 	return err;
 }
 
+inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
+{
+	VWB_MAT44f V;
+	// rotation matrix from angles
+	VWB_MAT44f R = m_bRH ?
+		VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ) :
+		VWB_MAT44f::R_LHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+
+	// add eye offset rotated to platform
+	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
+		e += VWB_VEC3f::ptr( this->eye ) * R;
+
+	// translate to local coordinates
+	e = m_mViewIG * e;
+
+	VWB_MAT44f T = VWB_MAT44f::T( e );
+	m_mVP = T * m_mViewIG * m_mBaseI; //TODO precalc
+
+	if( bTurnWithView )
+		V = m_mViewIG * R;
+	else
+		V = T * m_mViewIG;
+	return V;
+
+/*
+
+	// we transform the dynamic eye-point to the constant view:
+
+	// copy eye coordinate to eb
+	VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
+
+	// rotation matrix from angles
+	VWB_MAT44f R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+
+	// add eye offset rotated to platform
+	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
+		e += R * VWB_VEC3f::ptr( this->eye );
+
+	// translate to local coordinates
+	e = m_mViewIG * e;
+
+	VWB_MAT44f T = VWB_MAT44f::T( -e );
+	m_mVP = T * m_mViewIG * m_mBaseI;
+
+	if( bTurnWithView )
+		V = R * m_mViewIG;
+	else
+		V = m_mViewIG * T;
+
+	return VWB_ERROR_NONE;
+*/
+}
+
 // set up the view matrix,
 // use the same matrices as in your program, construct a view matrix relative to the actual screen
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR GLWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetViewProjection( eye, rot, pView, pProj );
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f V; // the view matrix to return 
 		VWB_MAT44f P; // the projection matrix to return 
 
-		// we transform the dynamic eye-point to the constant view:
-
-		// copy eye coordinate to eb
+		// copy eye coordinate to e
 		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
 
-		// rotation matrix from angles
-		VWB_MAT44f R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
-
-		// add eye offset rotated to platform
-		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-			e+= R * VWB_VEC3f::ptr(this->eye);
-
-		// translate to local coordinates
-		e = m_mViewIG * e;
-
-		VWB_MAT44f T = VWB_MAT44f::T( -e );
-		m_mVP = T * m_mViewIG * m_mBaseI;
-
-		if( bTurnWithView )
-			V = m_mViewIG * R.Transposed();
-		else
-			V = T * m_mViewIG;
+		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
-		getClip( e, clip );
+		//e.z *= -1;
+		getClip( VWB_VEC3f( -e.x, -e.y, -e.z ), clip );
+
 		if( m_bRH )
-			P =  VWB_MAT44f::GLFrustumRH( clip );
+			P = VWB_MAT44f::GLFrustumRH( clip );
 		else
-			P =  VWB_MAT44f::GLFrustumLH( clip );
+			P = VWB_MAT44f::GLFrustumLH( clip );
 
 		m_mVP = P.Transposed() * m_mVP;
 
 		if( pView )
 		{
-			V.SetPtr( pView );
+			V.Transposed().SetPtr( pView );
 		}
-
 		if( pProj )
 		{
 			P.SetPtr( pProj );
@@ -573,43 +610,25 @@ VWB_ERROR GLWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR GLWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetViewClip( eye, rot, pView, pClip );
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f V; // the view matrix to return 
 		VWB_MAT44f P; // the projection matrix to return 
 
-		// we transform the dynamic eye-point to the constant view:
-
-		// copy eye coordinate to eb
+		// copy eye coordinate to e
 		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
 
-		// rotation matrix from angles
-		VWB_MAT44f R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
-
-		// add eye offset rotated to platform
-		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-			e += R * VWB_VEC3f::ptr( this->eye );
-
-		// translate to local coordinates
-		e = m_mViewIG * e;
-
-		VWB_MAT44f T = VWB_MAT44f::T( -e );
-		m_mVP = T * m_mViewIG * m_mBaseI;
-
-		if( bTurnWithView )
-			V = m_mViewIG * R.Transposed();
-		else
-			V = T * m_mViewIG;
+		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
+
 		if( m_bRH )
 			P = VWB_MAT44f::GLFrustumRH( clip );
 		else
 			P = VWB_MAT44f::GLFrustumLH( clip );
 
-		m_mVP = P.Transposed() * m_mVP;
+		m_mVP = P * m_mVP;
 
 		if( pView )
 		{

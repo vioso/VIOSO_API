@@ -10,7 +10,8 @@ public:
 protected:
     ID3D11Device*				m_device;           // the d3d device
 	ID3D11DeviceContext*		m_dc;				// the d3d devicecontext
-    ID3D11ShaderResourceView*	m_texWarp;          // the warp lookup texture, in case of 3D it contains the real world 3D coordinates of the screen
+	ID3D11RenderTargetView*		m_texRT;	        // the render target view
+	ID3D11ShaderResourceView*	m_texWarp;          // the warp lookup texture, in case of 3D it contains the real world 3D coordinates of the screen
 	ID3D11ShaderResourceView*	m_texBlend;         // the blend lookup texture view
 	ID3D11ShaderResourceView*	m_texBlack;         // the black level lookup texture view
 	ID3D11ShaderResourceView*	m_texBB;			// backbuffer copy or source texture view

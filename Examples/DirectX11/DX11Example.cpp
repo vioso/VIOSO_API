@@ -3,13 +3,8 @@
 #include "resource.h"
 #include <string>
 #include <vector>
+#include <atlstr.h>
 using namespace std;
-
-////< start VIOSO API code
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
-#include "../../Include/VIOSOWarpBlend.h"
-LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
-////< end VIOSO API code
 
 class CubesRenderer : public Renderer
 {
@@ -274,12 +269,17 @@ public:
     }
 };
 
+////< start VIOSO API code
+#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
+#include "../../Include/VIOSOWarpBlend.h"
+LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
+
 class VIOSOWarperWindow : public OutputWindow {
     VWB_Warper* m_warper;
     shared_ptr<MyRenderToTexture> m_rtt;
 public:
-    VIOSOWarperWindow( LPCSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
-    : OutputWindow( hInstance, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
+    VIOSOWarperWindow( LPCTSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
+    : OutputWindow( hInstance, channelName, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
     , m_warper( nullptr )
     {
 
@@ -301,6 +301,12 @@ public:
         ////< end VIOSO API code
 
         m_rtt = make_shared< MyRenderToTexture >( m_dev, m_ic, (int)m_vp.Width, (int)m_vp.Height, DXGI_FORMAT_R8G8B8A8_UNORM, true );
+    }
+
+    ~VIOSOWarperWindow()
+    {
+        if( m_warper )
+            VWB_Destroy( m_warper );
     }
 
     virtual void addRenderer( std::shared_ptr< Renderer > renderer )
@@ -339,6 +345,8 @@ public:
         __super::postRender();
     }
 };
+////< end VIOSO API code
+
 
 //--------------------------------------------------------------------------------------
 // Global Variables
@@ -347,24 +355,41 @@ HINSTANCE               g_hInst = NULL;
 vector<shared_ptr<OutputWindow>>    g_windows;
 XMMATRIX g_mWorld;
 
+BOOL AddWindowWithRenderer(
+    HMONITOR,
+    HDC,
+    LPRECT pR,
+    LPARAM lp
+)
+{
+    #ifdef _DEBUG
+        constexpr UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
+    #else
+        constexpr UINT createDeviceFlags = 0;
+    #endif
+    
+    HINSTANCE hInstance = (HINSTANCE)lp;
+    CString s; s.Format( "Display%i", (int)g_windows.size() + 1 );
+    g_windows.push_back( make_shared<VIOSOWarperWindow>( s, hInstance, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+    //g_windows.push_back( make_shared<OutputWindow>( hInstance, s, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+    g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.front()->getDevice() ) );
+
+    return TRUE;
+}
+
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing 
 // loop. Idle time is used to render the scene.
 //--------------------------------------------------------------------------------------
 int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow )
 {
+    UNREFERENCED_PARAMETER( hPrevInstance );
+    UNREFERENCED_PARAMETER( lpCmdLine );
+    UNREFERENCED_PARAMETER( nCmdShow );
+
     try
     {
-        UNREFERENCED_PARAMETER( hPrevInstance );
-        UNREFERENCED_PARAMETER( lpCmdLine );
-
-        UINT createDeviceFlags = 0;
-    #ifdef _DEBUG
-        createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-    #endif
-
-        g_windows.push_back( make_shared<VIOSOWarperWindow>( "IGX", hInstance, 0, 0, 0, 0, nCmdShow, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.front()->getDevice() ) );
+        ::EnumDisplayMonitors( 0, NULL, AddWindowWithRenderer, (LPARAM)hInstance );
 
         // initialize world matrix
         g_mWorld = XMMatrixIdentity();

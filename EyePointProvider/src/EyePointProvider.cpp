@@ -10,15 +10,26 @@
 #include <stdint.h>
 #include <math.h>
 #include <sys/timeb.h>
+#include <string>
+#include <sstream>
 #include "../../VIOSOWarpBlend/logging.h"
 #include "../../VIOSOWarpBlend/socket.h"
 
+#pragma comment( linker, "/SECTION:.eyeshare,RWS" )
+#pragma data_seg (".eyeshare")
+	int instanceCounter = 0;
+	double epx = 0;
+	double epy = 0;
+	double epz = 0;
+	double eproll = 0;
+	double eppitch = 0;
+	double epyaw = 0;
+	HANDLE hThread = 0;
+#pragma data_seg()
+
 HMODULE g_hModDll = 0;
 bool bSineWave = false;
-unsigned short port = 0;
-EyePoint eyePointRcv;
 uint64_t tmStamp = 0;
-HANDLE hThread = 0;
 
 #define M_PI       3.14159265358979323846   // pi
 #define DEG2RADd( v ) ( (v) * double(M_PI / 180.0) )
@@ -26,7 +37,8 @@ HANDLE hThread = 0;
 
 struct Receiver
 {
-    uint64_t beginTime;
+	uint64_t beginTime;
+	int mode;
 };
  
 
@@ -35,17 +47,26 @@ u_int __stdcall theadFn( void* param )
 	logStr( 2, "start listener." );
 	ifStartSockets()
 	{
-		Socket sock( SOCK_DGRAM, false, IPPROTO_UDP, false, 0, 0 );
-		SocketAddress sa( INADDR_ANY, port );
+		std::istringstream ss((const char*)param);
+		std::string sIP;
+		unsigned short port;
+		unsigned long ip = INADDR_ANY;
+		ss >> port >> sIP;
+		if( 0 == port )
+			port = 1919;
+		if( !sIP.empty() )
+			ip = SocketAddress( sIP.c_str(), 0 ).sin_addr.S_un.S_addr;
+		Socket sock = Socket( SOCK_DGRAM, true, IPPROTO_UDP, false, 0, 0 );
+		SocketAddress sa( ip, port );
 		if( 0 != sock.bind( sa ) )
 		{
 			sock.close();
 			return -1;
 		}
-		char buff[65535];
-		while( sock )
+		char buff[1024];
+		while( instanceCounter )
 		{
-			int res = sock.recv( buff, 65535, INFINITETIMEOUT );
+			int res = sock.recv( buff, 1024, INFINITETIMEOUT );
 			if( SOCKET_ERROR == res )
 			{
 				return -2;
@@ -53,14 +74,14 @@ u_int __stdcall theadFn( void* param )
 			else if( 0 != res )
 			{
 				buff[res] = 0; // make zero terminated string
-				if( 6 == sscanf_s( buff, "%lf %lf %lf %lf %lf %lf", &eyePointRcv.x, &eyePointRcv.y, &eyePointRcv.z, &eyePointRcv.pitch, &eyePointRcv.yaw, &eyePointRcv.roll ) )
+				if( 6 == sscanf_s( buff, "%lf %lf %lf %lf %lf %lf", &epx, &epy, &epz, &eproll, &eppitch, &epyaw ) )
 				{
-					eyePointRcv.x /= 1000;
-					eyePointRcv.y /= 1000;
-					eyePointRcv.z /= 1000;
-					eyePointRcv.pitch *= DEG2RADd( 1 );
-					eyePointRcv.yaw *= DEG2RADd( 1 );
-					eyePointRcv.roll *= DEG2RADd( 1 );
+					epx /= 1000;
+					epy /= 1000;
+					epz /= 1000;
+					eproll *= DEG2RADd( 1 );
+					eppitch *= DEG2RADd( 1 );
+					epyaw *= DEG2RADd( 1 );
 					__timeb64 tm;
 					_ftime_s( &tm );
 					tmStamp = tm.time * 1000 + tm.millitm;
@@ -74,18 +95,19 @@ u_int __stdcall theadFn( void* param )
 void* CreateEyePointReceiver( char const* szParam )
 {
     auto r = new Receiver;
-	__timeb64 tm; 
+	instanceCounter++;
+	__timeb64 tm;
 	_ftime_s( &tm );
 	r->beginTime = tm.time * 1000 + tm.millitm;
 	if( strstr( szParam, "sinewave" ) )
-		bSineWave = true;
+	{
+		r->mode = 0;
+	}
 	else if( strstr( szParam, "listen" ) )
 	{
-		if( 1 == sscanf_s( szParam, "listen %hu", &port ) && 0 < port )
-		{
-			if( 0 == hThread )
-				hThread = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE)theadFn, NULL, 0, NULL );
-		}
+		r->mode = 1;
+		if( 0 == hThread )
+			hThread = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE)theadFn, (void*)(strstr( szParam, "listen" ) + 7), 0, NULL );
 	}
     return r;
 }
@@ -95,139 +117,149 @@ bool ReceiveEyePoint(void *receiver, EyePoint* eyePoint)
 {
     auto r = static_cast<Receiver*>(receiver);
  
-	__timeb64 tm; 
-	_ftime_s( &tm );
-	auto duration = tm.time * 1000 + tm.millitm;// - r->beginTime;
- 
-	const double tick = 5000.0;
-
-	double ticks = double(duration) / tick;
- 
-    const double PI = 3.141592653589793e+00;
-
-	const double mm[][12] =
+	if( 0 == r->mode )
 	{
-		{0,0,0,0,0,0,0,0,0,0,0,0},
-		{1,0,0,0,0,0,0,0,0,0,0,0},
-		{0,0,1,0,0,0,0,0,0,0,0,0},
-		{0,0,0,0,1,0,0,0,0,0,0,0},
-		{0,0,0,0,0,0,1,0,0,0,0,0},
-		{0,0,0,0,0,0,0,0,1,0,0,0},
-		{0,0,0,0,0,0,0,0,0,0,1,0},
-	};
+		__timeb64 tm;
+		_ftime_s( &tm );
+		auto duration = tm.time * 1000 + tm.millitm;// - r->beginTime;
  
-	eyePoint->x = 0;
-	eyePoint->y = 0;
-    eyePoint->z = 0;
-    eyePoint->yaw = 0; // around y
-    eyePoint->roll = 0; // around x
-    eyePoint->pitch = 0; // around z
+		const double tick = 5000.0;
 
-	int d = sizeof(mm)/sizeof(mm[0]);
-	ticks = fmod( ticks, d );
+		double ticks = double(duration) / tick;
+ 
+		const double PI = 3.141592653589793e+00;
 
-	int s = int(ticks);
-	double o = fmod( ticks, 1 ) * 2 * PI;
+		const double mm[][12] =
+		{
+			{0,0,0,0,0,0,0,0,0,0,0,0},
+			{1,0,0,0,0,0,0,0,0,0,0,0},
+			{0,0,1,0,0,0,0,0,0,0,0,0},
+			{0,0,0,0,1,0,0,0,0,0,0,0},
+			{0,0,0,0,0,0,1,0,0,0,0,0},
+			{0,0,0,0,0,0,0,0,1,0,0,0},
+			{0,0,0,0,0,0,0,0,0,0,1,0},
+		};
+ 
+		eyePoint->x = 0;
+		eyePoint->y = 0;
+		eyePoint->z = 0;
+		eyePoint->yaw = 0; // around y
+		eyePoint->roll = 0; // around x
+		eyePoint->pitch = 0; // around z
 
-	if( bSineWave )
-	{
+		int d = sizeof(mm)/sizeof(mm[0]);
+		ticks = fmod( ticks, d );
+
+		int s = int(ticks);
+		double o = fmod( ticks, 1 ) * 2 * PI;
+
 		eyePoint->x		= mm[s][ 1] + mm[s][ 0] * sin( o );
 		eyePoint->y		= mm[s][ 3] + mm[s][ 2] * sin( o );
 		eyePoint->z		= mm[s][ 5] + mm[s][ 4] * sin( o );
 		eyePoint->yaw	= mm[s][ 7] + mm[s][ 6] * sin( o );
 		eyePoint->pitch	= mm[s][ 9] + mm[s][ 8] * sin( o );
 		eyePoint->roll  = mm[s][11] + mm[s][10] * sin( o );
-	}
-	else if( 0 != port )
-	{
-		*eyePoint = eyePointRcv;
-	}
-	/*
-	if( bSineWave )
-	{
-		switch( int(secs/4) )
+		/*
+		if( bSineWave )
 		{
-		case 0: // moving center - right - center - left - center
-			eyePoint->x = sin( PI * secs/8 );
-			break;
-		case 1: // moving center - right - center - left - center
-			eyePoint->x = 1;
-			break;
-		case 2: // moving center - right - center - left - center
-			eyePoint->x = sin( PI * ( secs/8 - 0.5 ) );
-			break;
-		case 3: // turning center - right - center - left - center (30deg)
-			eyePoint->yaw = sin( PI * ( secs/8 - 1.5 ) ) / 6 * PI;
-			break;
-		case 4: // turning center - right - center - left - center (30deg)
-			eyePoint->yaw = PI / 6;
-			break;
-		case 5: // turning center - right - center - left - center (30deg)
-			eyePoint->yaw = sin( PI * ( secs/8 - 2 ) ) / 6 * PI;
-			break;
-		case 6: // moving center - up - center - down - center
-			eyePoint->y = sin( PI * ( secs/8 - 3 ) );
-			break;
-		case 7: // moving center - up - center - down - center
-			eyePoint->y = 1;
-			break;
-		case 8: // moving center - up - center - down - center
-			eyePoint->y = sin( PI * ( secs/8 - 3.5 ) );
-			break;
-		case 9: // turning center - up - center - down - center (30deg)
-			eyePoint->pitch = sin( PI * ( secs/8 - 4.5 ) ) / 6 * PI;
-			break;
-		case 10: // turning center - up - center - down - center (30deg)
-			eyePoint->pitch = PI / 6;
-			break;
-		case 11: // turning center - up - center - down - center (30deg)
-			eyePoint->pitch = sin( PI * ( secs/8 - 5 ) ) / 6 * PI;
-			break;
-		case 12: // moving center - up - center - down - center
-			eyePoint->z = sin( PI * ( secs/8 - 6 ) );
-			break;
-		case 13: // moving center - up - center - down - center
-			eyePoint->z = 1;
-			break;
-		case 14: // moving center - up - center - down - center
-			eyePoint->z = sin( PI * ( secs/8 - 6.5 ) );
-			break;
-		case 15: // turning center - up - center - down - center (30deg)
-			eyePoint->roll = sin( PI * ( secs/8 - 7.5 ) ) / 6 * PI;
-			break;
-		case 16: // turning center - up - center - down - center (30deg)
-			eyePoint->roll = PI / 6;
-			break;
-		case 17: // turning center - up - center - down - center (30deg)
-			eyePoint->roll = sin( PI * ( secs/8 - 8 ) ) / 6 * PI;
-			break;
-		case 19: // moving center - right - center - left - center
-			eyePoint->x = sin( PI * ( secs/8 - 9.5 ) );
-			break;
-		case 20: // moving center - right - center - left - center
-			eyePoint->x = 1;
-			eyePoint->yaw = sin( PI * ( secs/8 - 10 ) ) / 6 * PI;
-			break;
-		case 21: // moving center - right - center - left - center
-			eyePoint->x = 1;
-			eyePoint->yaw = PI / 6;
-			break;
-		case 22: // turning center - right - center - left - center (30deg)
-			eyePoint->x = 1;
-			eyePoint->yaw = sin( PI * ( secs/8 - 10.5 ) ) / 6 * PI;
-			break;
-		case 23: // turning center - right - center - left - center (30deg)
-			eyePoint->x = sin( PI * ( secs/8 - 11 ) );
-			break;
+			switch( int(secs/4) )
+			{
+			case 0: // moving center - right - center - left - center
+				eyePoint->x = sin( PI * secs/8 );
+				break;
+			case 1: // moving center - right - center - left - center
+				eyePoint->x = 1;
+				break;
+			case 2: // moving center - right - center - left - center
+				eyePoint->x = sin( PI * ( secs/8 - 0.5 ) );
+				break;
+			case 3: // turning center - right - center - left - center (30deg)
+				eyePoint->yaw = sin( PI * ( secs/8 - 1.5 ) ) / 6 * PI;
+				break;
+			case 4: // turning center - right - center - left - center (30deg)
+				eyePoint->yaw = PI / 6;
+				break;
+			case 5: // turning center - right - center - left - center (30deg)
+				eyePoint->yaw = sin( PI * ( secs/8 - 2 ) ) / 6 * PI;
+				break;
+			case 6: // moving center - up - center - down - center
+				eyePoint->y = sin( PI * ( secs/8 - 3 ) );
+				break;
+			case 7: // moving center - up - center - down - center
+				eyePoint->y = 1;
+				break;
+			case 8: // moving center - up - center - down - center
+				eyePoint->y = sin( PI * ( secs/8 - 3.5 ) );
+				break;
+			case 9: // turning center - up - center - down - center (30deg)
+				eyePoint->pitch = sin( PI * ( secs/8 - 4.5 ) ) / 6 * PI;
+				break;
+			case 10: // turning center - up - center - down - center (30deg)
+				eyePoint->pitch = PI / 6;
+				break;
+			case 11: // turning center - up - center - down - center (30deg)
+				eyePoint->pitch = sin( PI * ( secs/8 - 5 ) ) / 6 * PI;
+				break;
+			case 12: // moving center - up - center - down - center
+				eyePoint->z = sin( PI * ( secs/8 - 6 ) );
+				break;
+			case 13: // moving center - up - center - down - center
+				eyePoint->z = 1;
+				break;
+			case 14: // moving center - up - center - down - center
+				eyePoint->z = sin( PI * ( secs/8 - 6.5 ) );
+				break;
+			case 15: // turning center - up - center - down - center (30deg)
+				eyePoint->roll = sin( PI * ( secs/8 - 7.5 ) ) / 6 * PI;
+				break;
+			case 16: // turning center - up - center - down - center (30deg)
+				eyePoint->roll = PI / 6;
+				break;
+			case 17: // turning center - up - center - down - center (30deg)
+				eyePoint->roll = sin( PI * ( secs/8 - 8 ) ) / 6 * PI;
+				break;
+			case 19: // moving center - right - center - left - center
+				eyePoint->x = sin( PI * ( secs/8 - 9.5 ) );
+				break;
+			case 20: // moving center - right - center - left - center
+				eyePoint->x = 1;
+				eyePoint->yaw = sin( PI * ( secs/8 - 10 ) ) / 6 * PI;
+				break;
+			case 21: // moving center - right - center - left - center
+				eyePoint->x = 1;
+				eyePoint->yaw = PI / 6;
+				break;
+			case 22: // turning center - right - center - left - center (30deg)
+				eyePoint->x = 1;
+				eyePoint->yaw = sin( PI * ( secs/8 - 10.5 ) ) / 6 * PI;
+				break;
+			case 23: // turning center - right - center - left - center (30deg)
+				eyePoint->x = sin( PI * ( secs/8 - 11 ) );
+				break;
+			}
 		}
+		*/
 	}
-	*/
+	else if( 1 == r->mode &&  0 != hThread )
+	{
+		eyePoint->x = epx;
+		eyePoint->y = epy;
+		eyePoint->z = epz;
+		eyePoint->roll = eproll;
+		eyePoint->pitch = eppitch;
+		eyePoint->yaw = epyaw;
+	}
     return true;
 }
  
 void DeleteEyePointReceiver(void* handle)
 {
     delete static_cast<Receiver*>(handle);
+	if( 0 == --instanceCounter )
+	{
+		if( hThread )
+			WaitForSingleObject( hThread, 3000 );
+	}
 }
  
 
@@ -241,6 +273,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,DWORD  ul_reason_for_call,LPVOID lpReserv
 			break;
 		case DLL_THREAD_ATTACH:
 		case DLL_THREAD_DETACH:
+			break;
 		case DLL_PROCESS_DETACH:
 			break;
 	}

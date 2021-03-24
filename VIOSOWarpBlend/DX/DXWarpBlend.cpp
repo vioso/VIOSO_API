@@ -12,39 +12,45 @@ DXWarpBlend::~DXWarpBlend()
 {
 }
 
+VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
+{
+	VWB_MAT44f V;
+	// rotation matrix from angles
+	VWB_MAT44f R = m_bRH ?
+		VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ) :
+		VWB_MAT44f::R_LHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+
+	// add eye offset rotated to platform
+	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
+		e += VWB_VEC3f::ptr( this->eye ) * R;
+
+	// translate to local coordinates
+	e = e * m_mViewIG;
+
+	VWB_MAT44f T = VWB_MAT44f::T_T( -e );
+	m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
+
+	if( bTurnWithView )
+		V = R * m_mViewIG; //??
+	else
+		V = m_mViewIG * T;
+	return V;
+}
+
 // set up the view matrix,
 // use the same matrices as in your program, construct a view matrix relative to the actual screen
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetViewProjection( eye, rot, pView, pProj );
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f V; // the view matrix to return 
 		VWB_MAT44f P; // the projection matrix to return 
-
-		// we transform the dynamic eye-point to the constant view:
 
 		// copy eye coordinate to e
 		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
 
-		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::RLHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
-
-		// add eye offset rotated to platform
-		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-			e += VWB_VEC3f::ptr( this->eye ) * R;
-
-		// translate to local coordinates
-		e = e * m_mViewIG;
-
-		VWB_MAT44f T = VWB_MAT44f::TT( -e );
-		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
-
-		if( bTurnWithView )
-			V = R * m_mViewIG;
-		else
-			V = m_mViewIG * T;
+		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
@@ -74,34 +80,15 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetViewClip( eye, rot, pView, pClip );
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f V; // the view matrix to return 
 		VWB_MAT44f P; // the projection matrix to return 
-
-		// we transform the dynamic eye-point to the constant view:
 
 		// copy eye coordinate to e
 		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
 
-		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::RLHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
-
-		// add eye offset rotated to platform
-		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-			e += VWB_VEC3f::ptr( this->eye ) * R;
-
-		// translate to local coordinates
-		e = e * m_mViewIG;
-
-		VWB_MAT44f T = VWB_MAT44f::TT( -e );
-		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
-
-		if( bTurnWithView )
-			V = R * m_mViewIG;
-		else
-			V = m_mViewIG * T;
+		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
@@ -128,7 +115,7 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 
 VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetPosDirFov(eye, rot, pPos, pDir, pSymClip);
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
 
@@ -141,7 +128,7 @@ VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* 
 		VWB_VEC3f e((float)m_ep.x, (float)m_ep.y, (float)m_ep.z);
 
 		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R((VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll).Transposed() : VWB_MAT44f::RLHT((VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll);
+		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R((VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll).Transposed() : VWB_MAT44f::R_LHT((VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll).Transposed();
 
 		// add eye offset rotated to platform
 		if (0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2])
@@ -150,7 +137,7 @@ VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* 
 		// translate to local coordinates
 		e = e * m_mViewIG;
 
-		VWB_MAT44f T = VWB_MAT44f::TT(-e);
+		VWB_MAT44f T = VWB_MAT44f::T_T(-e);
 		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
 
 		if (bTurnWithView)
@@ -185,7 +172,7 @@ VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* 
 		VWB_MAT33f RT = Upper<VWB_float>( VWB_MAT44f::ptr( V ) );
 		if( m_bRH )
 		{
-			VWB_VEC3f::ptr( pDir ) = RT.Transposed().GetR_RH();
+			VWB_VEC3f::ptr( pDir ) = RT.Transposed().GetR();
 		}
 		else
 		{
@@ -201,7 +188,7 @@ VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* 
 		}
 		else
 		{
-			m_mVP = m_mBaseI * VWB_MAT44f::RLHT( VWB_VEC3f::ptr( pDir ) ) * T;
+			m_mVP = m_mBaseI * VWB_MAT44f::R_LHT( VWB_VEC3f::ptr( pDir ) ).Transposed() * T;
 		}		
 
 		clip[0] = clip[2] = tan( pSymClip[0] / 2.0f ) * nearDist;

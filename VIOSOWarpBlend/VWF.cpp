@@ -180,6 +180,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 											if( 32 < bmih.biBitCount )
 											{
 												pB2 = new VWB_BlendRecord2[n];
+												set.back()->header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
 											}
 											else
 											{
@@ -272,7 +273,6 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 													{
 														if( set.back()->pWhite )
 														{
-															delete[] pBMData;
 															logStr( 0, "WARNING: Too many image maps. Ignoring!\n" );
 														}
 														else
@@ -294,6 +294,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 													logStr( 2, "Blend image set.\n" );
 												}
 												nSets--;
+												delete[] pBMData;
 												if( bmSize + bmfh.bfOffBits != bmfh.bfSize )
 												{
 													fseek( f, bmfh.bfSize - bmfh.bfOffBits - bmSize, SEEK_CUR );
@@ -302,8 +303,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 											}
 											else 
 											{
-												if( pBMData )
-													delete[] pBMData;
+												delete[] pBMData;
 												logStr( 0, "ERROR: Unexpected end of file. Bitmap or vwf file broken!\n" );
 											}
 										}
@@ -877,10 +877,10 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma )
 			VWB_BlendRecord2* pD = pDst;
 			for( VWB_BlendRecord* p = wb.pBlend, *pE = wb.pBlend + sz; p != pE; p++, pD++ )
 			{
-				pD->r = VWB_word( p->r * 255.0f );
-				pD->g = VWB_word( p->g * 255.0f );
-				pD->b = VWB_word( p->b * 255.0f );
-				pD->a = VWB_word( p->a * 255.0f );
+				pD->r = VWB_word( p->r ) * 257; // as 257*255 = 65535 = 100000001 * 11111111
+				pD->g = VWB_word( p->g ) * 257;
+				pD->b = VWB_word( p->b ) * 257;
+				pD->a = VWB_word( p->a ) * 257;
 			}
 			wb.header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
 			delete[] wb.pBlend;

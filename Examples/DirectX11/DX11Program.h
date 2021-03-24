@@ -122,7 +122,7 @@ protected:
     virtual LRESULT wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
 public:
-    OutputWindow( HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags = 0, bool withDepth = true );
+    OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags = 0, bool withDepth = true );
 
     ID3D11Device* getDevice() { return m_dev; }
 
