@@ -42,16 +42,20 @@ if(WIN32)
 	endif()
 endif(WIN32)
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
+if (NOT DEFINED VIOSO_API_BUILD_AS_OBJECT)
+	add_library(${PROJECT_NAME} SHARED ${SOURCES})
+else()
+	add_library(${PROJECT_NAME} OBJECT ${SOURCES})
+endif()
 
 include_directories(
 	${CMAKE_SOURCE_DIR}/Include
 	${THIRD_PARTY}/d3dX/include/
 	)
 
-target_link_libraries (${PROJECT_NAME} 
-	${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/dxerr.lib
-	)
+if (NOT DEFINED VIOSO_API_BUILD_AS_OBJECT)
+	target_link_libraries (${PROJECT_NAME} ${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/dxerr.lib)
+endif()
 
 #uncompress zipped data files
 if (NOT DEFINED VIOSO_API_SKIP_EXAMPLES)
