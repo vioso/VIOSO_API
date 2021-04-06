@@ -109,7 +109,8 @@ void* CreateEyePointReceiver( char const* szParam )
 		if( 0 == hThread )
 			hThread = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE)theadFn, (void*)(strstr( szParam, "listen" ) + 7), 0, NULL );
 	}
-    return r;
+	logStr( 2, "instance %i created.", instanceCounter );
+	return r;
 }
 
 // you need to fill the eyepoint with coordinates from the IG coordinate system
@@ -255,6 +256,7 @@ bool ReceiveEyePoint(void *receiver, EyePoint* eyePoint)
 void DeleteEyePointReceiver(void* handle)
 {
     delete static_cast<Receiver*>(handle);
+	logStr( 2, "instance %i destroyed.", instanceCounter );
 	if( 0 == --instanceCounter )
 	{
 		if( hThread )

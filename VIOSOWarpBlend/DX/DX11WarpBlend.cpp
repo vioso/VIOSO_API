@@ -671,6 +671,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		// transpose view matrices
 		m_mBaseI.Transpose();
 		m_mViewIG.Transpose();
+
 	} catch( VWB_ERROR e )
 	{
 		err = e;

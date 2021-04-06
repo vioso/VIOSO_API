@@ -583,6 +583,9 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 		err = p->Init(set);
 		DeleteVWF(set);
 	}	
+
+	((VWB_Warper_base*)pWarper)->GetViewProjection( NULL, NULL, NULL, NULL );
+
 	return err;
 }
 
@@ -1046,14 +1049,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
-	if( m_bRH )
-	{
-		m_mViewIG = VWB_MAT44d::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
-	}
-	else
-	{
-		m_mViewIG = VWB_MAT44d::R_LHT( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
-	}
+	m_mViewIG = VWB_MAT44d::R( (m_bRH ? VWB_VEC3f::ptr( dir ) : -VWB_VEC3f::ptr( dir ) ) * ( M_PI / 180.0 ) );
 
 	// scale and shift back to original, to cancel out clipping scale/offset
 	m_mBaseI*= S.Inverted();
@@ -1063,11 +1059,6 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	m_viewSizes.y = tan( DEG2RAD(fov[1] ) ) * screenDist; // top
 	m_viewSizes.z = tan( DEG2RAD(fov[2] ) ) * screenDist; // right
 	m_viewSizes.w = tan( DEG2RAD(fov[3] ) ) * screenDist; // bottom
-
-	void* hTmp = m_hEPP;
-	m_hEPP = NULL;
-	GetViewProjection( NULL, NULL, NULL, NULL );
-	m_hEPP = hTmp;
 
 	return ret;
 }
@@ -1143,11 +1134,11 @@ VWB_ERROR VWB_Warper_base::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_flo
 void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float * pClip )
 {
 	//VWB_float dd = nearDist / ( screenDist -e.z );
-	VWB_float dd = nearDist / ( screenDist + ( m_bRH ? e.z : -e.z ) );
-	pClip[0] = ( m_viewSizes[0] + e.x ) * dd;
-	pClip[1] = ( m_viewSizes[1] + e.y ) * dd;
-	pClip[2] = ( m_viewSizes[2] - e.x ) * dd;
-	pClip[3] = ( m_viewSizes[3] - e.y ) * dd;
+	VWB_float dd = nearDist / ( screenDist + ( m_bRH ? -e.z : e.z ) );
+	pClip[0] = ( m_viewSizes[0] - e.x ) * dd;
+	pClip[1] = ( m_viewSizes[1] - e.y ) * dd;
+	pClip[2] = ( m_viewSizes[2] + e.x ) * dd;
+	pClip[3] = ( m_viewSizes[3] + e.y ) * dd;
 	pClip[4] = nearDist;
 	pClip[5] = farDist;
 }
@@ -1249,7 +1240,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				ptl->x, ptl->y, ptl->z,
 				ptr->x, ptr->y, ptr->z,
 				pbl->x, pbl->y, pbl->z,
-				pbr->x,pbr->y,pbr->z );
+				pbr->x, pbr->y, pbr->z );
 	}
 
 	// use corners to calculate 
@@ -1270,7 +1261,9 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	
 	// calculate local base matrix to IG coordinates
 	VWB_MAT33d M = VWB_MAT33d::base( dx, dy );
-	VWB_MAT44d T = VWB_MAT44d(M) * Bi;
+	VWB_MAT44d T = VWB_MAT44d(M) * Bi; // T contains now a transformation to a client coordinate system so that
+	// its x-z plane most parallel to the plane span by the corners of the mapping
+	// y is aligned to point up
 
 	VWB_VEC3d c = ( dtl + dtr + dbl + dbr ) / 4; // the centre in IG
 	VWB_VEC3d cL = M * c; // centre in local coordinates
@@ -1279,15 +1272,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	logStr( 1, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
 			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
 
-	if( m_bRH )
-		VWB_VEC3f::ptr( dir ) = M.GetR() * ( 180.0 / M_PI );
-	else
-	{
-		VWB_VEC3f::ptr( dir ) = M.Transposed().GetR_LHT() * ( 180.0 / M_PI ); // we need to transpose, because M is not DX-style yet
-	}
-
-	VWB_MAT33d Md = VWB_MAT33d::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
-	VWB_MAT33d Ml = VWB_MAT33d::R_LHT( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+	VWB_VEC3f::ptr( dir ) = ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI );
 
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
@@ -1305,27 +1290,38 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	VWB_VEC4d* pTLB = new VWB_VEC4d[wb.header.width+1]; // transformed of previous value and prevoius line, to calculate projected distance
 	VWB_VEC4d* pTL = pTLB, *pTLE = pTLB + (wb.header.width + 1);
 	for( pTL = pTLB; pTL != pTLE; pTL++ )
-		pTL->w = 0;
+		pTL->w = 0; // mark all entries invalid
 	for( int y = 0; y != wb.header.height; y++ )
 	{
-		pTLB->w = 0;
+		pTLB->w = 0; // mark predecessor invalid
 		pTL = pTLB + 1;
 		for( int x = 0; x != wb.header.width; x++, pW++, pB++, pTL++ )
 		{
-			if( 1 == pW->w && 
-				0 != pB->a &&
-				0 != ( pB->r + pB->g + pB->b ) )
+			if( 1 == pW->w && // map contains valid value
+				0 != pB->a && // not masked
+				0 != ( pB->r + pB->g + pB->b ) ) // not entirely blended black
 			{
 				VWB_VEC3d v( pW->x, pW->y, pW->z);
-				VWB_VEC3d vTT = T * v;
+				VWB_VEC3d vTT = T * v; // transform 
 				b+= vTT;
+
+				// widen by movement
+				// if a point sticks out from the screen plane, it can potentionally
+				// move out of the minimal frustum, so we need to widen anyway
+				// using 1 as autoViewC allows for a moving volume of half the
+				// screen (plane) distance
+				double dd = abs( l * ( vTT.z - screenDist ) / vTT.z );
+
+				// in case we have right-handed coordinate system
+				// it will mirror both directions thus toggle the sign
+				if( m_bRH )
+					vTT.z *= -1;
 
 				// project v to the screen plane
 				// this yields the normal view plane size
 				double vx = vTT.x / vTT.z;
 				double vy = vTT.y / vTT.z;
-				// widen by movement
-				double dd = abs( l * ( vTT.z - screenDist ) / vTT.z );
+
 				if( maxEL > vx - dd )
 					maxEL = vx - dd;
 				if( maxET > vy - dd )
@@ -1348,7 +1344,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 					if( minDy > d )
 						minDy = d;
 				}
-				*pTL = vTT; // w is set to 1 by implicit assignment through constructor
+				*pTL = vTT; // w is set to 1 by implicit assignment by constructor
 				*pTLB = vTT;
 			}
 			else
@@ -1374,10 +1370,11 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	double bottom = b.br.y;
 	screenDist = abs( screenDist );
 
-	fov[0] = VWB_float( RAD2DEG( atan(-maxEL) ) );
-	fov[1] = VWB_float( RAD2DEG( atan(-maxET) ) );
-	fov[2] = VWB_float( RAD2DEG( atan( maxER) ) );
-	fov[3] = VWB_float( RAD2DEG( atan (maxEB) ) );
+	fov[0] = VWB_float( RAD2DEG( atan( -maxEL ) ) );
+	fov[1] = VWB_float( RAD2DEG( atan( -maxET ) ) );
+	fov[2] = VWB_float( RAD2DEG( atan( maxER ) ) );
+	fov[3] = VWB_float( RAD2DEG( atan( maxEB ) ) );
+
 	VWB_VEC4d borderFit( maxEL / left * screenDist, maxET / top * screenDist, maxER / right * screenDist, maxEB / bottom * screenDist );
 
 	optimalRes.cx = abs( VWB_int( ( maxER - maxEL ) * screenDist / minDx ) );
@@ -1490,104 +1487,105 @@ VWB_ERROR Dummywarper::Init( VWB_WarpBlendSet& wbs )
 	return err;
 }
 
+
+inline VWB_MAT44f Dummywarper::UpdateView( VWB_VEC3f& e )
+{
+	VWB_MAT44f V;
+	// rotation matrix from angles
+	VWB_MAT44f R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+
+	// copy eye coordinate to e
+	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
+	// add eye offset rotated to platform
+	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
+		e += VWB_VEC3f::ptr( this->eye ) * R; // TODO: better negate and reverse sides?
+
+	// translate to local coordinates
+	e = m_mViewIG * e;
+
+	VWB_MAT44f T = VWB_MAT44f::T( e );
+	m_mVP = T * m_mViewIG * m_mBaseI; //TODO precalc
+
+	if( bTurnWithView )
+		V = R * m_mViewIG;
+	else
+		V = T * m_mViewIG;
+	return V;
+}
+
+// set up the view matrix,
+// use the same matrices as in your program, construct a view matrix relative to the actual screen
+// use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetViewProjection( eye, rot, pView, pProj );
+	#ifdef _DEBUG
+	static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
+	static DWORD wtErr = GetLastError();
+	if( wtEvt )
+	{
+		if( ERROR_ALREADY_EXISTS == wtErr )
+			WaitForSingleObject( wtEvt, INFINITE );
+		else
+			PulseEvent( wtEvt );
+	}
+	#endif
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f V; // the view matrix to return 
 		VWB_MAT44f P; // the projection matrix to return 
 
-		// we transform the dynamic eye-point to the constant view:
-
-		// copy eye coordinate to e
-		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
-
-		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::R_LHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
-
-		// add eye offset rotated to platform
-		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-			e += VWB_VEC3f::ptr( this->eye ) * R;
-
-		// translate to local coordinates
-		e = e * m_mViewIG;
-
-		VWB_MAT44f T = VWB_MAT44f::T_T( -e );
-		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
-
-		if( bTurnWithView )
-			V = R * m_mViewIG;
-		else
-			V = m_mViewIG * T;
+		VWB_VEC3f e;
+		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
 
 		if( m_bRH )
-			P = VWB_MAT44f::P_RHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::GLFrustumRH( clip );
 		else
-			P = VWB_MAT44f::P_LHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::GLFrustumLH( clip );
 
-		m_mVP *= P;
+		m_mVP = P * m_mVP;
 
 		if( pView )
 		{
-			V.SetPtr( pView );
+			V.Transposed().SetPtr( pView );
 		}
-
 		if( pProj )
 		{
-			P.SetPtr( pProj );
+			P.Transposed().SetPtr( pProj );
 		}
 	}
+	Sleep( 1 );
 	return ret;
 }
 
+// set up the view matrix,
+// use the same matrices as in your program, construct a view matrix relative to the actual screen
+// use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip )
 {
-	VWB_ERROR ret = VWB_Warper_base::GetViewClip( eye, rot, pView, pClip );
+	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f V; // the view matrix to return 
 		VWB_MAT44f P; // the projection matrix to return 
 
-		// we transform the dynamic eye-point to the constant view:
-
-		// copy eye coordinate to e
-		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
-
-		// rotation matrix from angles
-		VWB_MAT44f R = m_bRH ? VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed() : VWB_MAT44f::R_LHT( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
-
-		// add eye offset rotated to platform
-		if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-			e += VWB_VEC3f::ptr( this->eye ) * R;
-
-		// translate to local coordinates
-		e = e * m_mViewIG;
-
-		VWB_MAT44f T = VWB_MAT44f::T_T( -e );
-		m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
-
-		if( bTurnWithView )
-			V = R * m_mViewIG;
-		else
-			V = m_mViewIG * T;
+		VWB_VEC3f e;
+		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
 
 		if( m_bRH )
-			P = VWB_MAT44f::P_RHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::GLFrustumRH( clip );
 		else
-			P = VWB_MAT44f::P_LHT( m_viewSizes, nearDist, farDist, screenDist, e );
+			P = VWB_MAT44f::GLFrustumLH( clip );
 
-		m_mVP *= P;
+		m_mVP = P * m_mVP;
 
 		if( pView )
 		{
-			V.SetPtr( pView );
+			V.Transposed().SetPtr( pView );
 		}
 
 		if( pClip )
@@ -1600,7 +1598,11 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 
 VWB_ERROR Dummywarper::SetViewProjection( VWB_float const* pView, VWB_float const* pProj )
 {
-	return VWB_ERROR_NOT_IMPLEMENTED;
+	if( pView && pProj )
+		m_mVP = VWB_MAT44f::ptr( pProj ) * VWB_MAT44f::ptr( pView ) * m_mBaseI;
+	else
+		return VWB_ERROR_PARAMETER;
+	return VWB_ERROR_NONE;
 }
 
 VWB_ERROR Dummywarper::Render( VWB_param inputTexture, VWB_uint stateMask )

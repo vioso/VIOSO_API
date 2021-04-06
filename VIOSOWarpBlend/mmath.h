@@ -411,220 +411,148 @@ struct VWB_MATRIX
 	_inline_ static VWB_MATRIX R( VWB_VECTOR3<_T> r ) { return R( r.x, r.y, r.z ); }
 
 	// transposed matrices
-	_inline_ static VWB_MATRIX Rx_LHT( _T x ) { return VWB_MATRIX::Rx( -x ); }
-	_inline_ static VWB_MATRIX Ry_LHT( _T y ) { return VWB_MATRIX::Ry( -y ); }
-	_inline_ static VWB_MATRIX Rz_LHT( _T z ) { return VWB_MATRIX::Rz( -z ); }
+	_inline_ static VWB_MATRIX T_T( _T x, _T y, _T z ) { return VWB_MATRIX{ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1 }; }
+	_inline_ static VWB_MATRIX T_T( VWB_VECTOR3<_T> const& t ) { return T_T( t.x, t.y, t.z ); }
+
+	_inline_ static VWB_MATRIX Rx_T( _T x ) { return VWB_MATRIX::Rx( -x ); }
+	_inline_ static VWB_MATRIX Ry_T( _T y ) { return VWB_MATRIX::Ry( -y ); }
+	_inline_ static VWB_MATRIX Rz_T( _T z ) { return VWB_MATRIX::Rz( -z ); }
 	// this is RyLHT(y) * RxLHT(x) * RzLHT(z)
-	_inline_ static VWB_MATRIX R_LHT( _T x, _T y, _T z ) { return VWB_MATRIX::R( -x, -y, -z ); }
-	_inline_ static VWB_MATRIX R_LHT( VWB_VECTOR3<_T> r ) { return R_LHT( r.x, r.y, r.z ); }
+	_inline_ static VWB_MATRIX R_T( _T x, _T y, _T z ) { return VWB_MATRIX::R( -x, -y, -z ); }
+	_inline_ static VWB_MATRIX R_T( VWB_VECTOR3<_T> r ) { return R_LHT( r.x, r.y, r.z ); }
 
-	_inline_ static VWB_MATRIX T_T( VWB_VECTOR3<_T> const& t ) { VWB_MATRIX res( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, t.x, t.y, t.z, 1 ); return res; }
-	_inline_ static VWB_MATRIX T_T( _T x, _T y, _T z ) { VWB_MATRIX res( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1 ); return res; }
+	//_inline_ static VWB_MATRIX DXFrustumLH( _T const* pClip )
+	//{
+	//	return VWB_MATRIX(
+	//		(_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
+	//		(_T)0,
+	//		(_T)0,
+	//		(_T)0,
 
-	_inline_ static VWB_MATRIX P_LHT( VWB_VECTOR4<_T> const& viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> const& eye )
-	{
-		//2*zn/(r-l)   0            0              0
-		//0            2*zn/(t-b)   0              0
-		//(l+r)/(l-r)  (t+b)/(b-t)  zf/(zf-zn)     1
-		//0            0            zn*zf/(zn-zf)  0
+	//		(_T)0,
+	//		(_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
+	//		(_T)0,
+	//		(_T)0,
 
-		//float d = m_near / ( m_dist - e.z ); // nearDist = (screenDist - eye[2]) * d
-		//	d * ( -m_viewSizes.x - e.x ), //l
-		//	d * ( m_viewSizes.z - e.x ), //r
+	//		(_T)( pClip[0] - pClip[2] ) / ( pClip[0] + pClip[2] ),
+	//		(_T)( pClip[1] - pClip[3] ) / ( pClip[1] + pClip[3] ),
+	//		(_T)( pClip[5] + pClip[4] ) / ( pClip[5] - pClip[4] ),
+	//		(_T)1,
 
-		//	d * ( -m_viewSizes.y - e.y ), //b
-		//	d * ( m_viewSizes.w - e.y ), //t
+	//		(_T)0,
+	//		(_T)0,
+	//		(_T)pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
+	//		(_T)0 );
+	//}
+	// calculate frusta from clip,
+	// clip planes: left, top, right, bottom, near, far, where all components are usually positive
 
-		//_22 = 2 * (screenDist - eye[2]) / ( ( m_viewSizes.w - e.y ) - ( -m_viewSizes.y - e.y ))
-		return VWB_MATRIX(
-			(_T)2 * ( screenDist - eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
-			(_T)0,
-			(_T)0,
-			(_T)0,
-
-			(_T)0,
-			(_T)2 * ( screenDist - eye[2] ) / ( viewsizes[3] + viewsizes[1] ),
-			(_T)0,
-			(_T)0,
-
-			(_T)( viewsizes[0] - viewsizes[2] + 2 * eye[0] ) / ( viewsizes[0] + viewsizes[2] ),
-			(_T)( viewsizes[1] - viewsizes[3] + 2 * eye[1] ) / ( viewsizes[1] + viewsizes[3] ),
-			( farDist + nearDist ) / ( farDist - nearDist ),
-			(_T)1,
-
-			(_T)0,
-			(_T)0,
-			(_T)nearDist * farDist / ( nearDist - farDist ),
-			(_T)0 );
-	}
-
-	_inline_ static VWB_MATRIX P_RHT( VWB_VECTOR4<_T> const& viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
-	{
-		return VWB_MATRIX(
-			(_T)2 * ( screenDist + eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
-			(_T)0,
-			(_T)0,
-			(_T)0,
-
-			(_T)0,
-			(_T)2 * ( screenDist + eye[2] ) / ( viewsizes[3] + viewsizes[1] ),
-			(_T)0,
-			(_T)0,
-
-			(_T)( viewsizes[2] - viewsizes[0] - 2 * eye[0] ) / ( viewsizes[0] + viewsizes[2] ),
-			(_T)( viewsizes[3] - viewsizes[1] - 2 * eye[1] ) / ( viewsizes[1] + viewsizes[3] ),
-			2 * ( farDist + nearDist ) / ( nearDist - farDist ),
-			(_T)-1,
-
-			(_T)0,
-			(_T)0,
-			(_T)nearDist * farDist / ( nearDist - farDist ),
-			(_T)0 );
-	}
-
-	_inline_ static VWB_MATRIX P( VWB_VECTOR4<_T> viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
-	{
-		return VWB_MATRIX(
-			/* 0*/ (_T)2 * ( screenDist + eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
-			/* 1*/ (_T)0,
-			/* 2*/ (_T)0,
-			/* 3*/ (_T)0,
-
-			/* 4*/ (_T)0,
-			/* 5*/ (_T)2 * ( screenDist + eye[2] ) / ( viewsizes[3] + viewsizes[1] ),
-			/* 6*/ (_T)0,
-			/* 7*/ (_T)0,
-
-			/* 8*/ (_T)( viewsizes[0] - viewsizes[2] - 2 * eye[0] ) / ( viewsizes[0] + viewsizes[2] ),
-			/* 9*/ (_T)( viewsizes[1] - viewsizes[3] - 2 * eye[1] ) / ( viewsizes[1] + viewsizes[3] ),
-			/*10*/ (_T)( farDist + nearDist ) / ( nearDist - farDist ),
-			/*11*/ (_T)-1,
-
-			/*12*/ (_T)0,
-			/*13*/ (_T)0,
-			/*14*/ (_T)2 * nearDist * farDist / ( nearDist - farDist ),
-			/*15*/ (_T)0 );
-	}
-	_inline_ static VWB_MATRIX P_LH( VWB_VECTOR4<_T> viewsizes, _T nearDist, _T farDist, _T screenDist, VWB_VECTOR3<_T> eye )
-	{
-		return VWB_MATRIX(
-			/* 0*/ (_T)2 * ( screenDist - eye[2] ) / ( viewsizes[2] + viewsizes[0] ),
-			/* 1*/ (_T)0,
-			/* 2*/ (_T)0,
-			/* 3*/ (_T)0,
-
-			/* 4*/ (_T)0,
-			/* 5*/ (_T)2 * ( screenDist - eye[2] ) / ( viewsizes[3] + viewsizes[1] ),
-			/* 6*/ (_T)0,
-			/* 7*/ (_T)0,
-
-			/* 8*/ (_T)( viewsizes[2] - viewsizes[0] - 2 * eye[0] ) / ( viewsizes[0] + viewsizes[2] ),
-			/* 9*/ (_T)( viewsizes[3] - viewsizes[1] - 2 * eye[1] ) / ( viewsizes[1] + viewsizes[3] ),
-			/*10*/ (_T)( farDist + nearDist ) / ( farDist - nearDist ),
-			/*11*/ (_T)1,
-
-			/*12*/ (_T)0,
-			/*13*/ (_T)0,
-			/*14*/ (_T)2 * nearDist * farDist / ( nearDist - farDist ),
-			/*15*/ (_T)0 );
-	}
-
-
-
+	// DX frusta, to be multiplied from right side: v' = v * P
 	_inline_ static VWB_MATRIX DXFrustumLH( _T const* pClip )
 	{
+		_T TwoNearZ = pClip[4] + pClip[4];
+		_T ReciprocalWidth = 1.0f / ( pClip[2] + pClip[0] );
+		_T ReciprocalHeight = 1.0f / ( pClip[1] + pClip[3] );
+		_T fRange = pClip[5] / ( pClip[5] - pClip[4] );
+
 		return VWB_MATRIX(
-			(_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
-			(_T)0,
-			(_T)0,
-			(_T)0,
-
-			(_T)0,
-			(_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
-			(_T)0,
-			(_T)0,
-
-			(_T)( pClip[0] - pClip[2] ) / ( pClip[0] + pClip[2] ),
-			(_T)( pClip[1] - pClip[3] ) / ( pClip[1] + pClip[3] ),
-			(_T)( pClip[5] + pClip[4] ) / ( pClip[5] - pClip[4] ),
-			(_T)1,
-
-			(_T)0,
-			(_T)0,
-			(_T)pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
-			(_T)0 );
+			(_T)TwoNearZ * ReciprocalWidth,
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)
+			(_T)0.0f,
+			(_T)TwoNearZ * ReciprocalHeight,
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)
+			(_T)( pClip[0] - pClip[2] ) * ReciprocalWidth,
+			(_T)( pClip[1] - pClip[3] ) * ReciprocalHeight,
+			(_T)fRange,
+			(_T)1.0f,
+			(_T)
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)-fRange * pClip[4],
+			(_T)0.0f );
 	}
 
 	_inline_ static VWB_MATRIX DXFrustumRH( _T const* pClip )
 	{
+		_T TwoNearZ = pClip[4] + pClip[4];
+		_T ReciprocalWidth = 1.0f / ( pClip[2] + pClip[0] );
+		_T ReciprocalHeight = 1.0f / ( pClip[1] + pClip[3] );
+		_T fRange = pClip[5] / ( pClip[5] - pClip[4] );
+
+		return VWB_MATRIX(
+			(_T)TwoNearZ * ReciprocalWidth,
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)
+			(_T)0.0f,
+			(_T)TwoNearZ * ReciprocalHeight,
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)
+			(_T)( pClip[2] - pClip[0] ) * ReciprocalWidth,
+			(_T)( pClip[3] - pClip[1] ) * ReciprocalHeight,
+			(_T)fRange,
+			(_T)-1.0f,
+			(_T)
+			(_T)0.0f,
+			(_T)0.0f,
+			(_T)fRange * pClip[4],
+			(_T)0.0f );
+	}
+
+	// GL frusta to be multiplied from left side: v' = P * v
+	_inline_ static VWB_MATRIX GLFrustumRH( _T const* pClip )
+	{
 		return VWB_MATRIX(
 			(_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
 			(_T)0,
-			(_T)0,
+			(_T)( pClip[2] - pClip[0] ) / ( pClip[0] + pClip[2] ),
 			(_T)0,
 
 			(_T)0,
 			(_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
-			(_T)0,
-			(_T)0,
-
-			(_T)( pClip[2] - pClip[0] ) / ( pClip[0] + pClip[2] ),
 			(_T)( pClip[3] - pClip[1] ) / ( pClip[1] + pClip[3] ),
+			(_T)0,
+
+			(_T)0,
+			(_T)0,
 			(_T)( pClip[5] + pClip[4] ) / ( pClip[4] - pClip[5] ),
+			(_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
+
+			(_T)0,
+			(_T)0,
 			(_T)-1,
-
-			(_T)0,
-			(_T)0,
-			(_T)pClip[4] * pClip[5] / ( pClip[5] - pClip[4] ),
 			(_T)0 );
-	}
-
-	_inline_ static VWB_MATRIX GLFrustumRH( _T const* pClip )
-	{
-		return VWB_MATRIX(
-			/* 0*/ (_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
-			/* 1*/ (_T)0,
-			/* 2*/ (_T)0,
-			/* 3*/ (_T)0,
-
-			/* 4*/ (_T)0,
-			/* 5*/ (_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
-			/* 6*/ (_T)0,
-			/* 7*/ (_T)0,
-
-			/* 8*/ (_T)( pClip[2] - pClip[0] ) / ( pClip[0] + pClip[2] ),
-			/* 9*/ (_T)( pClip[3] - pClip[1] ) / ( pClip[1] + pClip[3] ),
-			/*10*/ (_T)( pClip[5] + pClip[4] ) / ( pClip[4] - pClip[5] ),
-			/*11*/ (_T)-1,
-
-			/*12*/ (_T)0,
-			/*13*/ (_T)0,
-			/*14*/ (_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
-			/*15*/ (_T)0 );
 	}
 
 	_inline_ static VWB_MATRIX GLFrustumLH( _T const* pClip )
 	{
 		return VWB_MATRIX(
-			/* 0*/ (_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
-			/* 1*/ (_T)0,
-			/* 2*/ (_T)0,
-			/* 3*/ (_T)0,
+			(_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
+			(_T)0,
+			(_T)( pClip[0] - pClip[2] ) / ( pClip[0] + pClip[2] ),
+			(_T)0,
 
-			/* 4*/ (_T)0,
-			/* 5*/ (_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
-			/* 6*/ (_T)0,
-			/* 7*/ (_T)0,
+			(_T)0,
+			(_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
+			(_T)( pClip[1] - pClip[3] ) / ( pClip[1] + pClip[3] ),
+			(_T)0,
 
-			/* 8*/ (_T)( pClip[0] - pClip[2] ) / ( pClip[0] + pClip[2] ),
-			/* 9*/ (_T)( pClip[1] - pClip[3] ) / ( pClip[1] + pClip[3] ),
-			/*10*/ (_T)( pClip[5] + pClip[4] ) / ( pClip[5] - pClip[4] ),
-			/*11*/ (_T)1,
+			(_T)0,
+			(_T)0,
+			(_T)( pClip[5] + pClip[4] ) / ( pClip[5] - pClip[4] ),
+			(_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
 
-			/*12*/ (_T)0,
-			/*13*/ (_T)0,
-			/*14*/ (_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
-			/*15*/ (_T)0 );
+			(_T)0,
+			(_T)0,
+			(_T)1,
+			(_T)0 );
 	}
 
 	_inline_ _T& operator()(unsigned int row, unsigned int col) { return m[row][col]; }
@@ -1126,14 +1054,6 @@ struct VWB_MATRIX33
 		a.z = atan2( s * p[5] + c * p[3], s * p[2] + c * p[0] );
 		return a;
 	}
-
-	// gets euler angles from a DX-style 3x3 rotation matrix in (transposed left-handed coordinate system, z forward, y up and x right)
-	// assumptions:
-	// positive rotation around x turns (pitch) up
-	// positive rotation around y turns (yaw) right
-	// positive rotation around z turns (roll) clockwise
-	// rotation order is y-x-z, this corresponds to RT()
-	_inline_ VWB_VECTOR3<_T> GetR_LHT() const {	return -Transposed().GetR();	}
 
 	_inline_ VWB_MATRIX33& Transpose()
 	{

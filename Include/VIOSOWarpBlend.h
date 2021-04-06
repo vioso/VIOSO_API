@@ -162,7 +162,7 @@ calibIndex=0
     * @param [IN,OUT,OPT]	pRot	the new rotation in radian, if a eye point provider is present, the value is getted from there, pRot is updated
     * @param [OUT]			pView	it gets the updated view matrix to translate and rotate into the viewer's perspective
 	* @param [OUT]			pProj	it gets the updated projection matrix
-	* @param [OUT]			pClip	it gets the updated clip planes: left, top, right, bottom, near, far
+	* @param [OUT]			pClip	it gets the updated clip planes: left, top, right, bottom, near, far, where all components are usually positive
 	* @param [OUT]			pPos    it gets the updated relative position: x,y,z
 	* @param [OUT]			pDir	it gets the updated relative direction: euler angles around x,y,z rotation order is y,x,z
 	* @param [OUT]			pSymFov	it gets the updated symmetric frustum: hFov, vFov, near, far
@@ -179,35 +179,25 @@ calibIndex=0
 	// positive rotation around y turns (yaw) right
 	// positive rotation around z turns (roll) clockwise
 	// rotation order is y-x-z, this corresponds to R()
-	_inline_ VWB_VECTOR3<_T> GetR_RH() const
-	{
-		VWB_VECTOR3<_T> a; 
-		a.y = atan2( p[6], p[8] );
-		_T s = -sin( a.y );
-		_T c = cos( a.y );
-		_T l = sqrt( p[6] * p[6] + p[8] * p[8] );
-		a.x = atan2( p[7], l );
-		a.z = -atan2( s * p[5] + c * p[3], s * p[2] + c * p[0] );
-		return a;
-	}
-
-	// gets euler angles from a DX-style 3x3 rotation matrix in (transposed left-handed coordinate system, z forward, y up and x right)
-	// assumptions:
-	// positive rotation around x turns (pitch) up
-	// positive rotation around y turns (yaw) right
-	// positive rotation around z turns (roll) clockwise
-	// rotation order is y-x-z, this corresponds to RT()
-	_inline_ VWB_VECTOR3<_T> GetR_LHT() const
+	_inline_ VWB_VECTOR3<_T> GetR() const
 	{
 		VWB_VECTOR3<_T> a;
-		a.y = atan2( -p[2], p[8] );
-		_T s = sin( a.y );
-		_T c = cos( a.y );
-		_T l = sqrt( p[2] * p[2] + p[8] * p[8] );
-		a.x = -atan2( p[5], l );
-		a.z = -atan2( s * p[7] + c * p[1], s * p[6] + c * p[0] );
+		a.y = -atan2( p[6], p[8] );
+		_T s = std::sin( a.y );
+		_T c = std::cos( a.y );
+		_T l = sqrt( p[6] * p[6] + p[8] * p[8] );
+		a.x = -atan2( p[7], l );
+		a.z = atan2( s * p[5] + c * p[3], s * p[2] + c * p[0] );
 		return a;
-	}*/
+	}
+	To decompose a DX-style (transposed) 3x3 matrix, use same function and negate the resulting angles.
+	To decompose a left-handed matrix, z-roataion is reversed to counter-clockwise.
+
+	Use pClip this way to get the same matrix like from VWB_getViewProjection:
+	P = glm::frustum( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
+	
+	P = XMMatrixPerspectiveOffCenterLH( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
+*/
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewProj, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosDirFov, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) );
@@ -259,7 +249,7 @@ calibIndex=0
 
 #if defined( WIN32 ) && defined( VWB_USE_DEPRECATED_INIT )
 //////////////////// deprecated WIN32 functions ////////////////////////
-typedef VWB_Warper* VWB_DX9WHANDLE; /// (dep recated) a warper handle do
+typedef VWB_Warper* VWB_DX9WHANDLE; /// (deprecated) a warper handle do
 // forward declarations only, your project needs to include d3d9.h and d3d9x.h
 typedef struct IDirect3DDevice9 *LPDIRECT3DDEVICE9;
 typedef struct IDirect3DTexture9 *LPDIRECT3DTEXTURE9;

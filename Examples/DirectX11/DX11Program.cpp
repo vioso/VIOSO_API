@@ -165,6 +165,8 @@ void GFXPipeline::postRender()
 //--------------------------------------------------------------------------------------
 // OutputWindow
 //--------------------------------------------------------------------------------------
+ATOM OutputWindow::s_wndclass = 0;
+
 LRESULT CALLBACK  OutputWindow::WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
     OutputWindow* that = (OutputWindow*)GetWindowLongPtr( hWnd, GWLP_USERDATA );
@@ -209,30 +211,33 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int 
 , m_driverType( D3D_DRIVER_TYPE_NULL )
 , m_featureLevel( D3D_FEATURE_LEVEL_11_0 )
 {
-
-    // Register class
-    WNDCLASSEX wcex;
-    wcex.cbSize = sizeof( WNDCLASSEX );
-    wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = WndProc;
-    wcex.cbClsExtra = 0;
-    wcex.cbWndExtra = 0;
-    wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon( hInstance, (LPCTSTR)_T( "directx.ico" ) );
-    wcex.hCursor = LoadCursor( NULL, IDC_ARROW );
-    wcex.hbrBackground = (HBRUSH)( COLOR_WINDOW + 1 );
-    wcex.lpszMenuName = NULL;
-    wcex.lpszClassName = _T( "OutputWindowClass" );
-    wcex.hIconSm = LoadIcon( wcex.hInstance, (LPCTSTR)_T( "directx.ico" ) );
-    if( !RegisterClassEx( &wcex ) )
-        throw exception( "failed to register window class" );
+    if( !s_wndclass )
+    {
+        // Register class
+        WNDCLASSEX wcex = {
+            sizeof( WNDCLASSEX ),
+            CS_HREDRAW | CS_VREDRAW,
+            WndProc,
+            0,0,
+            hInstance,
+            LoadIcon( hInstance, (LPCTSTR)_T( "directx.ico" ) ),
+            LoadCursor( NULL, IDC_ARROW ),
+            (HBRUSH)( COLOR_WINDOW + 1 ),
+            NULL,
+            _T( "OutputWindowClass" ),
+            LoadIcon( hInstance, (LPCTSTR)_T( "directx.ico" ) )
+        };
+        s_wndclass = RegisterClassEx( &wcex );
+        if( !s_wndclass )
+            throw exception( "failed to register window class" );
+    }
 
     // Create window
     RECT rc = { x, y, x + width, y + height };
     if( 0 == width )
     {
         MONITORINFO mi = { 0 }; mi.cbSize = sizeof( mi );
-        static const POINT _p0 = { x,y };
+        const POINT _p0 = { x,y };
         if( GetMonitorInfo( MonitorFromPoint( _p0, MONITOR_DEFAULTTONULL ), &mi ) )
         {
             rc = mi.rcMonitor;
@@ -267,7 +272,7 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int 
     UINT numFeatureLevels = ARRAYSIZE( featureLevels );
 
     DXGI_SWAP_CHAIN_DESC sd;
-    ZeroMemory( &sd, sizeof( sd ) );
+    memset( &sd, 0, sizeof( sd ) );
     sd.BufferCount = bufferCount;
     sd.BufferDesc.Width = width;
     sd.BufferDesc.Height = height;

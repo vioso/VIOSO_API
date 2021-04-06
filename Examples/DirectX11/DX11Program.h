@@ -113,6 +113,7 @@ public:
 class OutputWindow : public GFXPipeline
 {
 protected:
+    static ATOM s_wndclass;
     HWND m_hWnd;
     D3D_DRIVER_TYPE    m_driverType;
     D3D_FEATURE_LEVEL  m_featureLevel;

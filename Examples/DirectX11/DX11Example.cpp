@@ -15,7 +15,6 @@ class CubesRenderer : public Renderer
     CComPtr< ID3D11PixelShader > m_ps;
     CComPtr< ID3D11InputLayout > m_layout;
     CComPtr< ID3D11Buffer > m_vb;
-    CComPtr< ID3D11Buffer > m_ib;
     CComPtr< ID3D11Buffer > m_cb;
     CComPtr< ID3D11RasterizerState > m_rs;
     VSConstantBuffer m_vsConstants;
@@ -62,63 +61,87 @@ public:
         codeBlob.Release();
         errBlob.Release();
 
-        // Create vertex buffer
-        int n = s_nnCubes;
-        SimpleVertex* vertices = new SimpleVertex[n * 8];
-        WORD* indices = new WORD[n * 36];
-        float sz = 10.0f / ( 3 * s_nCubes - 1 );
-        int gg = s_nCubes / 2;
-        SimpleVertex* pv = vertices;
-        WORD* pi = indices;
-        WORD ioffs = 0;
+        // render some cubes around 0,0,0
+        static const float sz = 10.0f / ( 3 * s_nCubes - 1 );
+        static const int gg = s_nCubes / 2;
+        std::vector<SimpleVertex> vertices;
+        vertices.reserve( s_nnCubes * 36 );
+
+        // cube corners calculated from cube center
+        //     E/-----/|F   
+        //     /  6  / |      ^y / z
+        //   A|-----|B2|      | /
+        //   5|  3  | / G     |---->x
+        //    |-----|/          
+        //   D   1   C
+        static const float corners[8][3] =
+        {
+            { -sz,  sz, -sz }, //A 0
+            {  sz,  sz, -sz	}, //B 1
+            {  sz, -sz, -sz	}, //C 2
+            { -sz, -sz, -sz	}, //D 3
+            { -sz,  sz,  sz	}, //E 4
+            {  sz,  sz,  sz	}, //F 5
+            {  sz, -sz,  sz	}, //G 6
+            { -sz, -sz,  sz	}  //H 7
+        };
+
+        // faces
+        //  1: quad DCGH tri DCG DGH
+        //  2: quad BFGC tri BFG BGC
+        //  3: quad ABCD tri ABC ACD
+        //  4: quad FEHG tri FEH FHG
+        //  5: quad EADH tri EAD EDH
+        //  6: quad AEFB tri AEF AFB
+        static const int faces[6][4] = {
+            { 3, 2, 6, 7 }, // face "1"
+            { 1, 5, 6, 2 }, // face "2"
+            { 0, 1, 2, 3 }, // face "3"
+            { 5, 4, 7, 6 }, // face "4"
+            { 4, 0, 3, 7 }, // face "5"
+            { 0, 4, 5, 2 }  // face "6"
+        };
+
+        // faces for uv's, faces are packed into a rectangular image:
+        //  1 2 3       0.0,0.0 - 0.3333,0.5 ; 0.3333,0.0 - 0.6666,0.5 ; 0.66666,0.0 - 1.0,0.5
+        //  4 5 6  ==>  0.5,0.0 - 0.3333,1.0 ; 0.3333,0.5 - 0.6666,1.0 ; 0.66666,0.5 - 1.0,1.0
+        static const float uv[6][4][2] = {
+            { { 0.0f, 0.0f }, { 0.33333f, 0.0f }, { 0.3333f, 0.5f }, { 0.0f, 0.5f } },
+            { { 0.33333f, 0.0f }, { 0.66666f, 0.0f }, { 0.66666f, 0.5f }, { 0.333333f, 0.5f } },
+            { { 0.66666f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.5f }, { 0.66666f, 0.5f } },
+            { { 0.0f, 0.5f }, { 0.33333f, 0.5f }, { 0.3333f, 1.0f }, { 0.0f, 1.0f } },
+            { { 0.33333f, 0.5f }, { 0.66666f, 0.5f }, { 0.66666f, 1.0f }, { 0.333333f, 1.0f } },
+            { { 0.66666f, 0.5f }, { 1.0f, 0.5f }, { 1.0f, 1.0f }, { 0.66666f, 1.0f } }
+        };
+
         for( int z = 0; z != s_nCubes; z++ )
+            //int z = 0;
         {
             float fz = ( z - gg ) * 3.0f * sz;
             for( int y = 0; y != s_nCubes; y++ )
+                //int y = 0;
             {
                 float fy = ( y - gg ) * 3.0f * sz;
                 for( int x = 0; x != s_nCubes; x++ )
+                    //int x = 0;
                 {
                     float fx = ( x - gg ) * 3.0f * sz;
                     if( ( 0 == x ) || ( 2 * gg == x ) || ( 0 == y ) || ( 2 * gg == y ) || ( 0 == z ) || ( 2 * gg == z ) )
                     {
-                        SimpleVertex v[8] = {
-                            { XMFLOAT3( fx + sz, fy - sz, fz + sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx + sz, fy + sz, fz + sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx - sz, fy + sz, fz + sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx - sz, fy - sz, fz + sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx + sz, fy - sz, fz - sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx + sz, fy + sz, fz - sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx - sz, fy + sz, fz - sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                            { XMFLOAT3( fx - sz, fy - sz, fz - sz ), XMFLOAT4( float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) / ( s_nCubes - 1 ), 1.0f ) },
-                        };
-                        for( int i = 0; i != 8; i++ )
-                            *( pv++ ) = v[i];
-
-                        WORD in[36] =
+                        const float col[3] = { float( x ) / ( s_nCubes - 1 ), float( y ) / ( s_nCubes - 1 ), float( z ) /  ( s_nCubes - 1 ) };
+                        for( int i = 0; i != ARRAYSIZE( uv ); i++ )
                         {
-                            3,1,0,
-                            2,1,3,
-
-                            0,5,4,
-                            1,5,0,
-
-                            3,4,7,
-                            0,4,3,
-
-                            1,6,5,
-                            2,6,1,
-
-                            2,7,6,
-                            3,7,2,
-
-                            6,4,5,
-                            7,4,6
-                        };
-
-                        for( int i = 0; i != 36; i++ )
-                            *( pi++ ) = in[i] + ioffs;
-                        ioffs += 8;
+                            for( int j = 0; j != 3; j++ )
+                            {
+                                vertices.push_back( SimpleVertex{ {fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2]}, {col[0], col[1], col[2], 1.0f}/*, {uv[i][j][0], uv[i][j][1] }*/ } );
+                            }
+                            vertices.push_back( SimpleVertex{ {fx + corners[faces[i][0]][0], fy + corners[faces[i][0]][1], fz + corners[faces[i][0]][2] }, {col[0], col[1], col[2], 1.0f}/*, {uv[i][0][0], uv[i][0][1] }*/ } );
+                            for( int j = 2; j != 4; j++ )
+                            {
+                                vertices.push_back( SimpleVertex{ {fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2] }, {col[0], col[1], col[2], 1.0f} /*, {uv[i][j][0], uv[i][j][1] }*/ } );
+                            }
+                            //break;
+                        }
                     }
                 }
             }
@@ -127,25 +150,15 @@ public:
         D3D11_BUFFER_DESC bd;
         ZeroMemory( &bd, sizeof( bd ) );
         bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.ByteWidth = sizeof( SimpleVertex ) * n * 8;
+        bd.ByteWidth = sizeof( SimpleVertex ) * s_nnCubes * 36;
         bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
         bd.CPUAccessFlags = 0;
         D3D11_SUBRESOURCE_DATA InitData;
         ZeroMemory( &InitData, sizeof( InitData ) );
-        InitData.pSysMem = vertices;
+        InitData.pSysMem = &vertices.front();
         hr = dev->CreateBuffer( &bd, &InitData, &m_vb );
         if( FAILED( hr ) )
             throw exception( "failed to create vertex buffer" );
-
-
-        bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.ByteWidth = sizeof( WORD ) * n * 36;        // 36 vertices needed for 12 triangles in a triangle list
-        bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-        bd.CPUAccessFlags = 0;
-        InitData.pSysMem = indices;
-        hr = dev->CreateBuffer( &bd, &InitData, &m_ib );
-        if( FAILED( hr ) )
-            throw exception( "failed to create index buffer" );
 
         // Create the constant buffer
         bd.Usage = D3D11_USAGE_DEFAULT;
@@ -185,9 +198,6 @@ public:
         UINT offset = 0;
         ctx->IASetVertexBuffers( 0, 1, &m_vb.p, &stride, &offset );
 
-        // Set index buffer
-        ctx->IASetIndexBuffer( m_ib, DXGI_FORMAT_R16_UINT, 0 );
-
         // Set primitive topology
         ctx->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 
@@ -206,7 +216,7 @@ public:
         ctx->PSSetShader( m_ps, NULL, 0 );
 
         // draw
-        ctx->DrawIndexed( s_nnCubes * 36, 0, 0 );
+        ctx->Draw( s_nnCubes * 36, 0 );
     }
 };
 
@@ -284,9 +294,13 @@ public:
     {
 
         ////< start VIOSO API code
-        // this will initialize function pointers from dll
-        #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-        #include "../../Include/VIOSOWarpBlend.h"
+        if( !( VWB_Create && VWB_Init && VWB_render && VWB_getViewProj && VWB_Destroy ) )
+        {
+            // this will initialize function pointers from dll
+            // only needed, if first time
+            #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
+            #include "../../Include/VIOSOWarpBlend.h"
+        }
         
         // check all needed functions
         if( !( VWB_Create && VWB_Init && VWB_render && VWB_getViewProj && VWB_Destroy ) )
@@ -372,7 +386,7 @@ BOOL AddWindowWithRenderer(
     CString s; s.Format( "Display%i", (int)g_windows.size() + 1 );
     g_windows.push_back( make_shared<VIOSOWarperWindow>( s, hInstance, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
     //g_windows.push_back( make_shared<OutputWindow>( hInstance, s, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-    g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.front()->getDevice() ) );
+    g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
 
     return TRUE;
 }
@@ -390,6 +404,23 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     try
     {
         ::EnumDisplayMonitors( 0, NULL, AddWindowWithRenderer, (LPARAM)hInstance );
+   
+        /*
+        #ifdef _DEBUG
+        constexpr UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
+        #else
+        constexpr UINT createDeviceFlags = 0;
+        #endif
+
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display1", hInstance, 1920, 0, 0, 0, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display2", hInstance, 4480, 0, 0, 0, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display3", hInstance, 7040, 0, 0, 0, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+        */
 
         // initialize world matrix
         g_mWorld = XMMatrixIdentity();
