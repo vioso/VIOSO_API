@@ -22,7 +22,6 @@
 #include <map>
 #include <string>
 
-#define VWB_USE_DEPRECATED_INIT
 #include "../Include/VIOSOWarpBlend.h"
 #include "logging.h"
 #include "PathHelper.h"

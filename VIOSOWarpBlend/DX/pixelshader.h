@@ -344,7 +344,6 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping } vOut
 			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 		}                                           
-		vOut.z = 1;
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                

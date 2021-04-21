@@ -531,9 +531,9 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 	m_mVP = T * m_mViewIG * m_mBaseI; //TODO precalc
 
 	if( bTurnWithView )
-		V = R * m_mViewIG;
+		V = m_mViewIG * R;
 	else
-		V = T * m_mViewIG;
+		V = m_mViewIG * T;
 	return V;
 }
 
@@ -542,7 +542,7 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR GLWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	#ifdef _DEBUG
+	#if 0 //def _DEBUG
 	static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
 	static DWORD wtErr = GetLastError();
 	if( wtEvt )
@@ -580,7 +580,6 @@ VWB_ERROR GLWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 			P.Transposed().SetPtr( pProj );
 		}
 	}
-	Sleep( 1 );
 	return ret;
 }
 
@@ -614,7 +613,13 @@ VWB_ERROR GLWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 
 		if( pClip )
 		{
-			memcpy( pClip, clip, sizeof( clip ) );
+		//	memcpy( pClip, clip, sizeof( clip ) );
+			pClip[0] = clip[0];
+			pClip[1] = clip[3];
+			pClip[2] = clip[2];
+			pClip[3] = clip[1];
+			pClip[4] = clip[4];
+			pClip[5] = clip[5];
 		}
 	}
 	return ret;
