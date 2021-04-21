@@ -641,25 +641,28 @@ LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
  *	height			- Height Of The GL Window Or Fullscreen Mode			*
  *	bits			- Number Of Bits To Use For Color (8/16/24/32)			*/
 
-BOOL CreateGLWindow( char* title, int posX, int posY, int bits )
+BOOL CreateGLWindow( char* title, int posX, int posY, int width, int height, int bits )
 {
 
 	GLuint		PixelFormat;			// Holds The Results After Searching For A Match
 	WNDCLASS	wc;						// Windows Class Structure
 	DWORD		dwExStyle;				// Window Extended Style
 	DWORD		dwStyle;				// Window Style
-	RECT		rc;				// Grabs Rectangle Upper Left / Lower Right Values
+	RECT		rc = { posX, posY, posX + width, posY + height };				// Grabs Rectangle Upper Left / Lower Right Values
 
-	MONITORINFO mi = { 0 }; mi.cbSize = sizeof( mi );
-	const POINT _p0 = { posX,posY };
-	if( !GetMonitorInfo( MonitorFromPoint( _p0, MONITOR_DEFAULTTONULL ), &mi ) )
+	if( 0 >= width || 0 >= height )
 	{
-		MessageBox( NULL, "Window Creation Error.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
-		return FALSE;
-	}
-	rc = mi.rcMonitor;
-	hInstance = GetModuleHandle( NULL );				// Grab An Instance For Our Window
+		MONITORINFO mi = { 0 }; mi.cbSize = sizeof( mi );
 
+		if( !GetMonitorInfo( MonitorFromPoint( *(POINT*)&rc, MONITOR_DEFAULTTONULL ), &mi ) )
+		{
+			MessageBox( NULL, "Window Creation Error.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+			return FALSE;
+		}
+		rc = mi.rcMonitor;
+	}
+
+	hInstance = GetModuleHandle( NULL );				// Grab An Instance For Our Window
 	wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;	// Redraw On Size, And Own DC For Window.
 	wc.lpfnWndProc = (WNDPROC)WndProc;					// WndProc Handles Messages
 	wc.cbClsExtra = 0;									// No Extra Window Data
@@ -785,12 +788,14 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 	int x = 0;
 	int y = 0;
+	int w = 0;
+	int h = 0;
 	std::string channel = "Display1";
 	std::istringstream cmd( lpCmdLine );
-	cmd >> channel >> x >> y;
+	cmd >> channel >> x >> y >> w >> h;
 
 	// Create Our OpenGL Window
-	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, 32 ) )
+	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )
 	{
 		return 0;									// Quit If Window Was Not Created	
 	}

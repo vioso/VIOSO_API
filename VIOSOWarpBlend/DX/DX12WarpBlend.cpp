@@ -93,7 +93,7 @@ HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, 
 
 VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
-	VWB_ERROR err = VWB_Warper_base::Init( wbs );
+	VWB_ERROR err = __super::Init( wbs );
 	HRESULT hr = E_FAIL;
 	if( VWB_ERROR_NONE == err )
 	{
@@ -573,10 +573,6 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 
 		logStr( 1, "SUCCESS: DX12-Warper initialized.\n" );
-
-		// transpose view matrices
-		m_mBaseI.Transpose();
-		m_mViewIG.Transpose();
 	}
 	return err;
 }

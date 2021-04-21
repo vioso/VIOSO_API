@@ -47,7 +47,7 @@ DX9EXWarpBlend::~DX9EXWarpBlend(void)
 
 VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
-	VWB_ERROR err = VWB_Warper_base::Init( wbs );
+	VWB_ERROR err = __super::Init( wbs );
 	if( VWB_ERROR_NONE == err ) try
 	{
 		VWB_WarpBlend& wb = *wbs[calibIndex];
@@ -202,9 +202,6 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		logStr( 1, "SUCCESS: DX9-Warper initialized.\n" );
 
-		// transpose view matrices
-		m_mBaseI.Transpose();
-		m_mViewIG.Transpose();
 	} catch( VWB_ERROR e )
 	{
 		err = e;

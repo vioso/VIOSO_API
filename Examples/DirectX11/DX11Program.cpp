@@ -233,6 +233,8 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int 
     }
 
     // Create window
+    DWORD dwExStyle = WS_EX_APPWINDOW;								// Window Extended Style
+    DWORD dwStyle = WS_POPUP;										// Windows Style
     RECT rc = { x, y, x + width, y + height };
     if( 0 == width )
     {
@@ -242,10 +244,10 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int 
         {
             rc = mi.rcMonitor;
         }
-        AdjustWindowRect( &rc, WS_POPUPWINDOW, FALSE );
+        AdjustWindowRectEx( &rc, dwStyle, FALSE, dwExStyle );
     }
-    m_hWnd = CreateWindow(
-        _T( "OutputWindowClass" ), windowName, WS_POPUPWINDOW,
+    m_hWnd = CreateWindowEx(
+        dwExStyle, _T( "OutputWindowClass" ), windowName, dwStyle,
         rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
         NULL, NULL, hInstance, NULL );
     if( ! m_hWnd )

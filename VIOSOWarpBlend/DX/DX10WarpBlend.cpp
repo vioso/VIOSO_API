@@ -235,7 +235,7 @@ DX10WarpBlend::~DX10WarpBlend(void)
 
 VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
-	VWB_ERROR err = VWB_Warper_base::Init( wbs );
+	VWB_ERROR err = __super::Init( wbs );
 	HRESULT hr = E_FAIL;
 	if( VWB_ERROR_NONE == err ) try
 	{
@@ -541,10 +541,6 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		m_device->CreateSamplerState( &descSam, &m_SSClamp );
 
 		logStr( 1, "SUCCESS: DX11-Warper initialized.\n" );
-
-		// transpose view matrices
-		m_mBaseI.Transpose();
-		m_mViewIG.Transpose();
 	} catch( VWB_ERROR e )
 	{
 		err = e;

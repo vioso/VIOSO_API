@@ -1049,7 +1049,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
-	m_mViewIG = VWB_MAT44d::R( (m_bRH ? VWB_VEC3f::ptr( dir ) : -VWB_VEC3f::ptr( dir ) ) * ( M_PI / 180.0 ) );
+	m_mViewIG = m_bRH ? VWB_MAT44d::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44d::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
 
 	// scale and shift back to original, to cancel out clipping scale/offset
 	m_mBaseI*= S.Inverted();
@@ -1172,7 +1172,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 	// check base matrix, if left or right handed...
 	// global base matrix
-	VWB_MAT44d B = VWB_MAT44f::ptr(trans);
+	VWB_MAT44d B = VWB_MAT44d( VWB_MAT44f::ptr(trans) );
 	VWB_MAT44d Bi = B.Inverted();
 
 	// find x and y axis from scan

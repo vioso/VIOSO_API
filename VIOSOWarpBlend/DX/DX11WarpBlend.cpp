@@ -224,20 +224,18 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 			{ VWB_VEC3d( 1, 0, 0 ), VWB_VEC3d( 0, 1, 1 ) }, // ( 45, 0, 0 )
 
 			{ VWB_VEC3d( 12, 22, 3 ), VWB_VEC3d( -18, 10, -5 ) },
+
+			{ VWB_VEC3d( -12, 2, -3 ), VWB_VEC3d( 2, -10, -5 ) },
 		};
 
-		VWB_MAT33d R2L( 1, 0, 0,
-						0, 1, 0,
-						0, 0, -1 );
 		for( int i = 0; i != ARRAYSIZE( d ); i++ )
 		{
 			VWB_MAT33d M = VWB_MAT33d::base( d[i].x, d[i].y );
 			VWB_VEC3d r = M.GetR();
 			VWB_VEC3d rDeg = r * 180 / PI;
-
-			VWB_MAT33d ML = M * R2L;
-
+			
 			VWB_MAT33d R = VWB_MAT33d::R( r );
+
 			VWB_MAT33d Rx = VWB_MAT33d::Rx( r.x );
 			VWB_MAT33d Ry = VWB_MAT33d::Ry( r.y );
 			VWB_MAT33d Rz = VWB_MAT33d::Rz( r.z );
@@ -245,19 +243,40 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 			VWB_MAT33d D = R - RM;
 			VWB_MAT33d D2 = M - R;
 			VWB_MAT33d D3 = M - RM;
+			if( !D.IsZero() )
+				logStr( 1, "Rotation Matrix test 1 (combined vs multipiled) failed, difference norm is %f", D.Norm() );
+			if( !D2.IsZero() )
+				logStr( 1, "Rotation Matrix test 2 (base vs combined) failed, difference norm is %f", D2.Norm() );
+			if( !D3.IsZero() )
+				logStr( 1, "Rotation Matrix test 3 (base vs multiplied) failed, difference norm is %f", D3.Norm() );
 			XMMATRIX MMR = XMMatrixRotationRollPitchYaw( (FLOAT)r.x, (FLOAT)-r.y, (FLOAT)-r.z );
+			VWB_MAT44f MRX; XMStoreFloat4x4( (XMFLOAT4X4*)&MRX, MMR );
 
-			
-			VWB_MAT33d L = VWB_MAT33d::R_LHT( r );
-			VWB_MAT33d Lx = VWB_MAT33d::Rx_LHT( r.x );
-			VWB_MAT33d Ly = VWB_MAT33d::Ry_LHT( r.y );
-			VWB_MAT33d Lz = VWB_MAT33d::Rz_LHT( r.z );
-			VWB_MAT33d LM = Ly * Lx * Lz;
+			VWB_MAT44f RR = VWB_MAT44f::R( r );
+
+			MRX -= RR;
+			if( !MRX.IsZero() )
+				logStr( 1, "Rotation Matrix test 4 (combined vs XN Math) failed, difference norm is %f", MRX.Norm() );
+
+			VWB_MAT33d L = VWB_MAT33d::R_LH( r );
+			VWB_MAT33d Lx = VWB_MAT33d::Rx_LH( r.x );
+			VWB_MAT33d Ly = VWB_MAT33d::Ry_LH( r.y );
+			VWB_MAT33d Lz = VWB_MAT33d::Rz_LH( r.z );
+			VWB_MAT33d LM = Lz * Lx * Ly;
 			VWB_MAT33d E = L - LM;
-			VWB_MAT33d E2 = ML - L;
-			VWB_MAT33d E3 = ML - RM;
+			if( !E.IsZero() )
+				logStr( 1, "Rotation Matrix test 5 (LH combined vs LH multiplied) failed, difference norm is %f", E.Norm() );
+
 			XMMATRIX MML = XMMatrixRotationRollPitchYaw( (FLOAT)-r.x, (FLOAT)r.y, (FLOAT)r.z );
-			int ikk = 0;
+			VWB_MAT44f MLX;
+			XMStoreFloat4x4( (XMFLOAT4X4*)&MLX, MML );
+			MLX -= VWB_MAT44f( L );
+			if( !MLX.IsZero() )
+				logStr( 1, "Rotation Matrix test 6 ( LH combined vs XN Math) failed, difference norm is %f", MLX.Norm() );
+			XMStoreFloat4x4( (XMFLOAT4X4*)&MLX, MML );
+			MLX -= VWB_MAT44f( LM );
+			if( !MLX.IsZero() )
+				logStr( 1, "Rotation Matrix test 7 ( LH multiplied vs XN Math) failed, difference norm is %f", MLX.Norm() );
 		}
 	}
 	#endif //def _DEBUG
@@ -324,7 +343,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 	SAFERELEASE( m_ConstantBuffer );
 
 	m_focusWnd = ::GetActiveWindow();
-	VWB_ERROR err = VWB_Warper_base::Init( wbs );
+	VWB_ERROR err = __super::Init( wbs );
 	HRESULT hr = E_FAIL;
 	if( VWB_ERROR_NONE == err ) try
 	{
@@ -667,11 +686,6 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		m_device->CreateSamplerState( &descSam, &m_SSClamp );
 
 		logStr( 1, "SUCCESS: DX11-Warper initialized.\n" );
-
-		// transpose view matrices
-		m_mBaseI.Transpose();
-		m_mViewIG.Transpose();
-
 	} catch( VWB_ERROR e )
 	{
 		err = e;

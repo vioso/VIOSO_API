@@ -1,6 +1,8 @@
 #include "DXWarpBlend.h"
 #pragma comment( lib, "dxguid.lib" )
 #pragma comment( lib, "d3dcompiler.lib" )
+#include <DirectXMath.h>
+using namespace DirectX;
 
 DXWarpBlend::DXWarpBlend()
 : VWB_Warper_base()
@@ -12,28 +14,55 @@ DXWarpBlend::~DXWarpBlend()
 {
 }
 
+VWB_ERROR DXWarpBlend::Init( VWB_WarpBlendSet& wbs )
+{
+	VWB_ERROR err = __super::Init( wbs );
+	// transpose view matrices to use DX common vector pre-multiplication
+	m_mBaseI.Transpose();
+	m_mViewIG.Transpose();
+	return err;
+}
 inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 {
 	VWB_MAT44f V;
-	// rotation matrix from angles
-	VWB_MAT44f R = VWB_MAT44f::R_T( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
 
-	// copy eye coordinate to e
+	VWB_MAT44f R;
+
+	//m_ep.x = 0.2;
+	//m_ep.y = -0.3;
+	//m_ep.z = 0.4;
+	//m_ep.roll = -0.5;
+	//m_ep.pitch = 0.6;
+	//m_ep.yaw = -0.7;
+
+	if( m_bRH )
+	{
+		R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
+	}
+	else
+	{
+		R = VWB_MAT44f::R_LH( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
+	}
+		 
 	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
-	// add eye offset rotated to platform
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-		e += R * VWB_VEC3f::ptr( this->eye );
+	{
+		e += VWB_VEC3f::ptr( this->eye ) * R;
+	}
 
-	// translate to local coordinates
 	e = e * m_mViewIG;
 
-	VWB_MAT44f T = VWB_MAT44f::T_T( e );
+	VWB_MAT44f T = VWB_MAT44f::T( e ).Transposed();
 	m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
 
 	if( bTurnWithView )
-		V = m_mViewIG * R; //??
+	{
+		V = R * m_mViewIG; //??
+	}
 	else
-		V = m_mViewIG * T;
+	{
+		V = T * m_mViewIG;
+	}
 	return V;
 }
 
@@ -42,17 +71,17 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	#ifdef _DEBUG
-	static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
-	static DWORD wtErr = GetLastError();
-	if( wtEvt )
-	{
-		if( ERROR_ALREADY_EXISTS == wtErr )
-			WaitForSingleObject( wtEvt, INFINITE );
-		else
-			PulseEvent( wtEvt );
-	}
-	#endif
+	//#ifdef _DEBUG
+	//static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
+	//static DWORD wtErr = GetLastError();
+	//if( wtEvt )
+	//{
+	//	if( ERROR_ALREADY_EXISTS == wtErr )
+	//		WaitForSingleObject( wtEvt, INFINITE );
+	//	else
+	//		PulseEvent( wtEvt );
+	//}
+	//#endif
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
@@ -65,10 +94,16 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		getClip( e, clip );
 
 		if( m_bRH )
+		{
 			P = VWB_MAT44f::DXFrustumRH( clip );
+		}
 		else
-			P = VWB_MAT44f::DXFrustumLH( clip );
+		{
 
+			P = VWB_MAT44f::DXFrustumLH( clip );
+		}
+
+		XMMATRIX vpx = XMLoadFloat4x4( (XMFLOAT4X4*)&m_mVP );
 		m_mVP *= P;
 
 		if( pView )
