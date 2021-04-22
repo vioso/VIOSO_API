@@ -24,16 +24,10 @@ VWB_ERROR DXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 }
 inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 {
-	VWB_MAT44f V;
+	VWB_MAT44f V; //return value
 
+	// rotation matrix from angles
 	VWB_MAT44f R;
-
-	//m_ep.x = 0.2;
-	//m_ep.y = -0.3;
-	//m_ep.z = 0.4;
-	//m_ep.roll = -0.5;
-	//m_ep.pitch = 0.6;
-	//m_ep.yaw = -0.7;
 
 	if( m_bRH )
 	{
@@ -44,12 +38,15 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 		R = VWB_MAT44f::R_LH( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
 	}
 		 
+	// reverse eye vector
 	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
+	// add eye offset rotated to platform
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
 	{
-		e += VWB_VEC3f::ptr( this->eye ) * R;
+		e += VWB_VEC3f::ptr( this->eye );
 	}
 
+	// translate to local coordinates
 	e = e * m_mViewIG;
 
 	VWB_MAT44f T = VWB_MAT44f::T( e ).Transposed();
@@ -61,7 +58,7 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 	}
 	else
 	{
-		V = T * m_mViewIG;
+		V = m_mViewIG * T;
 	}
 	return V;
 }
@@ -103,7 +100,6 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 			P = VWB_MAT44f::DXFrustumLH( clip );
 		}
 
-		XMMATRIX vpx = XMLoadFloat4x4( (XMFLOAT4X4*)&m_mVP );
 		m_mVP *= P;
 
 		if( pView )

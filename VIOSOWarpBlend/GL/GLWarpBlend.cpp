@@ -514,11 +514,20 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 {
-	VWB_MAT44f V;
-	// rotation matrix from angles
-	VWB_MAT44f R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+	VWB_MAT44f V; // return value
 
-	// copy eye coordinate to e
+	// rotation matrix from angles
+	VWB_MAT44f R;
+	if( m_bRH )
+	{
+		R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+	}
+	else
+	{
+		R = VWB_MAT44f::R_LH( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+	}
+
+	// reverse eye vector
 	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
 	// add eye offset rotated to platform
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
@@ -533,7 +542,7 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 	if( bTurnWithView )
 		V = m_mViewIG * R;
 	else
-		V = m_mViewIG * T;
+		V = T * m_mViewIG;
 	return V;
 }
 

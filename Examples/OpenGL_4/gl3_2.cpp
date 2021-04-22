@@ -471,29 +471,32 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	return TRUE;										// Initialization Went OK
 }
 
-void GLFrustumRH( float( &M )[16], float const pClip[6] )
+// resulting matrix is actually transposed, to be used column major in shader
+void GLFrustumRH( GLfloat( &M )[16], GLfloat left, GLfloat right, GLfloat bottom, GLfloat top, GLfloat zNear, GLfloat zFar )
 {
-	const float R[16]{
-		/* 0*/ 2.0f * pClip[4] / ( pClip[2] + pClip[0] ),
-		/* 1*/ 0,
-		/* 2*/ 0,
-		/* 3*/ 0,
+	GLfloat wr = 1.0f / ( right - left );
+	GLfloat hr = 1.0f / ( top - bottom );
+	GLfloat zn2 = 2.0f * zNear;
+	GLfloat zr = 1.0f / ( zNear - zFar );
+	M[0]  = zn2 * wr;
+	M[1]  = 0;
+	M[2]  = 0;
+	M[3]  = 0;
 
-		/* 4*/ 0,
-		/* 5*/ 2.0f * pClip[4] / ( pClip[3] + pClip[1] ),
-		/* 6*/ 0,
-		/* 7*/ 0,
+	M[4]  = 0;
+	M[5]  = zn2 * hr;
+	M[6]  = 0;
+	M[7]  = 0;
 
-		/* 8*/ ( pClip[2] - pClip[0] ) / ( pClip[0] + pClip[2] ),
-		/* 9*/ ( pClip[3] - pClip[1] ) / ( pClip[1] + pClip[3] ),
-		/*10*/ ( pClip[5] + pClip[4] ) / ( pClip[4] - pClip[5] ),
-		/*11*/ -1.0f,
+	M[8]  = ( right + left ) * wr;
+	M[9]  = ( top + bottom ) * hr;
+	M[10] = ( zNear + zFar ) * zr;
+	M[11] = -1;
 
-		/*12*/ 0,
-		/*13*/ 0,
-		/*14*/ 2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
-		/*15*/ 0 };
-	memcpy( M, R, sizeof( M ) );
+	M[12] = 0;
+	M[13] = 0;
+	M[14] = zn2 * zFar * zr;
+	M[15] = 0;
 }
 
 bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f )
@@ -502,28 +505,28 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	//OutputDebugStringA( "." );
 	//#endif
 	#ifdef USE_VIOSO_API
-		//< start VIOSO API code
-	GLfloat view[16], proj[16];
+	//< start VIOSO API code
+	GLfloat view[16], proj[16], view2[16], proj2[16];
+	GLfloat clip[6];
 	GLfloat eye[3] = { 0,0,0 };
 	GLfloat rot[3] = { 0,0,0 };
 
 	if( pWarper && VWB_getViewProj )
 	{
+		// either use this
 		VWB_getViewProj( pWarper, eye, rot, view, proj );
+
+		// or use this, which yields exact same result
+		VWB_getViewClip( pWarper, eye, rot, view2, clip );
+		GLFrustumRH( proj2, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+
+		// TODO: VWB_getPosDirFov or even this
 	}
-
-	//// TODO: delete; temp override view and proj matix to test only warper side
-	//GLfloat cView[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-	//memcpy( view, cView, sizeof( view ) );
-	//float clip[6] = { 0.128f,0.08f,0.128f,0.08f,0.128f,1000.0f };
-	//GLFrustumRH( proj, clip );
-
 	//< end VIOSO API code
 	#else
-	GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-	GLfloat proj[16] = { 0 };
-	float clip[6] = { 0.128f,0.08f,0.128f,0.08f,0.128f,1000.0f };
-	GLFrustumRH( proj, clip );
+		GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 }; // identity
+		GLfloat proj[16] = { 0 };
+		GLFrustumRH( proj, -0.128f, 0.128f, -0.8f, 0.8f, 0.128f, 1000.0f ); // 16:10 frustum
 	#endif //def USE_VIOSO_API
 
 
@@ -570,7 +573,7 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	//< start VIOSO API code
 	if( pWarper && VWB_render )
 	{
-		//VWB_render( pWarper, VWB_UNDEFINED_GL_TEXTURE, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
+		VWB_render( pWarper, VWB_UNDEFINED_GL_TEXTURE, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
 	}
 	//< end VIOSO API code
 	#endif //def USE_VIOSO_API

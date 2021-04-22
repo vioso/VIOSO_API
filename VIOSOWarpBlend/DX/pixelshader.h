@@ -332,18 +332,19 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 		tex.xy/= tex.w;                         
 		tex.x/=2;                              
 		tex.y/=-2;                               
-		tex.xy+= 0.5;                           
-		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
-		float4 vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
-		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
-		if( bBorder.y > 0.5 )                      
-			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			vOut += blackBias.y * black;// offset color to get min average black
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping } vOut
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+		tex.xy+= 0.5;                        
+		vOut = float4( ( tex.x - offsScale.x ) * offsScale.z,  ( tex.y - offsScale.y ) * offsScale.w, 1, 1 );  
+		//vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
+		//float4 vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
+		//vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
+		//if( bBorder.y > 0.5 )                      
+		//	vOut.rgb*= blend.rgb;			        
+		//if( bBorder.z > 0.5 )                      
+		//{                                           
+		//	vOut += blackBias.y * black;// offset color to get min average black
+		//	vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping } vOut
+		//	vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+		//}                                           
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                
