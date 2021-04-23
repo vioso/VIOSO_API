@@ -519,19 +519,16 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 	// rotation matrix from angles
 	VWB_MAT44f R;
 	if( m_bRH )
-	{
 		R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
-	}
 	else
-	{
 		R = VWB_MAT44f::R_LH( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
-	}
 
 	// reverse eye vector
 	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
-	// add eye offset rotated to platform
+	
+	// add platform-rotated eye offset
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-		e += VWB_VEC3f::ptr( this->eye ) * R; // TODO: better negate and reverse sides?
+		e -= R * VWB_VEC3f::ptr( this->eye );
 
 	// translate to local coordinates
 	e = m_mViewIG * e;
@@ -543,6 +540,7 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 		V = m_mViewIG * R;
 	else
 		V = T * m_mViewIG;
+
 	return V;
 }
 

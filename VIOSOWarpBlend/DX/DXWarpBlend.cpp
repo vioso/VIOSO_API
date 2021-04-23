@@ -30,21 +30,16 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 	VWB_MAT44f R;
 
 	if( m_bRH )
-	{
 		R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
-	}
 	else
-	{
 		R = VWB_MAT44f::R_LH( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll ).Transposed();
-	}
 		 
 	// reverse eye vector
 	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
-	// add eye offset rotated to platform
+
+	// add platform-rotated eye offset
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-	{
-		e += VWB_VEC3f::ptr( this->eye );
-	}
+		e -= VWB_VEC3f::ptr( this->eye ) * R;
 
 	// translate to local coordinates
 	e = e * m_mViewIG;
@@ -53,13 +48,10 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 	m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
 
 	if( bTurnWithView )
-	{
 		V = R * m_mViewIG; //??
-	}
 	else
-	{
 		V = m_mViewIG * T;
-	}
+
 	return V;
 }
 
@@ -85,32 +77,23 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		VWB_MAT44f P; // the projection matrix to return 
 
 		VWB_VEC3f e;
-		VWB_MAT44f V = UpdateView( e );
+		VWB_MAT44f V = UpdateView( e ); // the view matrix to return
 
 		VWB_float clip[6];
 		getClip( e, clip );
 
 		if( m_bRH )
-		{
 			P = VWB_MAT44f::DXFrustumRH( clip );
-		}
 		else
-		{
-
 			P = VWB_MAT44f::DXFrustumLH( clip );
-		}
 
-		m_mVP *= P;
+		m_mVP = m_mVP * P;
 
 		if( pView )
-		{
 			V.SetPtr( pView );
-		}
 
 		if( pProj )
-		{
 			P.SetPtr( pProj );
-		}
 	}
 	return ret;
 }
@@ -138,17 +121,21 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 		else
 			P = VWB_MAT44f::DXFrustumLH( clip );
 
+		XMMATRIX M;
+		if( m_bRH )
+			M = XMMatrixPerspectiveOffCenterRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+		else
+			M = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+
+		XMMATRIX D = M - XMLoadFloat4x4A( (XMFLOAT4X4A*)&P );
+
 		m_mVP *= P;
 
 		if( pView )
-		{
 			V.SetPtr( pView );
-		}
 
 		if( pClip )
-		{
 			memcpy( pClip, clip, sizeof( clip ) );
-		}
 	}
 	return ret;
 }

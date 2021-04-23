@@ -178,22 +178,22 @@ void main()
 		tex.x/=2.0;
 		tex.y/=2.0;
 		tex.xy+= 0.5;
-		FragColor = vec4( ( tex.x, tex.y, 1, 1 );  
-	//	FragColor = _texture2D( samContent, tex.xy );
-	//	if( !bDoNotBlend )
-	//		FragColor.rgb*= blend.rgb;
-	//	if( !bDoNoBlack )
-	//	{
-	//		// offset color to get min average black
-	//		FragColor += blackBias.y * black;					
+		//FragColor = vec4( tex.x, -tex.y, 1, 1 );  
+		FragColor = _texture2D( samContent, tex.xy );
+		if( !bDoNotBlend )
+			FragColor.rgb*= blend.rgb;
+		if( !bDoNoBlack )
+		{
+			// offset color to get min average black
+			FragColor += blackBias.y * black;					
 
-	//		// scale down to avoid clipping vOut
-	//		FragColor *= vec4(1,1,1,1) - blackBias.z * black;
-	//
-	//		// do lower clamp to stay above common black, upper is done anyways
-	//		FragColor = max( FragColor, black );				
-	//	}
-	//	FragColor.a = 1.0;
+			// scale down to avoid clipping vOut
+			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
+	
+			// do lower clamp to stay above common black, upper is done anyways
+			FragColor = max( FragColor, black );				
+		}
+		FragColor.a = 1.0;
 	}
 	else
 	{

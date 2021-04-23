@@ -1049,7 +1049,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
-	m_mViewIG = m_bRH ? VWB_MAT44d::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44d::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
 
 	// scale and shift back to original, to cancel out clipping scale/offset
 	m_mBaseI*= S.Inverted();
