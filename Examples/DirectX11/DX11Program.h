@@ -97,9 +97,9 @@ public:
     XMMATRIX const& getMView() const { return m_mView; }
     XMMATRIX& getMView() { return m_mView; }
 
-    void setMProjection( XMMATRIX const& m ) { m_mView = m; }
-    XMMATRIX const& getMProjection() const { return m_mView; }
-    XMMATRIX& getMProjection() { return m_mView; }
+    void setMProjection( XMMATRIX const& m ) { m_mProjection = m; }
+    XMMATRIX const& getMProjection() const { return m_mProjection; }
+    XMMATRIX& getMProjection() { return m_mProjection; }
 
     std::shared_ptr< RenderTarget >& getRenderTarget() { return m_rt;  }
 

@@ -549,17 +549,6 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR GLWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	#if 0 //def _DEBUG
-	static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
-	static DWORD wtErr = GetLastError();
-	if( wtEvt )
-	{
-		if( ERROR_ALREADY_EXISTS == wtErr )
-			WaitForSingleObject( wtEvt, INFINITE );
-		else
-			PulseEvent( wtEvt );
-	}
-	#endif
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
@@ -598,8 +587,7 @@ VWB_ERROR GLWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f P; // the projection matrix to return 
-
+		VWB_MAT44f P;
 		VWB_VEC3f e;
 		VWB_MAT44f V = UpdateView( e );
 
@@ -620,15 +608,64 @@ VWB_ERROR GLWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 
 		if( pClip )
 		{
-		//	memcpy( pClip, clip, sizeof( clip ) );
-			pClip[0] = clip[0];
-			pClip[1] = clip[3];
-			pClip[2] = clip[2];
-			pClip[3] = clip[1];
-			pClip[4] = clip[4];
-			pClip[5] = clip[5];
+			memcpy( pClip, clip, sizeof( clip ) );
 		}
 	}
+	return ret;
+}
+
+VWB_ERROR GLWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+{
+	VWB_ERROR ret = UpdateEye( eye, rot );
+	if( VWB_ERROR_NONE == ret )
+	{
+
+		VWB_MAT44f P;
+		VWB_VEC3f e;
+		VWB_MAT44f V = UpdateView( e );
+
+		VWB_float clip[6];
+		getClip( e, clip );
+
+		pSymClip[2] = clip[4];
+		pSymClip[3] = clip[5];
+		pPos[0] = V[3];
+		pPos[1] = V[7];
+		pPos[2] = V[11];
+
+		VWB_float angles[4] = {
+			atan2( clip[0], nearDist ),
+			atan2( clip[1], nearDist ),
+			atan2( clip[2], nearDist ),
+			atan2( clip[3], nearDist ),
+		};
+
+		// this is the sum of both angles, left+right resp. top+bottom 
+		pSymClip[0] = tan( ( angles[0] + angles[2] ) / 2 ) * 2;
+		pSymClip[1] = tan( ( angles[1] + angles[3] ) / 2 ) * 2;
+
+		// extract rotation angles from upper View matrix
+		VWB_VEC3f::ptr( pDir ) = V.Upper().GetR();
+		if( !m_bRH )
+			VWB_VEC3f::ptr( pDir ) *= -1;
+
+		// add difference of left/right and upper/lower clip as angles
+		pDir[0] += angles[2] - angles[0];
+		pDir[1] += angles[3] - angles[1];
+
+		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) );
+		m_mVP = VWB_MAT44f::T( pPos[0], pPos[1], pPos[2] ) * V * m_mBaseI;
+
+		clip[0] = clip[2] = pSymClip[0] / 2 * nearDist;
+		clip[1] = clip[3] = pSymClip[1] / 2 * nearDist;
+		if( m_bRH )
+			P = VWB_MAT44f::GLFrustumRH( clip );
+		else
+			P = VWB_MAT44f::GLFrustumLH( clip );
+
+		m_mVP = P * m_mVP;
+	}
+
 	return ret;
 }
 

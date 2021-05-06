@@ -169,7 +169,7 @@ void main()
 	vec4 tex = _tex2D( samWarp, texcoord.st );
 	vec4 blend = _tex2D( samBlend, texcoord.st );
 	vec4 black = _tex2D( samBlack, texcoord.st ) * blackBias.x;
-	if( 0.1 < blend.a )
+	if( 0.01 < blend.a )
 	{
 		tex/= blend.a;
 		tex.a = 1;
@@ -178,7 +178,13 @@ void main()
 		tex.x/=2.0;
 		tex.y/=2.0;
 		tex.xy+= 0.5;
-		//FragColor = vec4( tex.x, -tex.y, 1, 1 );  
+//		// test mappings and border fit
+//		if( 0.01 <= tex.x && tex.x <= 0.99 && 0.01 <= tex.y && tex.y <= 0.99 )                    
+//			FragColor = vec4( tex.x, 1 - tex.y, 1, 1 );
+//		else if( 0 <= tex.x && tex.x <= 1 && 0 <= tex.y && tex.y <= 1 )                    
+//			FragColor = vec4( tex.x, 1 - tex.y, 0, 1 );
+//		else
+//			FragColor = vec4( 0, 0, 0, 1 );
 		FragColor = _texture2D( samContent, tex.xy );
 		if( !bDoNotBlend )
 			FragColor.rgb*= blend.rgb;

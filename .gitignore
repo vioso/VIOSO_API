@@ -70,3 +70,7 @@
 /Examples/Mesh/MeshExample.vcxproj.user
 /VIOSOWarpBlend/x64/Debug vvvv
 Release
+/bin/VIOSOWarpBlend64.pdb
+/bin/DirectX11Example64.exe
+/bin/DirectX11Example64.pdb
+/bin/VIOSOWarpBlend.log

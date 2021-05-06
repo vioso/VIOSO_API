@@ -48,7 +48,7 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 	m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
 
 	if( bTurnWithView )
-		V = R * m_mViewIG; //??
+		V = R * m_mViewIG;
 	else
 		V = m_mViewIG * T;
 
@@ -60,17 +60,6 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	//#ifdef _DEBUG
-	//static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
-	//static DWORD wtErr = GetLastError();
-	//if( wtEvt )
-	//{
-	//	if( ERROR_ALREADY_EXISTS == wtErr )
-	//		WaitForSingleObject( wtEvt, INFINITE );
-	//	else
-	//		PulseEvent( wtEvt );
-	//}
-	//#endif
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
@@ -106,11 +95,8 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f P; // the projection matrix to return 
-
-		// copy eye coordinate to e
-		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
-
+		VWB_MAT44f P;
+		VWB_VEC3f e;
 		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
@@ -121,36 +107,29 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 		else
 			P = VWB_MAT44f::DXFrustumLH( clip );
 
-		XMMATRIX M;
-		if( m_bRH )
-			M = XMMatrixPerspectiveOffCenterRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-		else
-			M = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-
-		XMMATRIX D = M - XMLoadFloat4x4A( (XMFLOAT4X4A*)&P );
-
 		m_mVP *= P;
 
 		if( pView )
+		{
 			V.SetPtr( pView );
+		}
 
 		if( pClip )
+		{
 			memcpy( pClip, clip, sizeof( clip ) );
+		}
 	}
 	return ret;
 }
 
-VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR DXWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
 
-		VWB_MAT44f P; // the projection matrix to return 
-
-		// copy eye coordinate to e
-		VWB_VEC3f e( (float)m_ep.x, (float)m_ep.y, (float)m_ep.z );
-
+		VWB_MAT44f P;
+		VWB_VEC3f e;
 		VWB_MAT44f V = UpdateView( e );
 
 		VWB_float clip[6];
@@ -162,26 +141,37 @@ VWB_ERROR DXWarpBlend::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* 
 		pPos[1] = V[7];
 		pPos[2] = V[11];
 
-		pSymClip[0] = atan2( clip[0], nearDist ) + atan2( clip[2], nearDist );
-		pSymClip[1] = atan2( clip[1], nearDist ) + atan2( clip[3], nearDist );
+		VWB_float angles[4] = {
+			atan2( clip[0], nearDist ),
+			atan2( clip[1], nearDist ),
+			atan2( clip[2], nearDist ),
+			atan2( clip[3], nearDist ),
+		};
 
-		VWB_MAT33f RT = Upper<VWB_float>( VWB_MAT44f::ptr( V ) );
-		VWB_VEC3f::ptr( pDir ) = RT.GetR(); // todo: check...
+		// this is the sum of both angles, left+right resp. top+bottom 
+		pSymClip[0] = tan( ( angles[0] + angles[2] ) / 2 ) * 2;
+		pSymClip[1] = tan( ( angles[1] + angles[3] ) / 2 ) * 2;
 
-		pDir[0] += ( atan2( clip[2], nearDist ) - atan2( clip[0], nearDist ) );
-		pDir[1] += ( atan2( clip[3], nearDist ) - atan2( clip[1], nearDist ) );
+		// extract rotation angles from upper View matrix
+		VWB_VEC3f::ptr( pDir ) = V.Upper().GetR();
+		if( !m_bRH )
+			VWB_VEC3f::ptr( pDir ) *= -1;
 
-		//m_mVP = m_mBaseI * VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ).Transposed() * T; // TODO FIX!
+		// add difference of left/right and upper/lower clip as angles
+		pDir[0] += angles[2] - angles[0];
+		pDir[1] += angles[3] - angles[1];
 
-		clip[0] = clip[2] = tan( pSymClip[0] / 2.0f ) * nearDist;
-		clip[1] = clip[3] = tan( pSymClip[1] / 2.0f ) * nearDist;
+		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ).Transposed() : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) ).Transposed();
+		m_mVP = m_mBaseI * V * VWB_MAT44f::T( pPos[0], pPos[1], pPos[2] ).Transposed();
+
+		clip[0] = clip[2] = pSymClip[0] / 2 * nearDist;
+		clip[1] = clip[3] = pSymClip[1] / 2 * nearDist;
 		if( m_bRH )
 			P = VWB_MAT44f::DXFrustumRH( clip );
 		else
 			P = VWB_MAT44f::DXFrustumLH( clip );
 
 		m_mVP *= P;
-
 	}
 
 	return ret;

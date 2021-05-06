@@ -333,7 +333,27 @@ public:
         ////< start VIOSO API code
         XMFLOAT3 vEyePt( 0.0, 0.0f, 0.0f );
         XMFLOAT3 vRot( 0.0f, 0.0f, 0.0f );
-   	    VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, (float*)m_mProjection.r );
+
+        // we're switching methods each call, to show they are equivalent
+        // VWB_getPosDir yields a symmetric frustum. Image quality suffers, if view angle is
+        // far off from perpendicular to the screen
+        static unsigned int pass = 0;
+        if( ++pass = 3 )
+        {
+            // get view and projection matrix directly
+            VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, (float*)m_mProjection.r );
+            pass = 0;
+        }
+        else if( 1 == pass )
+        {
+        }
+        else if( 2 == pass )
+        {
+
+        }
+
+        // also
+        pass++;
         ////< end VIOSO API code
 
         m_rtt->setMProjection( m_mProjection );
@@ -412,11 +432,11 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
         constexpr UINT createDeviceFlags = 0;
         #endif
 
-        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display1", hInstance, 0, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
-
-        //g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display2", hInstance, 1280, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        //g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display1", hInstance, 0, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
         //g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display2", hInstance, 1280, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
         /*
         g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display3", hInstance, 7040, 0, 0, 0, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
         g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );

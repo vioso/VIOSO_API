@@ -165,8 +165,8 @@ calibIndex=0
 	* @param [OUT]			pClip	it gets the updated clip planes: left, top, right, bottom, near, far, where all components are usually positive
 	* @param [OUT]			pPos    it gets the updated relative position: x,y,z
 	* @param [OUT]			pDir	it gets the updated relative direction: euler angles around x,y,z rotation order is y,x,z
-	* @param [OUT]			pSymFov	it gets the updated symmetric frustum: hFov, vFov, near, far
-    * @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise
+	* @param [OUT]			pSymClip	it gets the updated symmetric frustum: width, height, near, far
+* @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise
 	* @remarks If EyePointProvider is used, the eye point is set by calling it's getEye function. eye and rot are set to that if not NULL.
 	* Else, if eye and rot are not NULL, values taken from here.
 	* Else the eye and rot are set to 0-vectors.
@@ -195,13 +195,17 @@ calibIndex=0
 
 	Use pClip this way to get the same matrix like from VWB_getViewProjection:
 	P = glm::frustum( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
-	
 	P = XMMatrixPerspectiveOffCenterLH( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
+
+	VWB_getPosDirClip yields a symmetric frustum. Image quality suffers, if view angle is
+	far off from perpendicular to the screen.
+	P = XMMatrixPerspectiveFovLH(  );
+
 */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewProj, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) );
-	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosDirFov, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) );
-	
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosDirClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) );
+
 	/** set the view and projection matrix directly
 	* @param [IN]			pWarper	a valid warper
     * @param [IN]			pView	view matrix to translate and rotate into the viewer's perspective
