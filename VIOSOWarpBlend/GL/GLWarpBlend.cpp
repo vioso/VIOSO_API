@@ -653,7 +653,7 @@ VWB_ERROR GLWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float*
 		pDir[0] += angles[2] - angles[0];
 		pDir[1] += angles[3] - angles[1];
 
-		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) );
+		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( pDir ) );
 		m_mVP = VWB_MAT44f::T( pPos[0], pPos[1], pPos[2] ) * V * m_mBaseI;
 
 		clip[0] = clip[2] = pSymClip[0] / 2 * nearDist;

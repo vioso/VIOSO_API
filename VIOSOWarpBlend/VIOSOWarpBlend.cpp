@@ -687,6 +687,18 @@ VWB_ERROR VWB_getViewClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot
 	return VWB_ERROR_PARAMETER;
 }
 
+/*
+* TODO: does not work; fix direction by decomposing cantral axis of frustum instead of adding angles
+VWB_getPosDirClip yields a symmetric frustum.Image quality suffers, if view angle is
+far off from perpendicular to the screen.Try using asymetric frustum, especially in
+dynamic eye - point scenarios.
+	float pos[3];
+	float rot[3];
+	float symClip[4];
+	VWB_getPosDirClip( m_warper, &vEyePt.x, &vRot.x, pos, rot, symClip );
+	m_mView = XMMatrixRotationRollPitchYaw( rot[0], -rot[1], -rot[2] ) * XMMatrixTranslation( pos[0], pos[1], pos[2] );
+	m_mProjection = XMMatrixPerspectiveFovLH( symClip[0], symClip[1], symClip[2], symClip[3] );
+*/
 VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	if( NULL != pEye && NULL != pRot )

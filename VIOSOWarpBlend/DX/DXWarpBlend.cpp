@@ -149,23 +149,23 @@ VWB_ERROR DXWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float*
 		};
 
 		// this is the sum of both angles, left+right resp. top+bottom 
-		pSymClip[0] = tan( ( angles[0] + angles[2] ) / 2 ) * 2;
-		pSymClip[1] = tan( ( angles[1] + angles[3] ) / 2 ) * 2;
+		pSymClip[0] = tan( ( angles[0] + angles[2] + ( angles[2] - angles[0] ) ) / 2 ) * 2 * nearDist;
+		pSymClip[1] = tan( ( angles[1] + angles[3] + ( angles[1] - angles[3] ) ) / 2 ) * 2 * nearDist;
 
 		// extract rotation angles from upper View matrix
-		VWB_VEC3f::ptr( pDir ) = V.Upper().GetR();
+		VWB_VEC3f::ptr( pDir ) = V.Upper().Transposed().GetR();
 		if( !m_bRH )
 			VWB_VEC3f::ptr( pDir ) *= -1;
 
-		// add difference of left/right and upper/lower clip as angles
-		pDir[0] += angles[2] - angles[0];
-		pDir[1] += angles[3] - angles[1];
+		// add difference of left/right, which add to rotation around y, and upper/lower clip, which add to rotation around x, as angles
+		pDir[0] += angles[1] - angles[3]; // rotation around x, "pitch" aka up and down
+		pDir[1] += angles[2] - angles[0]; // rotation around y, "yaw" aka left and right
 
-		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ).Transposed() : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) ).Transposed();
+		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ).Transposed() : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( pDir ) ).Transposed();
 		m_mVP = m_mBaseI * V * VWB_MAT44f::T( pPos[0], pPos[1], pPos[2] ).Transposed();
 
-		clip[0] = clip[2] = pSymClip[0] / 2 * nearDist;
-		clip[1] = clip[3] = pSymClip[1] / 2 * nearDist;
+		clip[0] = clip[2] = pSymClip[0] / 2;
+		clip[1] = clip[3] = pSymClip[1] / 2;
 		if( m_bRH )
 			P = VWB_MAT44f::DXFrustumRH( clip );
 		else
