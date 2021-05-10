@@ -56,23 +56,3 @@ include_directories(
 if (NOT DEFINED VIOSO_API_BUILD_AS_OBJECT)
 	target_link_libraries (${PROJECT_NAME} ${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/dxerr.lib)
 endif()
-
-#uncompress zipped data files
-if (NOT DEFINED VIOSO_API_SKIP_EXAMPLES)
-	if(NOT EXISTS ${CMAKE_SOURCE_DIR}/data/vioso3D.vwf)
-		message("extracting vioso3D.zip")
-		execute_process(
-			COMMAND ${CMAKE_COMMAND} -E tar xzf vioso3D.zip
-			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/data
-		)
-	endif()
-
-	#uncompress zipped data files
-	if(NOT EXISTS ${CMAKE_SOURCE_DIR}/data/vioso2d.vwf)
-		message("extracting vioso2d.zip")
-		execute_process(
-			COMMAND ${CMAKE_COMMAND} -E tar xzf vioso2d.zip
-			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/data
-		)
-	endif()
-endif()
