@@ -244,8 +244,8 @@ Other blend data are ignored.
 /** VWB_WarpSetFileHeader\n
 *  ( Struct SmartProjector Warp Set File Header)\n
 *  Container to preface a set of warping/blending informations.
-* @author Johannes Mueller
 * @author Juergen Krahmann
+* @author Johannes Mueller
 * @date Apr. 12
 * @version 1.0
 * @bug No.
@@ -272,8 +272,8 @@ public:
 /** VWB_WarpFileHeader\n
 *  ( Struct SmartProjector Warp File Header)\n
 *  Container to preface warping information.
-* @author Johannes Mueller
 * @author Juergen Krahmann
+* @author Johannes Mueller
 * @date Apr. 12
 * @version 1.0
 * @bug No.
@@ -319,8 +319,8 @@ public:
 *  ( Struct SmartProjector Warp File Header version 2)\n
 *  Container to preface warping information.
 * magicNumber[4]="vwf0"
-* @author Johannes Mueller
 * @author Juergen Krahmann
+* @author Johannes Mueller
 * @date May 13
 * @version 1.0
 * @bug No.
@@ -386,7 +386,6 @@ public:
 *  Container to preface warping information.
 * same as VWB_WarpFileHeader3, but with some reserved(s) unwrapped
 * magicNumber[4]="vwf0"
-* @author Johannes Mueller
 * @author Juergen Krahmann
 * @date Nov 16
 * @version 1.0

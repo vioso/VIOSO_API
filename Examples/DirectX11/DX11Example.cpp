@@ -402,7 +402,7 @@ BOOL AddWindowWithRenderer(
     #endif
     
     HINSTANCE hInstance = (HINSTANCE)lp;
-    CString s; s.Format( "Display%i", (int)g_windows.size() + 1 );
+    CString s; s.Format( _T("Display%i"), (int)g_windows.size() + 1 );
     g_windows.push_back( make_shared<VIOSOWarperWindow>( s, hInstance, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
     //g_windows.push_back( make_shared<OutputWindow>( hInstance, s, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
     g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );

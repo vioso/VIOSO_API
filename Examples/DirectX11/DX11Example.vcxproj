@@ -177,7 +177,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
@@ -217,7 +218,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -259,7 +261,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|X64'">
@@ -300,7 +303,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">
@@ -341,7 +345,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Profile|X64'">
@@ -382,7 +387,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

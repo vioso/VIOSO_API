@@ -115,7 +115,8 @@
       <EntryPointName />
     </FxCompile>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -148,7 +149,8 @@
       </EntryPointName>
     </FxCompile>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -184,7 +186,8 @@
       <EntryPointName />
     </FxCompile>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -221,7 +224,8 @@
       </EntryPointName>
     </FxCompile>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

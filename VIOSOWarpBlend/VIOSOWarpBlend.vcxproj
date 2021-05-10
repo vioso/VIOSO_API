@@ -622,7 +622,7 @@
     <ClInclude Include="GL\GLext.h" />
     <ClInclude Include="GL\GLWarpBlend.h" />
     <ClInclude Include="GL\pixelshader.h" />
-    <ClInclude Include="JASONWrapper.h" />
+    <ClInclude Include="JSONWrapper.h" />
     <ClInclude Include="logging.h" />
     <ClInclude Include="mmath.h" />
     <ClInclude Include="Net.h" />
@@ -658,7 +658,7 @@
     <ClCompile Include="DX\DX9WarpBlend.cpp" />
     <ClCompile Include="DX\DXWarpBlend.cpp" />
     <ClCompile Include="GL\GLWarpBlend.cpp" />
-    <ClCompile Include="JASONWrapper.cpp">
+    <ClCompile Include="JSONWrapper.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Mantis|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug vvvv|Win32'">true</ExcludedFromBuild>

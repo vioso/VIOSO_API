@@ -231,6 +231,12 @@ calibIndex=0
 	* @remarks The list is empied and all found headers are appended. */
     VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfo, ( char const* path, VWB_WarpBlendHeaderSet* set ) );  
 
+	/** fills a VWB_WarpBlend from currently loaded data. Warper needs to be initialized as VWB_DUMMYDEVICE.
+	* @param [IN]			pWarper	a valid warper
+	* @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlend, ( VWB_Warper* pWarper, VWB_WarpBlend const*& wb ) );
+
 	/** fills a VWB_WarpBlendMesh from currently loaded data. It uses cols * rows vertices or less depending on how .vwf is filled. Warper needs to be initialized as VWB_DUMMYDEVICE.
 	* @param [IN]			pWarper	a valid warper
 	* @param [IN]			cols	sets the number of columns
@@ -238,6 +244,7 @@ calibIndex=0
 	* @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlendMesh, ( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) );
+
 	/** destroys a VWB_WarpBlendMesh .
 	 * @param [IN]			pWarper	a valid warper
 	 * @param [INOUT]		mesh	the mesh to be destroyed

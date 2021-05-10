@@ -101,9 +101,8 @@
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r
-xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -127,9 +126,8 @@ xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r
-xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -157,9 +155,8 @@ xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r
-xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -186,9 +183,8 @@ xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r
-xcopy "$(SolutionDir)data\vioso2d.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

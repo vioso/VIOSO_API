@@ -78,7 +78,7 @@
     <ClInclude Include="DX\DX9EXWarpBlend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="JASONWrapper.h">
+    <ClInclude Include="JSONWrapper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DX\DX12WarpBlend.h">
@@ -90,11 +90,11 @@
     <ClInclude Include="3rdparty\delauney\DelaunayTriangles.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="VWF.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -131,7 +131,7 @@
     <ClCompile Include="DX\DX9EXWarpBlend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="JASONWrapper.cpp">
+    <ClCompile Include="JSONWrapper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DX\DX12WarpBlend.cpp">

@@ -95,8 +95,8 @@
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
@@ -116,8 +116,8 @@ xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
@@ -141,8 +141,8 @@ xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
@@ -166,8 +166,8 @@ xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
       <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <PostBuildEvent>
-      <Command>call $(SolutionDir)Examples\unzip_data.bat
-xcopy "$(SolutionDir)data\vioso3D.vwf" "$(TargetDir)" /e /y /i /r</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>

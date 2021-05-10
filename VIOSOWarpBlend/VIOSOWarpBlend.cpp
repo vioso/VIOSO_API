@@ -756,6 +756,13 @@ VWB_ERROR VWB__logString( VWB_int level, char const* str )
 	return VWB_ERROR_NONE;
 }
 
+VWB_ERROR VWB_getWarpBlend( VWB_Warper* pWarper, VWB_WarpBlend const*& wb )
+{
+	if( pWarper )
+		return ( (VWB_Warper_base*)pWarper )->getWarpBlend( wb );
+	return VWB_ERROR_PARAMETER;
+}
+
 VWB_ERROR VWB_getWarpBlendMesh( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
 {
 	if( pWarper )
@@ -1476,6 +1483,11 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 	return VWB_ERROR_NONE;
 }
 
+VWB_ERROR VWB_Warper_base::getWarpBlend( VWB_WarpBlend const*& wb )
+{
+	return VWB_ERROR_NOT_IMPLEMENTED;
+}
+
 VWB_ERROR VWB_Warper_base::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
 {
 	return VWB_ERROR_NOT_IMPLEMENTED;
@@ -1530,26 +1542,33 @@ VWB_ERROR Dummywarper::Init( VWB_WarpBlendSet& wbs )
 
 inline VWB_MAT44f Dummywarper::UpdateView( VWB_VEC3f& e )
 {
-	VWB_MAT44f V;
-	// rotation matrix from angles
-	VWB_MAT44f R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+	VWB_MAT44f V; // return value
 
-	// copy eye coordinate to e
+	// rotation matrix from angles
+	VWB_MAT44f R;
+	if( m_bRH )
+		R = VWB_MAT44f::R( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+	else
+		R = VWB_MAT44f::R_LH( (VWB_float)m_ep.pitch, (VWB_float)m_ep.yaw, (VWB_float)m_ep.roll );
+
+	// reverse eye vector
 	e = VWB_VEC3f( -(float)m_ep.x, -(float)m_ep.y, -(float)m_ep.z );
-	// add eye offset rotated to platform
+
+	// add platform-rotated eye offset
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
-		e += VWB_VEC3f::ptr( this->eye ) * R; // TODO: better negate and reverse sides?
+		e -= R * VWB_VEC3f::ptr( this->eye );
 
 	// translate to local coordinates
 	e = m_mViewIG * e;
 
 	VWB_MAT44f T = VWB_MAT44f::T( e );
-	m_mVP = T * m_mViewIG * m_mBaseI; //TODO precalc
+	m_mVP = T * m_mViewIG * m_mBaseI;
 
 	if( bTurnWithView )
-		V = R * m_mViewIG;
+		V = m_mViewIG * R;
 	else
 		V = T * m_mViewIG;
+
 	return V;
 }
 
@@ -1558,17 +1577,6 @@ inline VWB_MAT44f Dummywarper::UpdateView( VWB_VEC3f& e )
 // use the same units (usually millimeters) for the screen and the scene
 VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj )
 {
-	#ifdef _DEBUG
-	static HANDLE wtEvt = CreateEventA( nullptr, TRUE, FALSE, "VWB_debug_trigger" );
-	static DWORD wtErr = GetLastError();
-	if( wtEvt )
-	{
-		if( ERROR_ALREADY_EXISTS == wtErr )
-			WaitForSingleObject( wtEvt, INFINITE );
-		else
-			PulseEvent( wtEvt );
-	}
-	#endif
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
@@ -1596,7 +1604,6 @@ VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 			P.Transposed().SetPtr( pProj );
 		}
 	}
-	Sleep( 1 );
 	return ret;
 }
 
@@ -1608,8 +1615,7 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
-		VWB_MAT44f P; // the projection matrix to return 
-
+		VWB_MAT44f P;
 		VWB_VEC3f e;
 		VWB_MAT44f V = UpdateView( e );
 
@@ -2808,6 +2814,15 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 		}
 		return 1;
 	}
+
+
+VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
+{
+	wb = &m_wb;
+	return VWB_ERROR_NONE;
+}
+
+
 VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
 {
 	if( 3 > cols || 3 > rows )
