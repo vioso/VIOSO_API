@@ -1,10 +1,10 @@
 #include "DX11Program.h"
 
 #include "resource.h"
-#include <string>
-#include <sstream>
 #include <vector>
 #include <atlstr.h>
+#include <string>
+#include <sstream>
 using namespace std;
 
 class CubesRenderer : public Renderer
@@ -289,7 +289,7 @@ class VIOSOWarperWindow : public OutputWindow {
     VWB_Warper* m_warper;
     shared_ptr<MyRenderToTexture> m_rtt;
 public:
-    VIOSOWarperWindow( HINSTANCE hInstance, LPCTSTR channelName, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
+    VIOSOWarperWindow( LPCTSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
     : OutputWindow( hInstance, channelName, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
     , m_warper( nullptr )
     {
@@ -304,7 +304,7 @@ public:
         }
         
         // check all needed functions
-        if( !( VWB_Create && VWB_Init && VWB_render && VWB_getViewProj && VWB_getViewClip && VWB_Destroy ) )
+        if( !( VWB_Create && VWB_Init && VWB_render && VWB_getViewProj && VWB_Destroy ) )
             throw exception( "failed to load VIOSO API dll" );
 
         // create and initialize
@@ -334,7 +334,25 @@ public:
         ////< start VIOSO API code
         XMFLOAT3 vEyePt( 0.0, 0.0f, 0.0f );
         XMFLOAT3 vRot( 0.0f, 0.0f, 0.0f );
-   	    VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, (float*)m_mProjection.r );
+
+        // we're switching methods each call, to show they are equivalent
+        // VWB_getPosDir yields a symmetric frustum. Image quality suffers, if view angle is
+        // far off from perpendicular to the screen. Try using asymetric frustum, especially in 
+        // dynamic eye-point scenarios.
+        static unsigned int pass = 2;
+        if( 2 == ++pass )
+        //if( 0 == pass )
+        {
+            pass = 0;
+            // get view and projection matrix directly
+            VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, (float*)m_mProjection.r );
+        }
+        else if( 1 == pass )
+        {
+            float clip[6];
+            VWB_getViewClip( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, clip );
+            m_mProjection = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+        }
         ////< end VIOSO API code
 
         m_rtt->setMProjection( m_mProjection );
@@ -384,8 +402,9 @@ BOOL AddWindowWithRenderer(
     #endif
     
     HINSTANCE hInstance = (HINSTANCE)lp;
-    CString s; s.Format( _T("Display%i"), (int)g_windows.size() + 1 );
-    g_windows.push_back( make_shared<VIOSOWarperWindow>( hInstance, s, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+    CString s; s.Format( "Display%i", (int)g_windows.size() + 1 );
+    g_windows.push_back( make_shared<VIOSOWarperWindow>( s, hInstance, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+    //g_windows.push_back( make_shared<OutputWindow>( hInstance, s, pR->left, pR->top, pR->right - pR->left, pR->bottom - pR->top, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
     g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
 
     return TRUE;
@@ -403,45 +422,45 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 
     try
     {
-        #if 0 // enumerate all displays
-            ::EnumDisplayMonitors( 0, NULL, AddWindowWithRenderer, (LPARAM)hInstance );
-        #elif 1 // use commandline
-            #ifdef _DEBUG
-                constexpr UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
-            #else
-                constexpr UINT createDeviceFlags = 0;
-            #endif
-
-            int x = 0;
-            int y = 0;
-            int w = 0;
-            int h = 0;
-            wstring channel = L"Display1";
-            std::wistringstream cmd( lpCmdLine );
-            cmd >> channel >> x >> y >> w >> h;
-
-            g_windows.push_back( make_shared<VIOSOWarperWindow>( hInstance, CString(channel.c_str()), x, y, w, h, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-            g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
-
-        #else // create individually
+        #if 0 // fill all desktop monitors
+        ::EnumDisplayMonitors( 0, NULL, AddWindowWithRenderer, (LPARAM)hInstance );
+   
         
-            #ifdef _DEBUG
-            constexpr UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
-            #else
-            constexpr UINT createDeviceFlags = 0;
-            #endif
+        #elif 0 // manual config
+        #ifdef _DEBUG
+        constexpr UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
+        #else
+        constexpr UINT createDeviceFlags = 0;
+        #endif
 
-            g_windows.push_back( make_shared<VIOSOWarperWindow>( hInstance, _T("Display1"), 0, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-            g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display1", hInstance, 0, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
 
-            g_windows.push_back( make_shared<VIOSOWarperWindow>( hInstance, _T("Display2"), 1280, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-            g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display2", hInstance, 1280, 0, 1280, 1600, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( "Display3", hInstance, 7040, 0, 0, 0, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
 
-            /*
-            g_windows.push_back( make_shared<VIOSOWarperWindow>( hInstance, _T("Display3"), 7040, 0, 0, 0, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-            g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
-            */
-        #endif 
+        #else // from command line
+
+        int x = 0;
+        int y = 0;
+        int w = 0;
+        int h = 0;
+        std::wstring channel = L"Display1";
+        std::wistringstream cmd( lpCmdLine );
+        cmd >> channel >> x >> y >> w >> h;
+
+        #ifdef _DEBUG
+        constexpr UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
+        #else
+        constexpr UINT createDeviceFlags = 0;
+        #endif
+
+        g_windows.push_back( make_shared<VIOSOWarperWindow>( CString(channel.c_str()), hInstance, x, y, w, h, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.back()->addRenderer( make_shared< CubesRenderer >( g_windows.back()->getDevice() ) );
+
+        #endif
 
         // initialize world matrix
         g_mWorld = XMMatrixIdentity();

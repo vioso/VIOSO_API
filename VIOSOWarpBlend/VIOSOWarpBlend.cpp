@@ -687,11 +687,23 @@ VWB_ERROR VWB_getViewClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot
 	return VWB_ERROR_PARAMETER;
 }
 
-VWB_ERROR VWB_getPosDirFov( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+/*
+* TODO: does not work; fix direction by decomposing cantral axis of frustum instead of adding angles
+VWB_getPosDirClip yields a symmetric frustum.Image quality suffers, if view angle is
+far off from perpendicular to the screen.Try using asymetric frustum, especially in
+dynamic eye - point scenarios.
+	float pos[3];
+	float rot[3];
+	float symClip[4];
+	VWB_getPosDirClip( m_warper, &vEyePt.x, &vRot.x, pos, rot, symClip );
+	m_mView = XMMatrixRotationRollPitchYaw( rot[0], -rot[1], -rot[2] ) * XMMatrixTranslation( pos[0], pos[1], pos[2] );
+	m_mProjection = XMMatrixPerspectiveFovLH( symClip[0], symClip[1], symClip[2], symClip[3] );
+*/
+VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	if( NULL != pEye && NULL != pRot )
 	{
-		logStr( 4, "VWB_getViewClip\n IN:   eye: (%f, %f, %f)\n"
+		logStr( 4, "VWB_getPosDirClip\n IN:   eye: (%f, %f, %f)\n"
 				"       rot: (%f, %f, %f)\n"
 				, pEye[0], pEye[1], pEye[2]
 				, pRot[0], pRot[1], pRot[2]
@@ -699,7 +711,7 @@ VWB_ERROR VWB_getPosDirFov( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRo
 	}
 	if( pWarper )
 	{
-		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosDirFov( pEye, pRot, pPos, pDir, pSymClip );
+		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosDirClip( pEye, pRot, pPos, pDir, pSymClip );
 		if( NULL != pPos && NULL != pDir && NULL != pSymClip )
 		{
 			logStr( 4,
@@ -982,7 +994,8 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		}
 
 		// scale and shift to avoid clamping
-		S = VWB_MAT44f::S(1.0f/(b.br.x - b.tl.x), 1.0f/(b.br.y - b.tl.y), 1.0f/(b.br.z - b.tl.z), 1 ) * VWB_MAT44f::T( -b.tl.x, -b.tl.y, -b.tl.z );
+		S = VWB_MAT44f::S(1.0f/(b.max.x - b.min.x), 1.0f/(b.max.y - b.min.y), 1.0f/(b.max.z - b.min.z), 1 ) * VWB_MAT44f::T( -b.min.x, -b.min.y, -b.min.z );
+		S.Invert();
 		pW = wb.pWarp;
 		VWB_VEC3f a,c;
 		for( VWB_WarpRecord const* pWE = pW + m_sizeMap.cx * m_sizeMap.cy; pW != pWE; pW++ )
@@ -991,7 +1004,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			{
 				a = VWB_VEC3f::ptr( &pW->x );
 				VWB_VEC3f::ptr( &pW->x ) = S * a;
-				c = S.Inverted() * VWB_VEC3f::ptr( &pW->x );
+				c = S * VWB_VEC3f::ptr( &pW->x );
 			}
 		}
 
@@ -1044,6 +1057,9 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			optimalRect.bottom =wb.header.height;
 		}
 	}
+
+	// translate world to local IG's coordinates
+	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
 	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
@@ -1123,18 +1139,21 @@ VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_floa
 	return VWB_ERROR_NOT_IMPLEMENTED;
 }
 
-VWB_ERROR VWB_Warper_base::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR VWB_Warper_base::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
 {
 	return VWB_ERROR_NOT_IMPLEMENTED;
 }
 
 void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float * pClip )
 {
-	VWB_float dd = nearDist / ( screenDist + ( m_bRH ? -e.z : e.z ) );
-	pClip[0] = ( m_viewSizes[0] - e.x ) * dd;
-	pClip[1] = ( m_viewSizes[1] - e.y ) * dd;
-	pClip[2] = ( m_viewSizes[2] + e.x ) * dd;
-	pClip[3] = ( m_viewSizes[3] + e.y ) * dd;
+	// x points right and y points up in NDC, same goes for input value "e"
+	// z is depending on handedness, LH z points forward, RH rearward
+	// screenDist is always positive, so we need to take handedness into account
+	VWB_float dd = nearDist / ( screenDist + ( m_bRH ? -e.z : e.z ) ); 
+	pClip[0] = ( m_viewSizes[0] - e.x ) * dd; // left
+	pClip[1] = ( m_viewSizes[1] + e.y ) * dd; // top
+	pClip[2] = ( m_viewSizes[2] + e.x ) * dd; // right
+	pClip[3] = ( m_viewSizes[3] - e.y ) * dd; // bottom
 	pClip[4] = nearDist;
 	pClip[5] = farDist;
 }
@@ -1179,9 +1198,17 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	int hh = wb.header.height / 2;
 	VWB_WarpRecord *ptl = NULL, *ptr = NULL, *pbl = NULL, *pbr = NULL; // the extremal corners
 	int ltl = INT_MAX, ltr = INT_MIN, lbl = INT_MAX, lbr = INT_MIN; // the extremal corner's distance to projector centre on projector
+	#ifdef _DEBUG
+	struct ImageCorners
+	{
+		struct px {
+			int x, y;
+		} tl, tr, bl, br;
+	} imgCrn;
+	#endif
 	for( int y = hh - wb.header.height; y != hh; y++ )
 	{
-		for( int x = -wh; x != wb.header.width - wh; x++, pW++, pB++ )
+		for( int x = wh - wb.header.width; x != wh; x++, pW++, pB++ )
 		{
 			if( 1 == pW->w && 
 				0 != pB->a &&
@@ -1196,6 +1223,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				{
 					ltl = d1;
 					ptl = pW;
+					#ifdef _DEBUG
+					imgCrn.tl.x = x;
+					imgCrn.tl.y = y;
+					#endif
 				}
 
 				// top right
@@ -1203,6 +1234,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				{
 					ltr = d2;
 					ptr = pW;
+					#ifdef _DEBUG
+					imgCrn.tr.x = x;
+					imgCrn.tr.y = y;
+					#endif
 				}
 
 				// bottom left
@@ -1210,6 +1245,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				{
 					lbl = d2;
 					pbl = pW;
+					#ifdef _DEBUG
+					imgCrn.bl.x = x;
+					imgCrn.bl.y = y;
+					#endif
 				}
 
 				//bottom right
@@ -1217,6 +1256,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				{
 					lbr = d1;
 					pbr = pW;
+					#ifdef _DEBUG
+					imgCrn.br.x = x;
+					imgCrn.br.y = y;
+					#endif
 				}
 			}
 		}
@@ -1232,7 +1275,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	}
 	else
 	{
-		logStr( 3, "INFO: AutoView mapping display corners:\n tl(%.4f,%.4f,%.4f)\n tr(%.4f,%.4f,%.4f)\n bl(%.4f,%.4f,%.4f)\n br(%.4f,%.4f,%.4f).\n", 
+		logStr( 2, "INFO: AutoView mapping display corners:\n tl(%.4f,%.4f,%.4f)\n tr(%.4f,%.4f,%.4f)\n bl(%.4f,%.4f,%.4f)\n br(%.4f,%.4f,%.4f).\n", 
 				ptl->x, ptl->y, ptl->z,
 				ptr->x, ptr->y, ptr->z,
 				pbl->x, pbl->y, pbl->z,
@@ -1256,23 +1299,24 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	dy = dtl + dtr - dbl - dbr;
 	
 	// calculate local base matrix to IG coordinates
-	VWB_MAT33d M = VWB_MAT33d::base( dx, dy );
+	VWB_MAT33d M = VWB_MAT33d::base( dx, dy ); // this will always create a right-handed base with normalized vectors
 	VWB_MAT44d T = VWB_MAT44d(M) * Bi; // T contains now a transformation to a client coordinate system so that
-	// its x-z plane most parallel to the plane span by the corners of the mapping
+	// it's x-z plane most parallel to the plane span by the corners of the mapping
 	// y is aligned to point up
+	{
+		VWB_VEC3d c = ( dtl + dtr + dbl + dbr ) / 4; // the centre in IG
+		VWB_VEC3d cL = M * c; // centre in local coordinates
+		screenDist = VWB_float( cL.z ); // eye to plane distance
+	}
 
-	VWB_VEC3d c = ( dtl + dtr + dbl + dbr ) / 4; // the centre in IG
-	VWB_VEC3d cL = M * c; // centre in local coordinates
-	screenDist = VWB_float( cL.z ); // eye to plane distance
-
-	logStr( 1, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
+	logStr( 3, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
 			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
 
 	VWB_VEC3f::ptr( dir ) = ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI );
 
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
-	double maxEL = FLT_MAX, maxET = FLT_MAX, maxER = -FLT_MAX, maxEB = -FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom throughout moving space
+	double maxEL = FLT_MAX, maxET = -FLT_MAX, maxER = -FLT_MAX, maxEB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom throughout moving space
 
 	// now we get the corners of a box in that coordinate system
 	VWB_BOXd b( VWB_VEC3d(DBL_MAX, DBL_MAX, DBL_MAX), VWB_VEC3d(-DBL_MAX, -DBL_MAX, -DBL_MAX) );
@@ -1318,14 +1362,14 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				double vx = vTT.x / vTT.z;
 				double vy = vTT.y / vTT.z;
 
-				if( maxEL > vx - dd )
+				if( maxEL > vx - dd ) // left, minimal x (x points right)
 					maxEL = vx - dd;
-				if( maxET > vy - dd )
-					maxET = vy - dd;
-				if( maxER < vx + dd)
+				if( maxET < vy + dd ) // top, maximal y (y points up)
+					maxET = vy + dd;
+				if( maxER < vx + dd) // right, maximal x
 					maxER = vx + dd;
-				if( maxEB < vy + dd)
-					maxEB = vy + dd;
+				if( maxEB > vy - dd) // bottom, minimal y
+					maxEB = vy - dd;
 
 				// find smallest distance between 2 neighbouring points
 				if( 1 == pTLB->w )
@@ -1360,18 +1404,18 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	// now we have a minimal box around our point cloud, but in local base coordinates
 	// now we transform IG's eye to that coordinate system
 
-	double left =	b.tl.x;
-	double top =	b.tl.y;
-	double right =	b.br.x;
-	double bottom = b.br.y;
+	double left =	b.min.x;
+	double top =	b.max.y;
+	double right =	b.max.x;
+	double bottom = b.min.y;
 	screenDist = abs( screenDist );
 
 	fov[0] = VWB_float( RAD2DEG( atan( -maxEL ) ) );
-	fov[1] = VWB_float( RAD2DEG( atan( -maxET ) ) );
+	fov[1] = VWB_float( RAD2DEG( atan( maxET ) ) );
 	fov[2] = VWB_float( RAD2DEG( atan( maxER ) ) );
-	fov[3] = VWB_float( RAD2DEG( atan( maxEB ) ) );
+	fov[3] = VWB_float( RAD2DEG( atan( -maxEB ) ) );
 
-	VWB_VEC4d borderFit( maxEL / left * screenDist, maxET / top * screenDist, maxER / right * screenDist, maxEB / bottom * screenDist );
+	VWB_VEC4d borderFit( std::log( maxEL / left * screenDist ), std::log( maxET / top * screenDist ) , std::log( maxER / right * screenDist ), std::log( maxEB / bottom * screenDist ) );
 
 	optimalRes.cx = abs( VWB_int( ( maxER - maxEL ) * screenDist / minDx ) );
 	optimalRes.cy = abs( VWB_int( ( maxEB - maxET ) * screenDist / minDy ) );
@@ -1394,7 +1438,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		optimalRes.cx, optimalRes.cy,
 		optimalRect.left, optimalRect.top, optimalRect.right, optimalRect.bottom,
 		m_bRH ? "right" : "left",
-		(borderFit.x-1)*100,(borderFit.y-1)*100,(borderFit.z-1)*100,(borderFit.w-1)*100 );
+		borderFit.x * 100, borderFit.y * 100, borderFit.z * 100, borderFit.w * 100 );
 	return VWB_ERROR_NONE;
 }
 

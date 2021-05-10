@@ -169,27 +169,32 @@ void main()
 	vec4 tex = _tex2D( samWarp, texcoord.st );
 	vec4 blend = _tex2D( samBlend, texcoord.st );
 	vec4 black = _tex2D( samBlack, texcoord.st ) * blackBias.x;
-	if( 0.1 < blend.a )
+	if( 0.01 < blend.a )
 	{
 		tex/= blend.a;
 		tex.a = 1;
 		tex = matView * tex;
 		tex.xy/= tex.w;
-		tex.x/= 2.0;
-		tex.y/= 2.0;
+		tex.x/=2.0;
+		tex.y/=2.0;
 		tex.xy+= 0.5;
-	//  FragColor = vec4( tex.x, -tex.y, 1.0, 1.0 );  // uncomment to show map
-	//	FragColor = _texture2D( samContent, vec2( texcoord.s, 1.0 - texcoord.t ) ); // uncomment to show input image
+//		// test mappings and border fit
+//		if( 0.01 <= tex.x && tex.x <= 0.99 && 0.01 <= tex.y && tex.y <= 0.99 )                    
+//			FragColor = vec4( tex.x, 1 - tex.y, 1, 1 );
+//		else if( 0 <= tex.x && tex.x <= 1 && 0 <= tex.y && tex.y <= 1 )                    
+//			FragColor = vec4( tex.x, 1 - tex.y, 0, 1 );
+//		else
+//			FragColor = vec4( 0, 0, 0, 1 );
 		FragColor = _texture2D( samContent, tex.xy );
 		if( !bDoNotBlend )
 			FragColor.rgb*= blend.rgb;
 		if( !bDoNoBlack )
 		{
 			// offset color to get min average black
-			FragColor+= blackBias.y * black;					
+			FragColor += blackBias.y * black;					
 
 			// scale down to avoid clipping vOut
-			FragColor*= vec4(1,1,1,1) - blackBias.z * black;
+			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
 	
 			// do lower clamp to stay above common black, upper is done anyways
 			FragColor = max( FragColor, black );				

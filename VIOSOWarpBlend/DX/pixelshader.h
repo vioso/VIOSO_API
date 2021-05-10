@@ -324,17 +324,22 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 	float4 blend = texBlend.Sample( samLin, vIn.tex );  
 	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
 	float4 vOut = float4( 0,0,0,1);             
-	if( 0.1 < blend.a )                            
+	if( 0.01 < blend.a )                            
 	{                                           
 		tex/= blend.a;                            
 		tex.w = tex.w;                            
 		tex = mul( tex, matView );              
 		tex.xy/= tex.w;                         
-		tex.x/= 2;                              
-		tex.y/= -2;                               
-		tex.xy+= 0.5;                        
-		// vOut = float4( tex.x, tex.y, 1.0, 1.0 );  // uncomment to show map
-		// vOut = texContent.Sample( samLin, vIn.tex );  // uncomment to show input image
+		tex.x/=2;                              
+		tex.y/=-2;                               
+		tex.xy+= 0.5;    
+//		// test mappings and border fit
+//		if( 0.01 <= tex.x && tex.x <= 0.99 && 0.01 <= tex.y && tex.y <= 0.99 )                    
+//			vOut = float4( tex.x, tex.y, 1, 1 );
+//		else if( 0 <= tex.x && tex.x <= 1 && 0 <= tex.y && tex.y <= 1 )  
+//			vOut = float4( tex.x, tex.y, 0, 1 );
+//		else
+//			vOut = float4( 0, 0, 0, 1 );
 		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
 		float4 vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );

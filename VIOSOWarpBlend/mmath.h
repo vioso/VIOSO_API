@@ -416,113 +416,142 @@ struct VWB_MATRIX
 	_inline_ static VWB_MATRIX R_LH( _T x, _T y, _T z ) { return VWB_MATRIX::R( -x, -y, -z ); }
 	_inline_ static VWB_MATRIX R_LH( VWB_VECTOR3<_T> r ) { return R_LH( r.x, r.y, r.z ); }
 
-	// DX frusta, to be multiplied from right side: v' = v * P
+	// DX frusta, to be multiplied from right side "pre-multiplied": v' = v * P
 	_inline_ static VWB_MATRIX DXFrustumLH( _T const* pClip )
 	{
 		_T TwoNearZ = pClip[4] + pClip[4];
-		_T ReciprocalWidth = 1.0f / ( pClip[2] + pClip[0] );
-		_T ReciprocalHeight = 1.0f / ( pClip[1] + pClip[3] );
+		_T ReciprocalWidth = _T(1) / ( pClip[0] + pClip[2] );
+		_T ReciprocalHeight = _T(1) / ( pClip[1] + pClip[3] );
 		_T fRange = pClip[5] / ( pClip[5] - pClip[4] );
 
 		return VWB_MATRIX(
-			(_T)TwoNearZ * ReciprocalWidth,
-			(_T)0.0f,
-			(_T)0.0f,
-			(_T)0.0f,
+			TwoNearZ * ReciprocalWidth,
+			(_T)0,
+			(_T)0,
+			(_T)0,
 
-			(_T)0.0f,
-			(_T)TwoNearZ * ReciprocalHeight,
-			(_T)0.0f,
-			(_T)0.0f,
+			(_T)0,
+			TwoNearZ * ReciprocalHeight,
+			(_T)0,
+			(_T)0,
 
-			(_T)( pClip[2] - pClip[0] ) * ReciprocalWidth,
-			(_T)( pClip[3] - pClip[1] ) * ReciprocalHeight,
-			(_T)fRange,
-			(_T)1.0f,
+			( pClip[0] - pClip[2] ) * ReciprocalWidth,
+			( pClip[3] - pClip[1] ) * ReciprocalHeight,
+			fRange,
+			(_T)1,
 
-			(_T)0.0f,
-			(_T)0.0f,
-			(_T)-fRange * pClip[4],
-			(_T)0.0f );
+			(_T)0,
+			(_T)0,
+			-fRange * pClip[4],
+			(_T)0 );
 	}
 
 	_inline_ static VWB_MATRIX DXFrustumRH( _T const* pClip )
 	{
-		_T TwoNearZ = pClip[4] + pClip[4];
-		_T ReciprocalWidth = 1.0f / ( pClip[2] + pClip[0] );
-		_T ReciprocalHeight = 1.0f / ( pClip[1] + pClip[3] );
-		_T fRange = pClip[5] / ( pClip[4] - pClip[5] );
-
-		return VWB_MATRIX(
-			(_T)TwoNearZ * ReciprocalWidth,
-			(_T)0.0f,
-			(_T)0.0f,
-			(_T)0.0f,
-
-			(_T)0.0f,
-			(_T)TwoNearZ * ReciprocalHeight,
-			(_T)0.0f,
-			(_T)0.0f,
-
-			(_T)( pClip[2] - pClip[0] ) * ReciprocalWidth,
-			(_T)( pClip[1] - pClip[3] ) * ReciprocalHeight,
-			(_T)fRange,
-			(_T)-1.0f,
-
-			(_T)0.0f,
-			(_T)0.0f,
-			(_T)fRange * pClip[4],
-			(_T)0.0f );
+		VWB_MATRIX P = DXFrustumLH( pClip );
+		return VWB_MATRIX(  P._11,  P._12,  P._13,  P._14, 
+						    P._21,  P._22,  P._23,  P._24, 
+						   -P._31, -P._32, -P._33, -P._34, 
+						    P._41,  P._42,  P._43,  P._44 );
 	}
 
-	// GL frusta to be multiplied from left side: v' = P * v
+	// GL frusta to be multiplied from left side "post-multiplied": v' = P * v
 	_inline_ static VWB_MATRIX GLFrustumRH( _T const* pClip )
 	{
+		VWB_MATRIX P = DXFrustumLH( pClip );
 		return VWB_MATRIX(
-			(_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
-			(_T)0,
-			(_T)( pClip[2] - pClip[0] ) / ( pClip[0] + pClip[2] ),
-			(_T)0,
-
-			(_T)0,
-			(_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
-			(_T)( pClip[3] - pClip[1] ) / ( pClip[1] + pClip[3] ),
-			(_T)0,
-
-			(_T)0,
-			(_T)0,
-			(_T)( pClip[5] + pClip[4] ) / ( pClip[4] - pClip[5] ),
-			(_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
-
-			(_T)0,
-			(_T)0,
-			(_T)-1,
-			(_T)0 );
+			P._11, P._21, -P._31, P._41,
+			P._12, P._22, -P._32, P._42,
+			P._13, P._24, -( pClip[5] + pClip[4] ) / pClip[5] * P._33, _T(2) * P._43,
+			P._14, P._24, -P._34, P._44
+			);
 	}
 
 	_inline_ static VWB_MATRIX GLFrustumLH( _T const* pClip )
 	{
-		return VWB_MATRIX(
-			(_T)2 * pClip[4] / ( pClip[2] + pClip[0] ),
-			(_T)0,
-			(_T)( pClip[0] - pClip[2] ) / ( pClip[0] + pClip[2] ),
-			(_T)0,
-
-			(_T)0,
-			(_T)2 * pClip[4] / ( pClip[3] + pClip[1] ),
-			(_T)( pClip[1] - pClip[3] ) / ( pClip[1] + pClip[3] ),
-			(_T)0,
-
-			(_T)0,
-			(_T)0,
-			(_T)( pClip[5] + pClip[4] ) / ( pClip[5] - pClip[4] ),
-			(_T)2 * pClip[4] * pClip[5] / ( pClip[4] - pClip[5] ),
-
-			(_T)0,
-			(_T)0,
-			(_T)1,
-			(_T)0 );
+		VWB_MATRIX P = GLFrustumRH( pClip );
+		return VWB_MATRIX( P._11,  P._12, -P._13,  P._14,
+						   P._21,  P._22, -P._23,  P._24,
+						  -P._31, -P._32, -P._33, -P._34,
+						   P._41,  P._42, -P._43,  P._44 );
 	}
+
+	_inline_ static VWB_MATRIX DXOrthoLH( _T const* pClip )
+	{
+		_T ReciprocalWidth = _T( 1 ) / ( pClip[0] + pClip[2] );
+		_T ReciprocalHeight = _T( 1 ) / ( pClip[1] + pClip[3] );
+		_T fRange = _T(1) / ( pClip[5] - pClip[4] );
+
+		return VWB_MATRIX(
+			ReciprocalWidth + ReciprocalWidth,
+			(_T)0,
+			(_T)0,
+			(_T)0,
+
+			(_T)0,
+			ReciprocalHeight + ReciprocalHeight,
+			(_T)0,
+			(_T)0,
+
+			(_T)0,
+			(_T)0,
+			fRange,
+			(_T)0,
+
+			( pClip[0] - pClip[2] ) * ReciprocalWidth,
+			( pClip[3] - pClip[1] ) * ReciprocalHeight,
+			-fRange * NearZ;
+			(_T)1 );
+	}
+
+	_inline_ static VWB_MATRIX DXOrthoRH( _T const* pClip )
+	{
+		VWB_MATRIX P = DXOrthoLH( pClip );
+		return VWB_MATRIX(  P._11,  P._12,  P._13,  P._14,
+						    P._21,  P._22,  P._23,  P._24,
+						   -P._31, -P._32, -P._33, -P._34,
+						    P._41,  P._42,  P._43,  P._44 );
+	}
+
+	// TODO: test
+	_inline_ static VWB_MATRIX GLOrthoRH( _T const* pClip )
+	{
+		_T ReciprocalWidth = _T( 1 ) / ( pClip[0] + pClip[2] );
+		_T ReciprocalHeight = _T( 1 ) / ( pClip[1] + pClip[3] );
+		_T fRange = _T( 1 ) / ( pClip[5] - pClip[4] );
+
+		return VWB_MATRIX(
+			ReciprocalWidth + ReciprocalWidth,
+			(_T)0,
+			(_T)0,
+			( pClip[0] - pClip[2] ) * ReciprocalWidth,
+
+			(_T)0,
+			ReciprocalHeight + ReciprocalHeight,
+			(_T)0,
+			( pClip[3] - pClip[1] )* ReciprocalHeight,
+
+			(_T)0,
+			(_T)0,
+			(_T)-2 * fRange,
+			( pClip[4] + pClip[5] ) * fRange;
+		
+			(_T)0,
+			(_T)0,
+			(_T)0,
+			(_T)1 );
+	}
+
+	// TODO: test
+	_inline_ static VWB_MATRIX GLOrthoLH( _T const* pClip )
+	{
+		VWB_MATRIX P = GLOrthoRH( pClip );
+		return VWB_MATRIX( P._11, P._12, -P._13, P._14,
+						   P._21, P._22, -P._23, P._24,
+						   P._31, P._32, -P._33, P._34,
+						   P._41, P._42, -P._43, P._44 );
+	}
+
 
 	_inline_ _T& operator()(unsigned int row, unsigned int col) { return m[row][col]; }
 	_inline_ _T const& operator()(unsigned int row, unsigned int col) const { return m[row][col]; }
@@ -850,21 +879,11 @@ struct VWB_MATRIX
 	_inline_ VWB_VECTOR4<_T> const& Z() const { return *(VWB_VECTOR4<_T>*)&_31; }
 	_inline_ VWB_VECTOR4<_T>& W() { return *(VWB_VECTOR4<_T>*)&_41; }
 	_inline_ VWB_VECTOR4<_T> const& W() const { return *(VWB_VECTOR4<_T>*)&_41; }
-	
-	_inline_ static VWB_MATRIX ORTHO( _T left, _T right, _T bottom, _T top, _T near, _T far)
+	_inline_ VWB_MATRIX33<_T> Upper()
 	{
-		_T ral = right + left;
-		_T rsl = right - left;
-		_T tab = top + bottom;
-		_T tsb = top - bottom;
-		_T fan = far + near;
-		_T fsn = far - near;
-		return VWB_MATRIX (
-						   2 / rsl, 0, 0, -ral / rsl,
-						   0, 2 / tsb, 0, -tab / tsb,
-						   0, 0, -2 / fsn, -fan / fsn,
-						   0, 0, 0, 1
-						   );
+		return VWB_MATRIX33<_T>( _11, _12, _13,
+								 _21, _22, _23,
+								 _31, _32, _33 );
 	}
 
 	_inline_ bool IsZero() const
@@ -1222,63 +1241,63 @@ struct VWB_MATRIX33
 template< class T >
 struct VWB_BOX
 {
-	VWB_VECTOR3<T> tl, br;
+	VWB_VECTOR3<T> min, max;
 	_inline_ VWB_BOX(){}
-	_inline_ VWB_BOX( VWB_BOX const& other ) : tl( other.tl ), br( other.br ) {}
-	_inline_ VWB_BOX( VWB_VECTOR3<T> const& _tl, VWB_VECTOR3<T> const& _br ) : tl( _tl ), br( _br ) {}
+	_inline_ VWB_BOX( VWB_BOX const& other ) : min( other.min ), max( other.max ) {}
+	_inline_ VWB_BOX( VWB_VECTOR3<T> const& _tl, VWB_VECTOR3<T> const& _br ) : min( _tl ), max( _br ) {}
 	_inline_ VWB_BOX& operator+=( VWB_BOX const& other )
 	{
-		if( other.tl[0] < tl[0] )
-			tl[0] = other.tl[0];
-		if( other.br[0] > br[0] )
-			br[0] = other.br[0];
+		if( other.min[0] < min[0] )
+			min[0] = other.min[0];
+		if( other.max[0] > max[0] )
+			max[0] = other.max[0];
 
-		if( other.tl[1] < tl[1] )
-			tl[1] = other.tl[1];
-		if( other.br[1] > br[1] )
-			br[1] = other.br[1];
+		if( other.min[1] < min[1] )
+			min[1] = other.min[1];
+		if( other.max[1] > max[1] )
+			max[1] = other.max[1];
 
-		if( other.tl[2] < tl[2] )
-			tl[2] = other.tl[2];
-		if( other.br[2] > br[2] )
-			br[2] = other.br[2];
+		if( other.min[2] < min[2] )
+			min[2] = other.min[2];
+		if( other.max[2] > max[2] )
+			max[2] = other.max[2];
 		return *this;
 	};
 	_inline_ VWB_BOX& operator+=( VWB_VECTOR3<T> const& other )
 	{
-		if( other[0] < tl[0] )
-			tl[0] = other[0];
-		if( other[0] > br[0] )
-			br[0] = other[0];
+		if( other[0] < min[0] )
+			min[0] = other[0];
+		if( other[0] > max[0] )
+			max[0] = other[0];
 
-		if( other[1] < tl[1] )
-			tl[1] = other[1];
-		if( other[1] > br[1] )
-			br[1] = other[1];
+		if( other[1] < min[1] )
+			min[1] = other[1];
+		if( other[1] > max[1] )
+			max[1] = other[1];
 
-		if( other[2] < tl[2] )
-			tl[2] = other[2];
-		if( other[2] > br[2] )
-			br[2] = other[2];
+		if( other[2] < min[2] )
+			min[2] = other[2];
+		if( other[2] > max[2] )
+			max[2] = other[2];
 		return *this;
 	};
 	_inline_ VWB_BOX operator+( VWB_BOX const& other ) const
 	{
 		VWB_BOX r( *this );
-		if( other.tl[0] < r.tl[0] )
-			r.tl[0] = other.r.tl[0];
-		if( other.br[0] > r.br[0] )
-			r.br[0] = other.br[0];
+		if( other.min[0] < r.min[0] )
+			r.min[0] = other.r.tl[0];
+		if( other.max[0] > r.max[0] )
+			r.max[0] = other.max[0];
 
-		if( other.tl[1] < r.tl[1] )
-			r.tl[1] = other[1];
-		if( other.br[1] > r.br[1] )
-			r.br[1] = other.br[1];
+		if( other.min[1] < r.min[1] )
+			r.min[1] = other[1];
+		if( other.max[1] > r.max[1] )
+			r.max[1] = other.max[1];
 
-		if( other.tl[2] < r.tl[2] )
-			r.tl[2] = other.tl[2];
-		if( other.br[2] > r.br[2] )
-			r.br[2] = other.br[2];
+		if( other.min[2] < r.min[2] )
+			r.min[2] = other.min[2];
+		if( other.max[2] > r.max[2] )
+			r.max[2] = other.max[2];
 		return r;
 	};
 
@@ -1286,33 +1305,26 @@ struct VWB_BOX
 	{
 		VWB_BOX r( *this );
 		if( other[0] < r.r.tl[0] )
-			r.tl[0] = other[0];
-		if( other[0] > r.tl[0] )
-			r.tl[0] = other[0];
+			r.min[0] = other[0];
+		if( other[0] > r.min[0] )
+			r.min[0] = other[0];
 
-		if( other[1] < r.tl[1] )
-			r.tl[1] = other[1];
-		if( other[1] > r.tl[1] )
-			r.tl[1] = other[1];
+		if( other[1] < r.min[1] )
+			r.min[1] = other[1];
+		if( other[1] > r.min[1] )
+			r.min[1] = other[1];
 
-		if( other[2] < r.tl[2] )
-			r.tl[2] = other[2];
-		if( other[2] > r.br[2] )
-			r.br[2] = other[2];
+		if( other[2] < r.min[2] )
+			r.min[2] = other[2];
+		if( other[2] > r.max[2] )
+			r.max[2] = other[2];
 		return r;
 	};
-	_inline_ bool IsEmpty() { return tl.x < br.x && tl.y < br.y && tl.z < br.z; }
+	_inline_ bool IsEmpty() { return min.x < max.x && min.y < max.y && min.z < max.z; }
 	_inline_ static VWB_BOX M() { return VWB_BOX( VWB_VECTOR3<T>( FLT_MAX,FLT_MAX,FLT_MAX ), VWB_VECTOR3<T>( -FLT_MAX,-FLT_MAX,-FLT_MAX ) ); }
 	_inline_ static VWB_BOX O() { return VWB_BOX( VWB_VECTOR3<T>( 0,0,0 ), VWB_VECTOR3<T>( 0,0,0 ) ); }
 };
 
-template< class T >
-VWB_MATRIX33<T> Upper( VWB_MATRIX<T> const& M )
-{
-	return VWB_MATRIX33<T>( M._11, M._12, M._13,
-						  M._21, M._22, M._23,
-						  M._31, M._32, M._33 );
-}
 #pragma pack(pop)
 
 typedef VWB_MATRIX33<VWB_float> VWB_MAT33f;
