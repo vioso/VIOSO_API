@@ -1045,9 +1045,6 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		}
 	}
 
-	// translate world to local IG's coordinates
-	// translation/rotation to VIOSO's eye point is done via base matrix later
-
 	// we have to inverse rotate and translate
 	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
 
@@ -1133,7 +1130,6 @@ VWB_ERROR VWB_Warper_base::GetPosDirFov( VWB_float* eye, VWB_float* rot, VWB_flo
 
 void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float * pClip )
 {
-	//VWB_float dd = nearDist / ( screenDist -e.z );
 	VWB_float dd = nearDist / ( screenDist + ( m_bRH ? -e.z : e.z ) );
 	pClip[0] = ( m_viewSizes[0] - e.x ) * dd;
 	pClip[1] = ( m_viewSizes[1] - e.y ) * dd;

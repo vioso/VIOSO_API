@@ -278,6 +278,33 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 			if( !MLX.IsZero() )
 				logStr( 1, "Rotation Matrix test 7 ( LH multiplied vs XN Math) failed, difference norm is %f", MLX.Norm() );
 		}
+
+		float clips[][6]{
+			{0.128f,0.08f,0.128f,0.08f,0.128f,2000},
+			{0.0f,0.08f,0.256f,0.08f,0.128f,2000},
+			{0.256f,0.08f,0.0f,0.08f,0.128f,2000},
+			{0.128f,0.0f,0.128f,0.16f,0.128f,2000},
+			{0.128f,0.16f,0.128f,0.0f,0.128f,2000},
+		};
+		for( int i = 0; i != ARRAYSIZE( clips ); i++ )
+		{
+			float (&clip)[6] = clips[i];
+			VWB_MAT44f M = VWB_MAT44f::DXFrustumLH( clip );
+			XMMATRIX Mx = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			VWB_MAT44f MxO;
+			XMStoreFloat4x4A( (XMFLOAT4X4A*)&MxO, Mx );
+			M -= MxO;
+			if( !M.IsZero() )
+				logStr( 1, "Projection Matrix test 1 (LeftHanded) failed, difference norm is %f", M.Norm() );
+
+			M = VWB_MAT44f::DXFrustumRH( clip );
+			Mx = XMMatrixPerspectiveOffCenterRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			XMStoreFloat4x4A( (XMFLOAT4X4A*)&MxO, Mx );
+			M -= MxO;
+			if( !M.IsZero() )
+				logStr( 1, "Projection Matrix test 2 (RightHanded) failed, difference norm is %f", M.Norm() );
+
+		}
 	}
 	#endif //def _DEBUG
 

@@ -330,10 +330,11 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 		tex.w = tex.w;                            
 		tex = mul( tex, matView );              
 		tex.xy/= tex.w;                         
-		tex.x/=2;                              
-		tex.y/=-2;                               
+		tex.x/= 2;                              
+		tex.y/= -2;                               
 		tex.xy+= 0.5;                        
-		//vOut = float4( tex.x,  tex.y, 1, 1 );  
+		// vOut = float4( tex.x, tex.y, 1.0, 1.0 );  // uncomment to show map
+		// vOut = texContent.Sample( samLin, vIn.tex );  // uncomment to show input image
 		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
 		float4 vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );

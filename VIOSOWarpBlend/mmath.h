@@ -429,17 +429,17 @@ struct VWB_MATRIX
 			(_T)0.0f,
 			(_T)0.0f,
 			(_T)0.0f,
-			(_T)
+
 			(_T)0.0f,
 			(_T)TwoNearZ * ReciprocalHeight,
 			(_T)0.0f,
 			(_T)0.0f,
-			(_T)
-			(_T)( pClip[0] - pClip[2] ) * ReciprocalWidth,
-			(_T)( pClip[1] - pClip[3] ) * ReciprocalHeight,
+
+			(_T)( pClip[2] - pClip[0] ) * ReciprocalWidth,
+			(_T)( pClip[3] - pClip[1] ) * ReciprocalHeight,
 			(_T)fRange,
 			(_T)1.0f,
-			(_T)
+
 			(_T)0.0f,
 			(_T)0.0f,
 			(_T)-fRange * pClip[4],
@@ -451,24 +451,24 @@ struct VWB_MATRIX
 		_T TwoNearZ = pClip[4] + pClip[4];
 		_T ReciprocalWidth = 1.0f / ( pClip[2] + pClip[0] );
 		_T ReciprocalHeight = 1.0f / ( pClip[1] + pClip[3] );
-		_T fRange = pClip[5] / ( pClip[5] - pClip[4] );
+		_T fRange = pClip[5] / ( pClip[4] - pClip[5] );
 
 		return VWB_MATRIX(
 			(_T)TwoNearZ * ReciprocalWidth,
 			(_T)0.0f,
 			(_T)0.0f,
 			(_T)0.0f,
-			(_T)
+
 			(_T)0.0f,
 			(_T)TwoNearZ * ReciprocalHeight,
 			(_T)0.0f,
 			(_T)0.0f,
-			(_T)
+
 			(_T)( pClip[2] - pClip[0] ) * ReciprocalWidth,
-			(_T)( pClip[3] - pClip[1] ) * ReciprocalHeight,
+			(_T)( pClip[1] - pClip[3] ) * ReciprocalHeight,
 			(_T)fRange,
 			(_T)-1.0f,
-			(_T)
+
 			(_T)0.0f,
 			(_T)0.0f,
 			(_T)fRange * pClip[4],

@@ -45,10 +45,10 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 	e = e * m_mViewIG;
 
 	VWB_MAT44f T = VWB_MAT44f::T( e ).Transposed();
-	m_mVP = m_mBaseI * m_mViewIG * T; //TODO precalc
+	m_mVP = m_mBaseI * m_mViewIG * T;
 
 	if( bTurnWithView )
-		V = R * m_mViewIG; //??
+		V = R * m_mViewIG;
 	else
 		V = m_mViewIG * T;
 
@@ -87,7 +87,7 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		else
 			P = VWB_MAT44f::DXFrustumLH( clip );
 
-		m_mVP = m_mVP * P;
+		m_mVP*= P;
 
 		if( pView )
 			V.SetPtr( pView );

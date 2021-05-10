@@ -534,7 +534,7 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_VEC3f& e )
 	e = m_mViewIG * e;
 
 	VWB_MAT44f T = VWB_MAT44f::T( e );
-	m_mVP = T * m_mViewIG * m_mBaseI; //TODO precalc
+	m_mVP = T * m_mViewIG * m_mBaseI;
 
 	if( bTurnWithView )
 		V = m_mViewIG * R;
@@ -620,13 +620,7 @@ VWB_ERROR GLWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 
 		if( pClip )
 		{
-		//	memcpy( pClip, clip, sizeof( clip ) );
-			pClip[0] = clip[0];
-			pClip[1] = clip[3];
-			pClip[2] = clip[2];
-			pClip[3] = clip[1];
-			pClip[4] = clip[4];
-			pClip[5] = clip[5];
+			memcpy( pClip, clip, sizeof( clip ) );
 		}
 	}
 	return ret;
