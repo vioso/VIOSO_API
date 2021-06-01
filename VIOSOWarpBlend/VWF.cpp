@@ -100,6 +100,8 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 							if( sh > s1 && 1 == fread_s( ((char*)&pWB->header) + s1, s2 - s1, sh - s1, 1, f ) )
 							{
 								fseek( f, (long)pWB->header.szHdr - (long)sh, SEEK_CUR );
+								// correct header size, as we are now VWB_WarpFileHeader4
+								pWB->header.szHdr = sizeof( VWB_WarpFileHeader4 );
 								int nRecords = pWB->header.width * pWB->header.height;
 								if( 0 != nRecords )
 								{

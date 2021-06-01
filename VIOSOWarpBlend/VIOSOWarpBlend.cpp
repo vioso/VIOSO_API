@@ -2819,6 +2819,13 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
 {
 	wb = &m_wb;
+	size_t a = offsetof( VWB_WarpBlend, path );
+	size_t b = offsetof( VWB_WarpBlend, pWarp );
+	size_t c = offsetof( VWB_WarpBlend, pBlend );
+	size_t d = offsetof( VWB_WarpBlend, pBlend2 );
+	size_t e = offsetof( VWB_WarpBlend, pBlend3 );
+	size_t f = offsetof( VWB_WarpBlend, pBlack );
+	size_t g = offsetof( VWB_WarpBlend, pWhite );
 	return VWB_ERROR_NONE;
 }
 

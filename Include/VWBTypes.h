@@ -87,7 +87,6 @@ struct VWB_Warper
 	
 	/// the calibration index in mapping file, defaults to 0,
 	/// you also might set this to negated display number, to search for a certain display:
-	/// 
 	VWB_int		calibIndex;
 
 	/// set to true to make the world turn and move with view direction and eye position, this is the case if the viewer gets
@@ -176,12 +175,13 @@ struct VWB_Warper
 	/// Bitfield; only valid in Windows build
 	/// 1 rendering of mouse cursor
 	/// 2 disable system cursor over window 
+	/// defaults to 0
 	VWB_int		mouseMode;
 
 	/// set to true to flip directX 11 texture v, defaults to false
 	bool		bFlipDXVs;
 
-	/// set to true to disable black level offset
+	/// set to true to disable black level offset, defaults to false
 	bool        bDoNoBlack;
 };
 #pragma pack(pop)
