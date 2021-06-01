@@ -194,6 +194,7 @@ namespace VIOSOWarpBlend
             public bool bUseGL110;
 
             /// set to true if your input texture is only the optimal rect part, defaults to false
+            [MarshalAs(UnmanagedType.I1)]
             public bool bPartialInput;
 
             /// Bitfield; only valid in Windows build
@@ -505,9 +506,9 @@ namespace VIOSOWarpBlend
 
         public VWB_Warper Get()
         {
-            return Marshal.PtrToStructure<VWB_Warper>(_warper);
+            return (VWB_Warper)Marshal.PtrToStructure(_warper, typeof( VWB_Warper) );
         }
-        public void Set( VWB_Warper warper )
+        public void Set( ref VWB_Warper warper )
         {
             Marshal.StructureToPtr(warper, _warper, false );
         }

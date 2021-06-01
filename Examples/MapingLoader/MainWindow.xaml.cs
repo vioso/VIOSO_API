@@ -30,9 +30,12 @@ namespace MapingLoader
             try
             {
                 Warper w = new Warper(Warper.DummyDevice, "VIOSOWarpBlend.ini", "Display1");
+                // if you need to, you can adjust values read from ini
                 Warper.VWB_Warper ini = w.Get();
+                // change some ini value
                 ini.bFlipDXVs = true;
-                w.Set(ini);
+                // update
+                w.Set( ref ini);
                 Warper.ERROR err = w.Init();
                 if (Warper.ERROR.NONE != err)
                     throw new ArgumentException("Could not initialize Warper. Err:" + err.ToString());
@@ -52,6 +55,10 @@ namespace MapingLoader
                         Warper.WARPRECORD wr = Marshal.PtrToStructure<Warper.WARPRECORD>(warpmap + i * Marshal.SizeOf(typeof(Warper.WARPRECORD)));
                     }
                 }
+
+                // Unity hint
+                // Texture2D texWarp( RGBA32F, header.width, header.height );
+                // texWarp.LoadRawTextureData(rawData, header.width * header.height * Marshal.SizeOf(typeof(Warper.WARPRECORD)));
 
                 IntPtr blendmap;
                 w.GetBlendMap(out blendmap);

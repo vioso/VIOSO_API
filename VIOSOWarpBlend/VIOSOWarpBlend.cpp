@@ -238,6 +238,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		GetIniString( "default", "addr", "0.0.0.0", sDef, MAX_PATH, path );
 		GetIniString( channel, "addr", sDef, addr, MAX_PATH, path );
 
+		iDef = GetIniInt( "default", "bDoNoBlack", 0, path );
+		bDoNoBlack = 0 != GetIniInt( channel, "bDoNoBlack", iDef, path );
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -419,7 +422,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				"optimalRect=[%d, %d, %d, %d]\n"
 				"port=%d\n"
 				"address=%s\n"
-				"mouseMode=%d"
+				"mouseMode=%d\n"
+			    "bDoNoBlack=%d"
 				"\n",
 				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
@@ -450,7 +454,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
 				(*ppWarper)->port,
 				(*ppWarper)->addr,
-				(*ppWarper)->mouseMode
+				(*ppWarper)->mouseMode,
+			    (*ppWarper)->bDoNoBlack
 			);
 
 	return VWB_ERROR_NONE;
