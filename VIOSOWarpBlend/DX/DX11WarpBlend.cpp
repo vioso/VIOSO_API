@@ -402,7 +402,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			logStr( 0, "WARNING: Render target not set; cannot check, if mapping dimensions fit.\n" );
 		}
 		else if( m_sizeIn.cx != m_sizeMap.cx || m_sizeIn.cy != m_sizeMap.cy )
-			logStr( 1, "WARNING: Input texture size does not match mapping size. This will produce sampling artefacts." );
+			logStr( 1, "WARNING: Render target size does not match mapping size. This will produce sampling artefacts." );
 
 		D3D11_TEXTURE2D_DESC descTexW = {
 			(UINT)m_sizeMap.cx,//UINT Width;
@@ -787,8 +787,13 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 							, desc.CPUAccessFlags
 							, desc.MiscFlags
 					);
-					if( desc.Width != m_sizeMap.cx || desc.Height != m_sizeMap.cy )
-						logStr( 1, "WARNING: Backbuffer size does not match mapping size. This will produce sampling artefacts." );
+					static bool once = true;
+					if( once &&
+						( desc.Width != m_sizeMap.cx || desc.Height != m_sizeMap.cy ) )
+					{
+						logStr( 1, "WARNING: Render target size does not match mapping size. This will produce sampling artefacts." );
+						once = false;
+					}
 				}
 			}
 			pRes->Release();
@@ -999,8 +1004,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					, descTex.CPUAccessFlags
 					, descTex.MiscFlags
 			);
-			if( m_sizeIn.cx != m_sizeMap.cx || m_sizeIn.cy != m_sizeMap.cy )
-				logStr( 1, "WARNING: Input texture size does not match mapping size. This will produce sampling artefacts." );
 		}
 
 		SAFERELEASE( pTexIn );

@@ -47,7 +47,251 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set )
 	return true;
 }
 
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
+
+VWB_ERROR LoadBMP( std::istream& is, BITMAPFILEHEADER& bmfh, BITMAPINFO*& pBmi, char*& pData, bool bSkipData )
+{
+	if( is.bad() )
+		return VWB_ERROR_PARAMETER;
+
+	if( !is.read( (char*)&bmfh, sizeof( BITMAPFILEHEADER ) ).eof() )
+	{
+		// read header
+		BITMAPINFOHEADER bmih = { 0 };
+		VWB_uint colorTableLength = 0;
+		if( !is.read( (char*)&bmih, sizeof( bmih ) ).eof() )
+		{
+			switch( bmih.biBitCount ) {
+			case 24:
+				colorTableLength = bmih.biClrUsed;
+				break;
+			case 16:
+			case 32:
+				if( bmih.biCompression == BI_RGB )
+					colorTableLength = bmih.biClrUsed;
+				else if( bmih.biCompression == BI_BITFIELDS )
+					colorTableLength = 3;
+				break;
+			default: // for 0, 1, 2, 4, and 8
+				if( bmih.biClrUsed == 0 )
+					colorTableLength = ( 1 << bmih.biBitCount ); // 2^biBitCount
+				else
+					colorTableLength = bmih.biClrUsed;
+				break;
+			}
+			pBmi = (BITMAPINFO*)malloc( sizeof( BITMAPINFOHEADER ) + colorTableLength * sizeof( RGBQUAD ) );
+			memcpy( pBmi, &bmih, sizeof( BITMAPINFOHEADER ) );
+			if( 0 != colorTableLength )
+				is.read( (char*)pBmi->bmiColors, colorTableLength * sizeof( RGBQUAD ) );
+		}
+		// skip to data
+		is.seekg( bmfh.bfOffBits - sizeof( BITMAPFILEHEADER ) - sizeof( BITMAPINFOHEADER ) - colorTableLength * sizeof( RGBQUAD ), std::ios_base::_Seekcur );
+		if( 0 == pBmi->bmiHeader.biSizeImage )
+		{
+			int stride = ( ( ( ( bmih.biWidth * bmih.biBitCount ) + 31 ) & ~31 ) >> 3 );
+			pBmi->bmiHeader.biSizeImage = stride * abs( bmih.biHeight );
+		}
+		if( 0 == pBmi->bmiHeader.biSizeImage || is.bad() )
+		{
+			free( pBmi );
+			pBmi = nullptr;
+			return VWB_ERROR_VWF_LOAD;
+		}
+		if( bSkipData )
+		{
+			pData = nullptr;
+			is.seekg( pBmi->bmiHeader.biSizeImage, std::ios_base::_Seekcur );
+		}
+		else
+		{
+			pData = new char[pBmi->bmiHeader.biSizeImage];
+			is.read( pData, pBmi->bmiHeader.biSizeImage );
+		}
+		return is.eof() ? VWB_ERROR_VWF_LOAD : VWB_ERROR_NONE;
+	}
+	return VWB_ERROR_VWF_LOAD;
+}
+
+VWB_ERROR convertFromBitmapData( VWB_BlendRecord*& pB, char* pBMData, int w, int h, int depth, bool bTopDown )
+{
+	if( pBMData && 
+		8 <= w && 
+		8 <= h && (
+			128 == depth ||
+			96 == depth ||
+			64 == depth ||
+			48 == depth ||
+			32 == depth ||
+			24 == depth )
+		)
+	{
+		int n = w * h;
+		int bmStep = depth / 8;
+		int bmPitch = ( ( ( ( w * depth ) + 31 ) & ~31 ) >> 3 );
+		int bmPadding = bmPitch - w * bmStep;
+		int bmSize = bmPitch * h;
+		VWB_BlendRecord2*& pB2 = *(VWB_BlendRecord2**)&pB;
+		VWB_BlendRecord3*& pB3 = *(VWB_BlendRecord3**)&pB;
+		if( 64 < depth )
+		{
+			pB3 = new VWB_BlendRecord3[n];
+
+		}
+		if( 32 < depth )
+		{
+			pB2 = new VWB_BlendRecord2[n];
+		}
+		else
+		{
+			pB = new VWB_BlendRecord[n];
+		}
+		if( bTopDown )
+		{
+			// trivial, just copy the whole buffer
+			if( 128 == depth )
+				memcpy( pB3, pBMData, n * sizeof( VWB_BlendRecord3 ) ); 
+			else if( 64 == depth )
+				memcpy( pB2, pBMData, n * sizeof( VWB_BlendRecord2 ) );
+			else if( 32 == depth )
+				memcpy( pB, pBMData, n * sizeof( VWB_BlendRecord ) );
+			else if( 96 == depth )
+			{
+				char const* pBML = pBMData;
+				for( VWB_BlendRecord3* pL = pB3, *pLE = pB3 + n; pL != pLE; pBML += bmPadding )
+				{
+					for( VWB_BlendRecord3* pLLE = pL + w; pL != pLLE; pL++, pBML += 12 )
+					{
+						VWB_float* pF = (VWB_float*)pBML;
+						pL->r = pF[2];
+						pL->g = pF[1];
+						pL->b = pF[0];
+						pL->a = 1.0f;
+					}
+				}
+			}
+			else if( 48 == depth )
+			{
+				char const* pBML = pBMData;
+				for( VWB_BlendRecord2* pL = pB2, *pLE = pB2 + n; pL != pLE; pBML += bmPadding )
+				{
+					for( VWB_BlendRecord2* pLLE = pL + w; pL != pLLE; pL++, pBML += 6 )
+					{
+						VWB_word* pW = (VWB_word*)pBML;
+						pL->r = pW[2];
+						pL->g = pW[1];
+						pL->b = pW[0];
+						pL->a = 65535;
+					}
+				}
+			}
+			else if( 24 == depth )
+			{
+				char const* pBML = pBMData;
+				for( VWB_BlendRecord* pL = pB, *pLE = pB + n; pL != pLE; pBML += bmPadding )
+					for( VWB_BlendRecord* pLLE = pL + w; pL != pLLE; pL++, pBML += 3 )
+					{
+						pL->r = pBML[2];
+						pL->g = pBML[1];
+						pL->b = pBML[0];
+						pL->a = 255;
+					}
+			}
+		}
+		else
+		{
+			// reverse line order
+			if( 128 == depth )
+			{
+				char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
+				for( VWB_BlendRecord3* pL = pB3, *pLE = pB3 + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch ) // padding is always 0
+					memcpy( pL, pBML, w * sizeof( VWB_BlendRecord3 ) );
+			}
+			else if( 64 == depth )
+			{ 
+				char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
+				for( VWB_BlendRecord2* pL = pB2, *pLE = pB2 + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch ) // padding is always 0
+					memcpy( pL, pBML, w * sizeof( VWB_BlendRecord2 ) );
+			}
+			else if( 96 == depth )
+			{
+				char* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
+				for( VWB_BlendRecord3* pL = pB3, *pLE = pB3 + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch - (ptrdiff_t)bmPadding )
+				{
+					for( VWB_BlendRecord3* pLLE = pL + w; pL != pLLE; pL++, pBML += 12 )
+					{ // todo: interpret bitfield mask here
+						VWB_float* pF = (VWB_float*)pBML;
+						pL->r = pF[2];
+						pL->g = pF[1];
+						pL->b = pF[0];
+						pL->a = 1.0f;
+					}
+				}
+			}
+			else if( 48 == depth )
+			{
+				char* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
+				for( VWB_BlendRecord2* pL = pB2, *pLE = pB2 + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch - (ptrdiff_t)bmPadding )
+				{
+					for( VWB_BlendRecord2* pLLE = pL + w; pL != pLLE; pL++, pBML += 6 )
+					{ // todo: interpret bitfield mask here
+						VWB_word* pW = (VWB_word*)pBML;
+						pL->r = pW[2];
+						pL->g = pW[1];
+						pL->b = pW[0];
+						pL->a = 65535;
+					}
+				}
+			}
+			else if( 32 == depth )
+			{ // reverse order
+				char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
+				for( VWB_BlendRecord* pL = pB, *pLE = pB + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch ) // padding is always 0
+					memcpy( pL, pBML, n * sizeof( VWB_BlendRecord ) );
+			}
+			else
+			{
+				char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
+				for( VWB_BlendRecord* pL = pB, *pLE = pB + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch - (ptrdiff_t)bmPadding )
+				{
+					for( VWB_BlendRecord* pLLE = pL + w; pL != pLLE; pL++, pBML += 3 )
+					{ // todo: interpret bitfield mask here
+						pL->r = pBML[2];
+						pL->g = pBML[1];
+						pL->b = pBML[0];
+						pL->a = 255;
+					}
+				}
+			}
+		}
+		return VWB_ERROR_NONE;
+	}
+	return VWB_ERROR_PARAMETER;
+}
+
+VWB_ERROR LoadHeader( VWB_WarpFileHeader4& header, std::istream& is, size_t sz )
+{
+	if( is.bad() )
+		return VWB_ERROR_PARAMETER;
+	is.read( (char*)&header, sz );
+
+	if( !is.eof() )
+	{
+		// correct header size, as we are now VWB_WarpFileHeader4
+		header.szHdr = sizeof( VWB_WarpFileHeader4 );
+
+		return VWB_ERROR_NONE;
+	}
+	return VWB_ERROR_VWF_LOAD;
+}
+
+VWB_ERROR LoadWarp( VWB_WarpRecord*& wr, std::istream& is, size_t nRecords )
+{
+	if( is.bad() )
+		return VWB_ERROR_PARAMETER;
+	wr = new VWB_WarpRecord[nRecords];
+	return is.read( (char*)wr, nRecords * sizeof( VWB_WarpRecord ) ).eof() ? VWB_ERROR_VWF_LOAD : VWB_ERROR_NONE;
+}
+
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int iScanIndex )
 {
 	if( NULL == path || 0 == *path )
 	{
@@ -58,6 +302,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 	char const* pP = path;
 	char pp[MAX_PATH];
 	char const* pP2;
+	int iExtMap = 0;
 	do
 	{
 		VWB_WarpBlendSet::size_type nBefore = set.size();
@@ -69,17 +314,16 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 		MkPath( pp, MAX_PATH, ".vwf" );
 
 		logStr( 2, "Open \"%s\"...\n", pp );
-		FILE* f = NULL;
-		errno_t err = NO_ERROR;
-		if( NO_ERROR == ( err = fopen_s( &f, pp, "rb" ) ) )
+		std::ifstream ifs( pp, std::ios_base::in | std::ios_base::binary );
+		if( !ifs.fail() )
 		{
 			logStr( 2, "File found and openend.\n" );
 			VWB_WarpSetFileHeader h0;
 			int nSets = 1;
 			while( nSets )
 			{
-				long s = ftell( f );
-				if( 1 == fread_s( &h0, sizeof( VWB_WarpSetFileHeader ), sizeof( VWB_WarpSetFileHeader ), 1, f ) )
+				std::streampos s = ifs.tellg();
+				if( !ifs.read( (char*)&h0, sizeof( VWB_WarpSetFileHeader ) ).eof() )
 				{
 					switch( *(VWB_uint*)&h0.magicNumber )
 					{
@@ -88,38 +332,55 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 					case '0fwv':
 						{
 							logStr( 2, "Load warp map %d...\n", VWB_uint(set.size()) );
+							ifs.seekg( -(std::streampos)sizeof( VWB_WarpSetFileHeader ), std::ios_base::_Seekcur );
 							VWB_WarpBlend* pWB = new VWB_WarpBlend;
 							memset( pWB, 0, sizeof( VWB_WarpBlend ) );
-							memcpy( pWB, &h0, sizeof( h0 ) );
-							// read remainder of header
-							size_t sh = sizeof( pWB->header );
-							if( sh > pWB->header.szHdr )
-								sh = pWB->header.szHdr;
-							size_t s1 = sizeof( h0 );
-							size_t s2 = sizeof( pWB->header );
-							if( sh > s1 && 1 == fread_s( ((char*)&pWB->header) + s1, s2 - s1, sh - s1, 1, f ) )
+
+							if( VWB_ERROR_NONE == LoadHeader( pWB->header, ifs, h0.numBlocks ) )
 							{
-								fseek( f, (long)pWB->header.szHdr - (long)sh, SEEK_CUR );
-								// correct header size, as we are now VWB_WarpFileHeader4
-								pWB->header.szHdr = sizeof( VWB_WarpFileHeader4 );
 								int nRecords = pWB->header.width * pWB->header.height;
+
 								if( 0 != nRecords )
 								{
+									// make up some fake monitor handle
 									if( 0 == pWB->header.hMonitor )
 										pWB->header.hMonitor = VWB_uint( VWB_word( pWB->header.offsetX ) ) + ( VWB_uint( VWB_word( pWB->header.offsetY ) ) << 16 );
 
 									strcpy_s( pWB->path, pp );
-									pWB->pWarp = new VWB_WarpRecord[nRecords];
-									if( nRecords == fread_s( pWB->pWarp, nRecords * sizeof( VWB_WarpRecord ), sizeof( VWB_WarpRecord ), nRecords, f ) )
+
+									if( 0 == pWB->header.size )
 									{
 										set.push_back( pWB );
-
-										logStr( 2, "Warp map successfully loaded, new dataset (%d) %dx%d created.\n", VWB_uint(set.size()), pWB->header.width, pWB->header.height );
+										iExtMap = 0;
 										nSets--;
+										logStr( 2, "Empty warp map successfully added, new dataset (%d) %dx%d created.\n", VWB_uint( set.size() ), pWB->header.width, pWB->header.height );
 										break;
 									}
+									else if( nRecords * sizeof( VWB_WarpRecord ) == pWB->header.size )
+									{
+										if( bScanOnly || ( -1 != iScanIndex && set.size() != iScanIndex ) )
+										{
+											// skip data
+											set.push_back( pWB );
+											ifs.seekg( pWB->header.size, std::ios_base::_Seekcur );
+											iExtMap = 0;
+											logStr( 2, "Warp map successfully added, new dataset (%d) %dx%d created, data loading skipped.\n", VWB_uint( set.size() ), pWB->header.width, pWB->header.height );
+											nSets--;
+											break;
+										}
+										else if( VWB_ERROR_NONE == LoadWarp( pWB->pWarp, ifs, nRecords ) )
+										{
+											set.push_back( pWB );
+											iExtMap = 0;
+											logStr( 2, "Warp map successfully loaded, new dataset (%d) %dx%d created.\n", VWB_uint( set.size() ), pWB->header.width, pWB->header.height );
+											nSets--;
+											break;
+										}
+										else
+											logStr( 0, "ERROR: Unexpected end of file.\n" );
+									}
 									else
-										logStr( 0, "ERROR: Malformed file data.\n" );
+										logStr( 0, "ERROR: Malformed file data. Data size does not match layout.\n" );
 								}
 								else
 									logStr( 0, "ERROR: Malformed file header.\n" );
@@ -132,197 +393,117 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 							break;
 						}
 						break;
-					case '1fwv':
-						// load a set
+					case '1fwv': 
+						// load only file header, which is already done
 						nSets = h0.numBlocks;
-						fseek( f, h0.offs, SEEK_SET );
+						ifs.seekg( h0.offs - sizeof( VWB_WarpSetFileHeader ), std::ios_base::_Seekcur ); // jump to begin of data
 						logStr( 2, "File contains %d chunks.\n", nSets );
 						break;
 					default:
+						ifs.seekg( -(std::streampos)sizeof( VWB_WarpSetFileHeader ), std::ios_base::_Seekcur );
 						if( 'B' == h0.magicNumber[0] && 'M' == h0.magicNumber[1] )
 						{ // load bitmap
+							logStr( 2, "Load bitmap for dataset %d...\n", VWB_uint( set.size() ) );
+							BITMAPFILEHEADER bmfh = { 0 };
+							BITMAPINFO* pBmi = nullptr;
+							char* pData = nullptr;
+							if( 0 == set.size() && 0 == iExtMap ) // just a blend file
+							{
+								VWB_WarpBlend* pWB = new VWB_WarpBlend;
+								memset( pWB, 0, sizeof( VWB_WarpBlend ) );
+								pWB->header.magicNumber[0] = 'v';
+								pWB->header.magicNumber[1] = 'w';
+								pWB->header.magicNumber[2] = 'f';
+								pWB->header.magicNumber[3] = '0';
+								pWB->header.szHdr = sizeof( VWB_WarpFileHeader4 );
+								set.push_back( pWB );
+							}
 							if( 0 != set.size() )
 							{
-								logStr( 2, "Load bitmap for dataset %d...\n", VWB_uint(set.size()) );
-								BITMAPFILEHEADER& bmfh = *(BITMAPFILEHEADER*)&h0; // as BITMAPFILEHEADER is smaller than vwf header
-								// bmfh.bfOffBits: offset of actual data
-								// fill BITMAPINFOHEADER:
-								BITMAPINFOHEADER bmih;
-								// fill first bytes with last bytes of vwf file header
-								size_t s1 = sizeof( h0 );
-								size_t s2 = sizeof(bmfh);
-								size_t s3 = sizeof(bmih);
-								memcpy( (VWB_byte*)&bmih, ((VWB_byte*)&h0)+s2, s1 - s2 );
-								// read remaining from file
-								if( 1 == fread_s( 
-									((VWB_byte*)&bmih) + s1 - s2,
-									s3 - s1 + s2,
-									s3 - s1 + s2, 1, f ) )
+								bool bSkipData = bScanOnly || ( -1 != iScanIndex && (set.size()-1) != iScanIndex );
+								if( VWB_ERROR_NONE == LoadBMP( ifs, bmfh, pBmi, pData, bSkipData ) )
 								{
-									if( bmfh.bfOffBits != s2 + s3 )
-										fseek( f, (long)bmfh.bfOffBits - (long)s2 - (long)s3, SEEK_CUR );
-									if( 64 == bmih.biBitCount ||
-										48 == bmih.biBitCount ||
-										24 == bmih.biBitCount ||
-										32 == bmih.biBitCount )
+									if( 0 == set.back()->header.width )
+										set.back()->header.width = pBmi->bmiHeader.biWidth;
+									if( 0 == set.back()->header.height )
+										set.back()->header.height = abs( pBmi->bmiHeader.biHeight );
+									if( pBmi->bmiHeader.biWidth == 0 || pBmi->bmiHeader.biHeight == 0 || bSkipData )  // image contains no data or must be skipped
 									{
-										bool bTopDown = 0 > bmih.biHeight;
-										int w = bmih.biWidth;
-										int h = abs( bmih.biHeight );
-										if( h == (VWB_int)set.back()->header.height &&
-											w == (VWB_int)set.back()->header.width )
+										iExtMap++;
+										nSets--;
+										free( pBmi );
+										break;
+									}
+									else if( abs(pBmi->bmiHeader.biHeight) == (VWB_int)set.back()->header.height &&  // TODO optioal half sized image for future
+										pBmi->bmiHeader.biWidth == (VWB_int)set.back()->header.width )
+									{
+										VWB_BlendRecord* p;
+										if( VWB_ERROR_NONE == convertFromBitmapData( p, pData, pBmi->bmiHeader.biWidth, abs( pBmi->bmiHeader.biHeight ), pBmi->bmiHeader.biBitCount, 0 > pBmi->bmiHeader.biHeight ) )
 										{
-											int n = w * h;
-											int bmStep = bmih.biBitCount / 8;
-											int bmPitch = (( w * bmih.biBitCount + 31 ) / 32 ) * 4;
-											int bmPadding =  bmPitch - w * bmStep;
-											int bmSize = bmPitch * h;
-											VWB_BlendRecord* pB = nullptr; 
-											VWB_BlendRecord2* pB2 = nullptr;
-											if( 32 < bmih.biBitCount )
+											if( 0 == iExtMap )
 											{
-												pB2 = new VWB_BlendRecord2[n];
-												set.back()->header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
+												set.back()->header.flags &= ~( FLAG_WARPFILE_HEADER_BLENDV2 | FLAG_WARPFILE_HEADER_BLENDV3 );
+												switch( pBmi->bmiHeader.biBitCount )
+												{
+												case 48:
+												case 64:
+													set.back()->header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
+													break;
+												case 96:
+												case 128:
+													set.back()->header.flags |= FLAG_WARPFILE_HEADER_BLENDV3;
+													break;
+												}
 											}
-											else
+											switch( iExtMap )
 											{
-												pB = new VWB_BlendRecord[n];
-											}
-											char* pBMData = new char[bmSize];
-											if( h == (int)fread_s( pBMData, bmSize, bmPitch, h, f ) )
-											{
-												if( bTopDown )
-												{
-													if( 64 == bmih.biBitCount )
-														memcpy( pB2, pBMData, n * sizeof( VWB_BlendRecord2 ) ); // trivial, just copy the whole buffer
-													else if( 32 == bmih.biBitCount )
-														memcpy( pB, pBMData, n * sizeof( VWB_BlendRecord ) ); // trivial, just copy the whole buffer
-													else if( 48 == bmih.biBitCount )
-													{
-														char const* pBML = pBMData;
-														for( VWB_BlendRecord2* pL = pB2, *pLE = pB2 + n; pL != pLE; pBML += bmPadding )
-														{
-															for( VWB_BlendRecord2* pLLE = pL + w; pL != pLLE; pL++, pBML += 6 )
-															{
-																VWB_word* pW = (VWB_word*)pBML;
-																pL->r = pW[2];
-																pL->g = pW[1];
-																pL->b = pW[0];
-																pL->a = 65535;
-															}
-														}
-													}
-													else if( 24 == bmih.biBitCount )
-													{
-														char const* pBML = pBMData;
-														for( VWB_BlendRecord* pL = pB, *pLE = pB + n; pL != pLE; pBML += bmPadding )
-															for( VWB_BlendRecord* pLLE = pL + w; pL != pLLE; pL++, pBML += 3 )
-															{
-																pL->r = pBML[2];
-																pL->g = pBML[1];
-																pL->b = pBML[0];
-																pL->a = 255;
-															}
-													}
-												}
-												else
-												{
-													if( 64 == bmih.biBitCount )
-													{ // reverse order
-														char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
-														for( VWB_BlendRecord2* pL = pB2, *pLE = pB2 + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch ) // padding is always 0
-															memcpy( pL, pBML, n * sizeof( VWB_BlendRecord ) );
-													}
-													else if( 48 == bmih.biBitCount )
-													{
-														char* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
-														for( VWB_BlendRecord2* pL = pB2, *pLE = pB2 + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch - (ptrdiff_t)bmPadding )
-														{
-															for( VWB_BlendRecord2* pLLE = pL + w; pL != pLLE; pL++, pBML += 6 )
-															{ // todo: interpret bitfield mask here
-																VWB_word* pW = (VWB_word*)pBML;
-																pL->r = pW[2];
-																pL->g = pW[1];
-																pL->b = pW[0];
-																pL->a = 65535;
-															}
-														}
-													}
-													else if( 32 == bmih.biBitCount )
-													{ // reverse order
-														char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
-														for( VWB_BlendRecord* pL = pB, *pLE = pB + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch ) // padding is always 0
-															memcpy( pL, pBML, n * sizeof( VWB_BlendRecord ) );
-													}
-													else 
-													{
-														char const* pBML = pBMData + (ptrdiff_t)bmPitch * ( (ptrdiff_t)h - 1 );
-														for( VWB_BlendRecord* pL = pB, *pLE = pB + n; pL != pLE; pL += w, pBML -= (ptrdiff_t)bmPitch - (ptrdiff_t)bmPadding )
-														{
-															for( VWB_BlendRecord* pLLE = pL + w; pL != pLLE; pL++, pBML += 3 )
-															{ // todo: interpret bitfield mask here
-																pL->r = pBML[2];
-																pL->g = pBML[1];
-																pL->b = pBML[0];
-																pL->a = 255;
-															}
-														}
-													}
-												}
-												if( set.back()->pBlend )
-												{
-													if( set.back()->pBlack )
-													{
-														if( set.back()->pWhite )
-														{
-															logStr( 0, "WARNING: Too many image maps. Ignoring!\n" );
-														}
-														else
-														{
-															set.back()->pWhite = pB;
-															logStr( 2, "White image set.\n" );
-														}
-
-													}
-													else
-													{
-														set.back()->pBlack = pB;
-														logStr( 2, "Black image set.\n" );
-													}
-												}
-												else
-												{
-													set.back()->pBlend = pB;
-													logStr( 2, "Blend image set.\n" );
-												}
-												nSets--;
-												delete[] pBMData;
-												if( bmSize + bmfh.bfOffBits != bmfh.bfSize )
-												{
-													fseek( f, bmfh.bfSize - bmfh.bfOffBits - bmSize, SEEK_CUR );
-												}
+											case 0:
+												set.back()->pBlend = p;
+												logStr( 2, "Blend image set.\n" );
 												break;
+											case 1:
+												set.back()->pBlack = p;
+												logStr( 2, "Black image set.\n" );
+												break;
+											case 2:
+												set.back()->pWhite = p;
+												logStr( 2, "White image set.\n" );
+												break;
+											default:
+												logStr( 0, "WARNING: Too many image maps. Ignoring!\n" );
+												delete[] p;
 											}
-											else 
-											{
-												delete[] pBMData;
-												logStr( 0, "ERROR: Unexpected end of file. Bitmap or vwf file broken!\n" );
-											}
+											iExtMap++;
+											nSets--;
+											delete[] pData;
+											free( pBmi );
+											break;
 										}
 										else
-											logStr( 0, "ERROR: Blend map size mismatch %dx%d.\n", w, h );
+										{
+											logStr( 0, "ERROR: Unexpected bitmap format, must be BI_RGB with 24 bits or more. Bitmap or vwf file broken!\n" );
+										}
 									}
 									else
-										logStr( 0, "ERROR: Wrong bitmap format. 24 or 32 bit needed!\n" );
+									{
+										logStr( 0, "ERROR: Blend map size mismatch: is %dx%d should be.\n", pBmi->bmiHeader.biWidth, abs(pBmi->bmiHeader.biWidth), set.back()->header.width, set.back()->header.height );
+									}
+									if( pData )
+										delete[] pData;
+									free( pBmi );
 								}
 								else
+								{
 									logStr( 0, "ERROR: BMP load read error.\n" );
+								}
 							}
 							else
-								logStr( 0, "ERROR: No previous warp map found!.\n" );
+							{
+								logStr( 0, "ERROR: Unexpected end of file. Bitmap or vwf file broken!\n" );
+							}
 						}
 						else
-							logStr( 0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp, ftell( f ) - sizeof( VWB_WarpSetFileHeader ) );
+							logStr( 0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp, (ptrdiff_t)ifs.tellg() - sizeof( VWB_WarpSetFileHeader ) );
 						ret = VWB_ERROR_VWF_LOAD;
 						nSets = 0;
 						break;
@@ -332,12 +513,11 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path )
 					ret = VWB_ERROR_VWF_LOAD;
 			}
 			
-			fclose(f);
 			logStr( 1, "LoadVWF: Successfully added %u datasets to the mappings set.\n", VWB_uint(set.size()-nBefore) );
 		}
 		else
 		{
-			logStr( 0, "ERROR: LoadVWF: Error %d at open \"%s\". Missing file?\n", err, pp );
+			logStr( 0, "ERROR: LoadVWF: Error opening \"%s\". Missing file?\n", pp );
 			ret = VWB_ERROR_VWF_FILE_NOT_FOUND;
 			break;
 		}
@@ -374,7 +554,7 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map
 	os.write( (const char*)&bmih, sizeof( bmih ) );
 	for( VWB_BlendRecord const* p = map, *pE = map + (ptrdiff_t)h.width * (ptrdiff_t)h.height; p != pE; p++ )
 	{
-		VWB_byte c[4] = { p->b, p->g, p->r, 255 };
+		VWB_byte c[4] = { p->b, p->g, p->r, p->a };
 		os.write( (const char*)c, 4 );
 	}
 	return VWB_ERROR_NONE;
@@ -387,14 +567,13 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std:
 
 	// bmp stores pixels in packed rows, the size of each row is rounded up to a multiple of 4 bytes by padding
 	// pitchBM = number of bytes necessary to store one row of pixels = rounded up to a multiple of 4
-	const VWB_uint pitchBM = ( ( h.width * 24 + 31 ) / 32 ) * 4;
-	const VWB_uint paddingBM = pitchBM - h.width * 3;
+	const VWB_uint pitchBM = 4 * h.width;
 	BITMAPINFOHEADER bmih = {
 		sizeof( BITMAPINFOHEADER ),		// number of bytes required by the structure
 		h.width,
 		-h.height,						// biHeight is negative, the bitmap is a top-down DIB with the origin at the upper left corner.
 		1,								// biPlanes, Specifies the number of planes for the target device. This value must be set to 1.
-		24,								// biBitCount, Specifies the number of bits per pixel (bpp).
+		32,								// biBitCount, Specifies the number of bits per pixel (bpp).
 		0,								// biCompression
 		0,								// biSizeImage, Specifies the size, in bytes, of the image. This can be set to 0 for uncompressed RGB bitmaps.
 		5512,							// biXPelsPerMeter, horizontal resolution, in pixels per meter, 
@@ -416,10 +595,9 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std:
 		// write one line, write until we are at the end
 		for( VWB_WarpRecord const* pLE = p + h.width; p != pLE; p++ )
 		{
-			VWB_byte c[3] = { (VWB_byte)( 255.0f * p->z ), (VWB_byte)( 255.0f * p->y ), (VWB_byte)( 255.0f * p->x ) };
-			os.write( (const char*)c, 3 );
+			VWB_byte c[4] = { (VWB_byte)( 255.0f * p->z ), (VWB_byte)( 255.0f * p->y ), (VWB_byte)( 255.0f * p->x ), (VWB_byte)( 255.0f * p->w ) };
+			os.write( (const char*)c, 4 );
 		}
-		os.write( "\0\0\0", paddingBM );
 	}
 	return VWB_ERROR_NONE;
 }
@@ -430,7 +608,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
-	if( os.bad() )
+	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
 		return VWB_ERROR_VWF_FILE_NOT_FOUND;
@@ -444,7 +622,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
 
-	const VWB_uint pitchBM = ( ( h.width * 24 + 31 ) / 32 ) * 4;
+	const VWB_uint pitchBM = ( ( ( ( h.width * 24 ) + 31 ) & ~31 ) >> 3 );
 	const VWB_uint paddingBM = pitchBM - h.width * 3;
 	BITMAPINFOHEADER bmih = {
 		sizeof( BITMAPINFOHEADER ),
@@ -479,7 +657,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, st
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
 
-	const VWB_uint pitchBM = ( ( h.width * 48 + 31 ) / 32 ) * 4;
+	const VWB_uint pitchBM = ( ( ( ( h.width * 48 ) + 31 ) & ~31 ) >> 3 );
 	const VWB_uint paddingBM = pitchBM - h.width * 3;
 	BITMAPINFOHEADER bmih = {
 		sizeof( BITMAPINFOHEADER ),
@@ -515,7 +693,7 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
-	if( os.bad() )
+	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
 		return VWB_ERROR_VWF_FILE_NOT_FOUND;
@@ -530,7 +708,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, cha
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
-	if( os.bad() )
+	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
 		return VWB_ERROR_VWF_FILE_NOT_FOUND;
@@ -545,7 +723,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, ch
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
-	if( os.bad() )
+	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
 		return VWB_ERROR_VWF_FILE_NOT_FOUND;
@@ -582,7 +760,7 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os )
 			if( setIt->pWarp )
 			{
 				setIt->header.szHdr = sizeof( setIt->header );
-				os.write( (const char*)&setIt->header, sizeof( setIt->header ) );
+				os.write( (const char*)&setIt->header, setIt->header.szHdr );
 				os.write( (const char*)setIt->pWarp, sizeof( VWB_WarpRecord ) * size_t( setIt->header.width ) * setIt->header.height );
 			}
 			if( setIt->pBlend )
@@ -620,7 +798,7 @@ VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path)
 	strcpy_s(pp, path);
 	MkPath(pp, MAX_PATH, ".vwf");
 	std::ofstream os( pp, std::ios_base::binary );
-	if (os.bad())
+	if (os.fail())
 	{
 		logStr(0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp);
 		return VWB_ERROR_VWF_FILE_NOT_FOUND;
@@ -677,7 +855,7 @@ VWB_rect operator+(VWB_rect const& me, VWB_rect const& other )
 	return r;
 }
 
-bool VerifySet( VWB_WarpBlendSet& set )
+bool VerifySet( VWB_WarpBlendSet& set, int iScanIndex )
 {
 	for( VWB_WarpBlendSet::iterator it = set.begin(); it != set.end(); )
 	{
@@ -738,26 +916,57 @@ bool VerifySet( VWB_WarpBlendSet& set )
 						0 != (*it2)->header.width &&
 						0 != (*it2)->header.height &&
 						(*it)->header.width == (*it2)->header.width &&
-						(*it)->header.height == (*it2)->header.height ) 
+						(*it)->header.height == (*it2)->header.height &&
+						(*it)->pWarp && (*it2)->pWarp )
 					{
 						int iBlend = (*it)->pBlend && (*it2)->pBlend ? 1 : 0;
-						VWB_WarpRecord* pW1 = (*it)->pWarp;
-						VWB_WarpRecord* pW2 = (*it2)->pWarp;
-						VWB_BlendRecord* pB1 = (*it)->pBlend;
-						VWB_BlendRecord* pB2 = (*it2)->pBlend;
 
-						// try other mappings
-						for( VWB_WarpRecord const* pW1E = pW1 + (ptrdiff_t)(*it)->header.width * (ptrdiff_t)(*it)->header.height; pW1 != pW1E; pW1++, pW2++, pB1+= iBlend, pB2+=iBlend )
+						for( ptrdiff_t d = 0, dE = (ptrdiff_t)(*it)->header.width * (ptrdiff_t)(*it)->header.height; d != dE; d++ )
 						{
+							VWB_WarpRecord* pW2 = ( *it2 )->pWarp + d;
 							if( pW2->w > 0.0f ) // other set is filled here...
 							{
+								VWB_WarpRecord* pW1 = ( *it )->pWarp + d;
 								// if this set is not filled here
 								if( pW1->w == 0.0f )
 								{
 									*pW1 = *pW2;
-									if( pB1 && pB2 )
-										*pB1 = *pB2;
-								} 
+
+									if( ( *it )->pBlend && ( *it2 )->pBlend )
+									{
+										if( FLAG_WARPFILE_HEADER_BLENDV3 & ( *it )->header.flags )
+										{
+											VWB_BlendRecord3* pB1 = ( *it )->pBlend3 + d;
+											VWB_BlendRecord3* pB2 = ( *it2 )->pBlend3 + d;
+											*pB1 = *pB2;
+										}
+										else if( FLAG_WARPFILE_HEADER_BLENDV2 & ( *it )->header.flags )
+										{
+											VWB_BlendRecord2* pB1 = ( *it )->pBlend2 + d;
+											VWB_BlendRecord2* pB2 = ( *it2 )->pBlend2 + d;
+											*pB1 = *pB2;
+										}
+										else
+										{
+											VWB_BlendRecord* pB1 = ( *it )->pBlend + d;
+											VWB_BlendRecord* pB2 = ( *it2 )->pBlend + d;
+											*pB1 = *pB2;
+										}
+									}
+
+									if( ( *it )->pBlack && ( *it2 )->pBlack )
+									{
+										VWB_BlendRecord* pBl1 = ( *it )->pBlack + d;
+										VWB_BlendRecord* pBl2 = ( *it2 )->pBlack + d;
+										*pBl1 = *pBl2;
+									}
+									if( ( *it )->pWhite && ( *it2 )->pWhite )
+									{
+										VWB_BlendRecord* pWh1 = ( *it )->pWhite + d;
+										VWB_BlendRecord* pWh2 = ( *it2 )->pWhite + d;
+										*pWh1 = *pWh2;
+									}
+								}
 								//TODO find uniformly filled parts
 								// if this set is filled unifomly and the other is not
 								//else if( 
@@ -771,8 +980,14 @@ bool VerifySet( VWB_WarpBlendSet& set )
 			}
 			it++;
 		}
-		else
+		else if( -1 == iScanIndex || it - set.begin() == iScanIndex )
+		{
 			it = set.erase( it );
+			if( -1 != iScanIndex )
+				break;
+		}
+		else
+			it++;
 	}
 	return !set.empty();
 }
@@ -919,205 +1134,14 @@ VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set )
 	}
 	DeleteVWF( *set );
 
-	if( NULL == path )
-		return VWB_ERROR_NONE;
+	VWB_WarpBlendSet wbs;
+	LoadVWF( wbs, path, true, -1 );
 
-	if( 0 == *path )
+	for( auto const& d : wbs )
 	{
-		logStr( 0, "ERROR: VWB_vwfInfo: Path to warp file empty.\n" );
-		return VWB_ERROR_PARAMETER;
+		set->push_back( d );
 	}
-
-	VWB_ERROR ret = VWB_ERROR_NONE;
-	char const* pP = path;
-	char pp[MAX_PATH];
-	char const* pP2;
-	do
-	{
-		pP2 = strchr( pP, ',' );
-		if( pP2 )
-			strncpy_s( pp, pP, pP2 - pP );
-		else
-			strcpy_s( pp, pP );
-		MkPath( pp, MAX_PATH, ".vwf" );
-
-		logStr( 2, "Open \"%s\"...\n", pp );
-		FILE* f = NULL;
-		errno_t err = NO_ERROR;
-		if( NO_ERROR == ( err = fopen_s( &f, pp, "rb" ) ) )
-		{
-			logStr( 2, "File found and openend.\n" );
-			VWB_WarpSetFileHeader h0;
-			int nSets = 1;
-			while( nSets )
-			{
-				if( 1 == fread_s( &h0, sizeof( VWB_WarpSetFileHeader ), sizeof( VWB_WarpSetFileHeader ), 1, f ) )
-				{
-					switch( *(VWB_uint*)&h0.magicNumber )
-					{
-					case '3fwv':
-					case '2fwv':
-					case '0fwv':
-						{
-							logStr( 2, "Found map header %d...\n", VWB_uint(set->size()) );
-							VWB_WarpBlendHeader* pWBH = new VWB_WarpBlendHeader;
-							memset( pWBH, 0, sizeof( VWB_WarpBlendHeader ) );
-							memcpy( pWBH, &h0, sizeof( h0 ) );
-							// read remainder of header
-							size_t sh = sizeof( pWBH->header );
-							if( sh > pWBH->header.szHdr )
-								sh = pWBH->header.szHdr;
-							size_t s1 = sizeof( h0 );
-							size_t s2 = sizeof( pWBH->header );
-							if( 1 == fread_s( ((char*)&pWBH->header) + s1, s2 - s1, sh - s1, 1, f ) )
-							{
-								fseek( f, (long)pWBH->header.szHdr - (long)sh, SEEK_CUR );
-								int nRecords = pWBH->header.width * pWBH->header.height;
-								if( 0 != nRecords )
-								{
-									if( 0 == pWBH->header.hMonitor )
-										pWBH->header.hMonitor = VWB_uint( VWB_word( pWBH->header.offsetX ) ) + ( VWB_uint( VWB_word( pWBH->header.offsetY ) ) << 16 );
-									strcpy_s( pWBH->path, pp );
-									if( 0 == fseek( f, nRecords * sizeof( VWB_WarpRecord ), SEEK_CUR ) )
-									{
-										set->push_back( pWBH );
-										logStr( 2, "Map header read successfully (%dx%d).\n", pWBH->header.width, pWBH->header.height );
-										nSets--;
-										break;
-									}
-									else
-										logStr( 0, "ERROR: Malformed file data.\n" );
-								}
-								else
-									logStr( 0, "ERROR: Malformed file header.\n" );
-							}
-							else
-								logStr( 0, "ERROR: Unexpected end of file.\n" );
-							ret = VWB_ERROR_VWF_LOAD;
-							nSets = 0;
-							delete pWBH;
-							break;
-						}
-						break;
-					case '1fwv':
-						// load a set
-						nSets = h0.numBlocks;
-						fseek( f, h0.offs, SEEK_SET );
-						logStr( 2, "File contains %d chunks.\n", nSets );
-						break;
-					default:
-						if( 'B' == h0.magicNumber[0] && 'M' == h0.magicNumber[1] )
-						{ // load bitmap
-							if( 0 != set->size() )
-							{
-								logStr( 2, "Skip bitmap for dataset %d...\n", VWB_uint(set->size()) );
-								BITMAPFILEHEADER& bmfh = *(BITMAPFILEHEADER*)&h0; // as BITMAPFILEHEADER is smaller than vwf header
-								// bmfh.bfOffBits: offset of actual data
-								// fill BITMAPINFOHEADER:
-								BITMAPINFOHEADER bmih;
-								// fill first bytes with last bytes of vwf file header
-								size_t s1 = sizeof( h0 );
-								size_t s2 = sizeof(bmfh);
-								size_t s3 = sizeof(bmih);
-								memcpy( (VWB_byte*)&bmih, ((VWB_byte*)&h0)+s2, s1 - s2 );
-								// read remaining from file
-								if( 1 == fread_s( 
-									((VWB_byte*)&bmih) + s1 - s2,
-									s3 - s1 + s2,
-									s3 - s1 + s2, 1, f ) )
-								{
-									if( bmfh.bfOffBits != s2 + s3 )
-										fseek( f, (long)bmfh.bfOffBits - (long)s2 - (long)s3, SEEK_CUR );
-									if( 24 == bmih.biBitCount ||
-										32 == bmih.biBitCount )
-									{
-										int w = bmih.biWidth;
-										int h = abs( bmih.biHeight );
-										if( h == (VWB_int)set->back()->header.height &&
-											w == (VWB_int)set->back()->header.width )
-										{
-											int bmPitch = (( w * bmih.biBitCount + 31 ) / 32 ) * 4;
-											int bmSize = bmPitch * h;
-											if( 0 == fseek( f, bmSize, SEEK_CUR ) )
-											{
-												nSets--;
-												if( bmSize + bmfh.bfOffBits != bmfh.bfSize )
-												{
-													fseek( f, bmfh.bfSize - bmfh.bfOffBits - bmSize, SEEK_CUR );
-												}
-												break;
-											}
-											else
-												logStr( 0, "ERROR: Unexpected end of file. Bitmap or vwf file broken!\n" );
-										}
-										else
-											logStr( 0, "ERROR: Blend map size mismatch %dx%d.\n", w, h );
-									}
-									else
-										logStr( 0, "ERROR: Wrong bitmap format. 24 or 32 bit needed!\n" );
-								}
-								else
-									logStr( 0, "ERROR: BMP load read error.\n" );
-							}
-							else
-								logStr( 0, "ERROR: No previous warp map found!.\n" );
-						}
-						else
-							logStr( 0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp, ftell( f ) - sizeof( VWB_WarpSetFileHeader ) );
-						//ret = VWB_ERROR_VWF_LOAD; TO
-						nSets = 0;
-						break;
-					}
-				}
-				else
-					ret = VWB_ERROR_VWF_LOAD;
-			}
-			
-			fclose(f);
-			logStr( 1, "VWB_vwfInfo: Successfully analyzed %u datasets.\n", VWB_uint(set->size()) );
-
-			// delete same hMon
-			for( VWB_WarpBlendHeaderSet::iterator it = set->begin(); it != set->end(); )
-			{
-				// check
-				if( 0 != (*it)->header.hMonitor &&
-					0 != (*it)->header.width &&
-					0 != (*it)->header.height )
-				{
-					if( !((*it)->header.flags & FLAG_WARPFILE_HEADER_DISPLAY_SPLIT) )
-					{
-						for( VWB_WarpBlendHeaderSet::iterator it2 = it + 1; it2 != set->end(); )
-						{
-							if( (*it)->header.hMonitor == (*it2)->header.hMonitor &&
-								0 != (*it2)->header.width &&
-								0 != (*it2)->header.height &&
-								(*it)->header.width == (*it2)->header.width &&
-								(*it)->header.height == (*it2)->header.height ) 
-
-								it2 = set->erase( it2 ); // does not invalitate it!
-							else
-								it2++;
-						}
-					}
-					it++;
-				}
-				else
-					it = set->erase( it );
-			}
-
-		}
-		else
-		{
-			logStr( 0, "ERROR: LoadVWF: Error %d at open \"%s\"\n", err, pp );
-			ret = VWB_ERROR_VWF_FILE_NOT_FOUND;
-			break;
-		}
-		if( pP2 )
-			pP = pP2 + 1;
-
-	}while( pP2 );
-
-	return ret;
+	return VWB_ERROR_NONE;
 }
 
 VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY )
@@ -1139,7 +1163,7 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 	}
 	if( 0 >= splitW || 0 >= splitH )
 	{
-		logStr( 0, "ERROR: AddUnwarped2DToVWF: split grid size ot of range.\n" );
+		logStr( 0, "ERROR: AddUnwarped2DToVWF: split grid size out of range.\n" );
 		return VWB_ERROR_PARAMETER;
 	}
 	if( 0 > splitX || splitW <= splitX || 0 > splitY || splitH <= splitY )
@@ -1161,7 +1185,7 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 		sizeof( VWB_WarpFileHeader4 ),
 		FLAG_WARPFILE_HEADER_CALIBRATION_BASE_TYP|FLAG_WARPFILE_HEADER_OFFSET|FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR,
 		0x10001,
-		nRecords *sizeof( VWB_WarpRecord ),
+		nRecords * (VWB_uint)sizeof( VWB_WarpRecord ),
 		width,	height,
 		{1,1,1,1},
 		{0,0,0,0},

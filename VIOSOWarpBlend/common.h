@@ -122,6 +122,7 @@ public:
 	virtual VWB_ERROR Render( VWB_param inputTexture, VWB_uint stateMask );
 
 	virtual VWB_ERROR getWarpBlend( VWB_WarpBlend const*& wb );
+	virtual VWB_ERROR getShaderVPMatrix( VWB_float* pMVP );
 	virtual VWB_ERROR getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh );
 
 	/// read the .ini file

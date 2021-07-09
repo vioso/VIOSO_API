@@ -78,7 +78,7 @@
 	#define VIOSOWARPBLEND_API(ret,name,args) \
 		name = NULL
 	#undef VIOSOWARPBLEND_DYNAMIC_UNINITIALIZE
-#else
+#elif !defined(VIOSOWARPBLEND_API)
 	#ifdef _MSC_VER
 		#define VIOSOWARPBLEND_API(ret,name,arg) extern "C" __declspec(dllimport) ret name arg
 	#elif defined __APPLE__

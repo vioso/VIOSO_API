@@ -18,8 +18,8 @@
 @file VIOSO API main include header
 @brief
 Get updates from 
-https://github.com/jkrahmann/VIOSO_API/
-This library is meant to use in image generators, to do warping and blending. It takes a .vwf export and a texture buffer 
+https://bitbucket.org/VIOSO/vioso_api
+This library is meant to be used in image generators to do warping and blending. It takes a .vwf export and a texture buffer 
 to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
 It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamc eye warping.
 Usage: 
@@ -236,6 +236,12 @@ calibIndex=0
 	* @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlend, ( VWB_Warper* pWarper, VWB_WarpBlend const*& wb ) );
+
+	/** fills a float[16] with the currently set internally used matrix for render shader. Warper needs to be initialized as VWB_DUMMYDEVICE.
+	* @param [IN]			pWarper	a valid warper
+	* @param [OUT]			pMPV	the internal view-projection matrix
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getShaderVPMatrix, ( VWB_Warper* pWarper, VWB_float* pMPV ) );
 
 	/** fills a VWB_WarpBlendMesh from currently loaded data. It uses cols * rows vertices or less depending on how .vwf is filled. Warper needs to be initialized as VWB_DUMMYDEVICE.
 	* @param [IN]			pWarper	a valid warper

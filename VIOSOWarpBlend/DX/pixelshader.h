@@ -327,7 +327,7 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 	if( 0.01 < blend.a )                            
 	{                                           
 		tex/= blend.a;                            
-		tex.w = tex.w;                            
+		tex.w = 1;                            
 		tex = mul( tex, matView );              
 		tex.xy/= tex.w;                         
 		tex.x/=2;                              
@@ -546,14 +546,14 @@ float4 PSWB( VS_OUT vIn ) : SV_Target
 	return vOut;                                
 }                                               
                                                 
-float4 PSWB3D( VS_OUT vIn ) : SV_Target             
+float4 PSWB3D_( VS_OUT vIn ) : SV_Target             
 {                                               
 	float4 vOut = texContent.Sample( samWarp, vIn.tex );     
 	vOut.a = 1;                                
 	return vOut;                                
 }                                               
 
-float4 PSWB3D_( VS_OUT vIn ) : SV_Target             
+float4 PSWB3D( VS_OUT vIn ) : SV_Target             
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
 	float4 blend = texBlend.Sample( samLin, vIn.tex );  
@@ -562,7 +562,8 @@ float4 PSWB3D_( VS_OUT vIn ) : SV_Target
 	float4 vCur = 0;
 	if( 0.1 < blend.a )                            
 	{                                           
-		tex/= tex.w;                            
+		tex/= blend.a;                            
+		tex.w = 1;                            
 		tex = mul( tex, matView );              
 		tex.xy/= tex.w;                         
 		tex.x/=2;                              
@@ -633,7 +634,8 @@ float4 PSWB3DBC( VS_OUT vIn ) : SV_Target
 	float4 vCur = 0;
 	if( 0.1 < blend.a )                            
 	{                                           
-		tex/= tex.w;                            
+		tex/= blend.a;                            
+		tex.w = 1;                            
 		tex = mul( tex, matView );              
 		tex.xy/= tex.w;                         
 		tex.x/=2;                              
