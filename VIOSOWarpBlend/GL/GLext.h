@@ -106,6 +106,8 @@ typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum 
 #define GL_BUFFER_SIZE							0x8764
 #define GL_BUFFER_USAGE							0x8765
 #define GL_CURRENT_VERTEX_ATTRIB				0x8626
+#define GL_BACK_LEFT							0x0402
+#define GL_BACK_RIGHT							0x0403
 #define GL_FRONT								0x0404
 #define GL_BACK									0x0405
 #define GL_FRONT_AND_BACK						0x0408

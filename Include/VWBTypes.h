@@ -289,7 +289,7 @@ public:
 	char                                magicNumber[4];							///<   "vwf0"
 	VWB_uint                            szHdr;									///<   used to communicate the size of this header struct
 	VWB_uint                            flags;									///<   additional informations
-	///<  @see ESPWarpFileHeaderFlag for details
+	///<  @see FLAG_WARPFILE_HEADER for details
 	VWB_uint                            hMonitor;								///<   set to the HMONITOR of the treated display
 	VWB_uint                            size;									///<   actual size of the following data block; the size of the raw data can be calculated from dimensions
 	VWB_int                             width;									///<   count of warp records per row
@@ -402,7 +402,7 @@ public:
 	char                                magicNumber[4];							///<   "vwf0"
 	VWB_uint                            szHdr;									///<   used to communicate the size of this header struct
 	VWB_uint                            flags;									///<   additional informations
-	///<  @see ESPWarpFileHeaderFlag for details
+	///<  @see FLAG_WARPFILE_HEADER for details
 	VWB_uint                            hMonitor;								///<   set to the HMONITOR of the treated display
 	VWB_uint                            size;									///<   actual size of the following data block; the size of the raw data can be calculated from dimensions
 	VWB_int                             width;									///<   count of warp records per row

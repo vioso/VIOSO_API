@@ -729,6 +729,14 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				GL_UNSIGNED_BYTE,  // encoding of our data
 				NULL );
 			res = glGetError();
+			if( GL_NO_ERROR == res )
+			{
+				logStr( 2, "clone texture (%dx%d) created.", viewport[2], viewport[3] );
+			}
+			else
+			{
+				logStr( 2, "Failed to create clone texture (%dx%d), err = %0x04x.\n", viewport[2], viewport[3], res );
+			}
 
 			glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
@@ -740,11 +748,16 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		res = glGetError();
 		if( GL_NO_ERROR == res )
 		{
-
+			logStr( 4, "Copied input texture from current write buffer" );
 		}
 		else
 		{
-			logStr( 4, "FAILED to copy input texture from current write buffer" );
+			bool bOnce = true;
+			if( bOnce )
+			{
+				logStr( 3, "FAILED to copy input texture from current write buffer" );
+				bOnce = false;
+			}
 		}
 
 		if( oldRB != GL_BACK )

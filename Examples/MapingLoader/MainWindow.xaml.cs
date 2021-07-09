@@ -20,31 +20,33 @@ using VIOSOWarpBlend;
 namespace MapingLoader
 {
     /// <summary>
-    /// Interaktionslogik für MainWindow.xaml
+    /// Interaktionslogik für MainWindo_warper.xaml
     /// </summary>
     public partial class MainWindow : Window
     {
+        Warper _warper;
         public MainWindow()
         {
             InitializeComponent();
             try
             {
-                Warper w = new Warper(Warper.DummyDevice, "VIOSOWarpBlend.ini", "Display1");
+                _warper = new Warper(Warper.DummyDevice, "VIOSOWarpBlend.ini", "Display1");
                 // if you need to, you can adjust values read from ini
-                Warper.VWB_Warper ini = w.Get();
+                Warper.VWB_Warper ini = _warper.Get();
                 // change some ini value
                 ini.bFlipDXVs = true;
                 // update
-                w.Set( ref ini);
-                Warper.ERROR err = w.Init();
+                _warper.Set( ref ini);
+                Warper.ERROR err = _warper.Init();
                 if (Warper.ERROR.NONE != err)
                     throw new ArgumentException("Could not initialize Warper. Err:" + err.ToString());
                 Warper.WarpFileHeader4 header;
-                w.GetWarpBlendHeader(out header);
+                _warper.GetWarpBlendHeader(out header);
                 String path;
-                w.GetMappingFilePath(out path);
+                _warper.GetMappingFilePath(out path);
                 IntPtr warpmap;
-                w.GetWarpMap(out warpmap);
+                _warper.GetWarpMap(out warpmap);
+                bool b3D = 0 != (header.flags & (uint)Warper.FLAGS.IS3D);
                 // the raw data are a 2D texture RGBA32F, get size from header.width and .height
                 // warpmap must be present, no need to test
                 // to access each pixel's data use
@@ -53,6 +55,20 @@ namespace MapingLoader
                     for (Int32 i = 0; i != header.width * header.height; i++)
                     {
                         Warper.WARPRECORD wr = Marshal.PtrToStructure<Warper.WARPRECORD>(warpmap + i * Marshal.SizeOf(typeof(Warper.WARPRECORD)));
+                        if( b3D )
+                        {
+                            if( 0 < wr.w)
+                            {
+                                Warper.VEC3 pos = new Warper.VEC3(wr.x, wr.y, wr.z);
+                            }
+                        }
+                        else
+                        {
+                            if (0 < wr.z)
+                            {
+                                Warper.VEC2 uv = new Warper.VEC2(wr.x, wr.y);
+                            }
+                        }
                     }
                 }
 
@@ -61,7 +77,7 @@ namespace MapingLoader
                 // texWarp.LoadRawTextureData(rawData, header.width * header.height * Marshal.SizeOf(typeof(Warper.WARPRECORD)));
 
                 IntPtr blendmap;
-                w.GetBlendMap(out blendmap);
+                _warper.GetBlendMap(out blendmap);
                 // the raw data are 2D texture, depending on header.flags:
                 //   if BLENDV3 & header.flags RGBA32F
                 //   if BLENDV2 & header.flags RGBA16U
@@ -92,7 +108,7 @@ namespace MapingLoader
                 }
 
                 IntPtr blackmap;
-                w.GetBlackMap(out blackmap);
+                _warper.GetBlackMap(out blackmap);
                 // the raw data are a 2D texture RGBA8U, get size from header.width and .height
                 // NOTE: the blend map is scaled
                 // black = samBlack.sample( tex ) * header.blackScale;
@@ -109,7 +125,7 @@ namespace MapingLoader
                 }
 
                 IntPtr whitemap;
-                w.GetWhiteMap(out whitemap);
+                _warper.GetWhiteMap(out whitemap);
                 // the raw data are a 2D texture RGBA32F, get size from header.width and .height
                 // to access each pixel's data use
                 if( IntPtr.Zero != whitemap )

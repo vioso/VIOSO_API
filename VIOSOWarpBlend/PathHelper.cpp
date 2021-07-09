@@ -181,7 +181,7 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 		*s = 0;
 
 	std::ifstream fs( szConfigFile );
-	if (!fs.bad())
+	if (!fs.fail())
 	{
 		std::string line;
 		while( std::getline( fs, line ) )

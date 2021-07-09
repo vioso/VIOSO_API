@@ -249,7 +249,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 #else
 #endif
 		}
-
+		return VWB_ERROR_NONE;
 	}
 	return VWB_ERROR_FALSE;
 }
@@ -363,7 +363,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 	}
 	if( NULL != szConfigFile && 0 != szConfigFile[0] )
 	{
-		if( !((VWB_Warper_base*)*ppWarper)->ReadIniFile( szConfigFile, szChannelName ) )
+		if( VWB_ERROR_NONE != ((VWB_Warper_base*)*ppWarper)->ReadIniFile( szConfigFile, szChannelName ) )
 		{
 			logStr( 0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile );
 			delete ((VWB_Warper_base*)*ppWarper);
@@ -571,12 +571,12 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 	else
 	{
 		VWB_WarpBlendSet set;
-		err = LoadVWF(set, ((VWB_Warper_base*)pWarper)->calibFile);
+		err = LoadVWF( set, ( (VWB_Warper_base*)pWarper )->calibFile, false, pWarper->calibIndex );
 		//if( ( VWB_ERROR_VWF_LOAD == err ) ||
 		//	( VWB_ERROR_VWF_FILE_NOT_FOUND == err && VWB_ERROR_NONE != CreateDummyVWF( set, ((VWB_Warper_base*)pWarper)->calibFile ) ) ||
 		//    ( VWB_ERROR_NONE == err  && !VerifySet( set ) ) )
 
-		if ((VWB_ERROR_NONE != err) || !VerifySet(set))
+		if( ( VWB_ERROR_NONE != err ) || !VerifySet( set, pWarper->calibIndex ) )
 		{
 			logStr(0, "ERROR: LoadVWF: Failed to load or verify set.\n");
 			return err;
@@ -753,6 +753,7 @@ VWB_ERROR VWB_vwfInfo( char const* path, VWB_WarpBlendHeaderSet* set )
 {
 	return ScanVWF( path, set );
 }
+
 VWB_ERROR VWB__logString( VWB_int level, char const* str )
 {
 	if( NULL == str || 0 == str[0] )
@@ -765,6 +766,13 @@ VWB_ERROR VWB_getWarpBlend( VWB_Warper* pWarper, VWB_WarpBlend const*& wb )
 {
 	if( pWarper )
 		return ( (VWB_Warper_base*)pWarper )->getWarpBlend( wb );
+	return VWB_ERROR_PARAMETER;
+}
+
+VWB_ERROR VWB_getShaderVPMatrix( VWB_Warper* pWarper, VWB_float* pMPV )
+{
+	if( pWarper )
+		return ( (VWB_Warper_base*)pWarper )->getShaderVPMatrix( pMPV );
 	return VWB_ERROR_PARAMETER;
 }
 
@@ -876,8 +884,20 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 	VWB_WarpBlend& wb = *wbs[calibIndex];
 
-    m_bBorder = 0 != ( FLAG_WARPFILE_HEADER_BORDER & wbs[calibIndex]->header.flags );
-	m_bDynamicEye = 0 != ( FLAG_WARPFILE_HEADER_3D & wbs[calibIndex]->header.flags );
+	logStr( 2, "Mapping Info:\n"
+			"    Hostname: \"%s\"\n"
+			"  Devicename: \"%s\"\n"
+			"   SplitInfo: (%i,%i) of (%i,%i)\n"
+			"  Resolution: %dx%d\n"
+			"	 Position: %d,%d\n",
+			wb.header.hostname,
+			wb.header.name,
+			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
+			wb.header.width, wb.header.height,
+			(int)wb.header.offsetX, (int)wb.header.offsetY
+	);
+    m_bBorder = 0 != ( FLAG_WARPFILE_HEADER_BORDER & wb.header.flags );
+	m_bDynamicEye = 0 != ( FLAG_WARPFILE_HEADER_3D & wb.header.flags );
 	if( m_bDynamicEye )
 		logStr( 2, "3D data found in mapping. Using DYNAMIC EYE settings.\n" );
 	else
@@ -976,7 +996,6 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	}
 
 	// do auto calculations
-	VWB_MAT44f S = VWB_MAT44f::I(); // scaling matrix
 	if( m_bDynamicEye )
 	{
 		if( bAutoView )
@@ -1004,22 +1023,6 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 				b += VWB_VEC3f::ptr( &pW->x );
 			}
 		}
-
-		// scale and shift to avoid clamping
-		S = VWB_MAT44f::S(1.0f/(b.max.x - b.min.x), 1.0f/(b.max.y - b.min.y), 1.0f/(b.max.z - b.min.z), 1 ) * VWB_MAT44f::T( -b.min.x, -b.min.y, -b.min.z );
-		S.Invert();
-		pW = wb.pWarp;
-		VWB_VEC3f a,c;
-		for( VWB_WarpRecord const* pWE = pW + m_sizeMap.cx * m_sizeMap.cy; pW != pWE; pW++ )
-		{
-			if( 0.5 < pW->w )
-			{
-				a = VWB_VEC3f::ptr( &pW->x );
-				VWB_VEC3f::ptr( &pW->x ) = S * a;
-				c = S * VWB_VEC3f::ptr( &pW->x );
-			}
-		}
-
 	}
 	else
 	{
@@ -1075,9 +1078,6 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 	// we have to inverse rotate and translate
 	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
-
-	// scale and shift back to original, to cancel out clipping scale/offset
-	m_mBaseI*= S.Inverted();
 
 	// Remind the sizes of the frustum on screenDist
 	m_viewSizes.x = tan( DEG2RAD(fov[0] ) ) * screenDist; // left
@@ -1335,19 +1335,21 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 	pW = wb.pWarp;
 	pB = wb.pBlend2;
+	size_t sz = wb.header.width * wb.header.height;
 	double cnt = 0;
-
+	const double minX = 0.25 / abs( screenDist ) / wb.header.width;
+	const double minY = 0.25 / abs( screenDist ) / wb.header.height;
 	double l = autoViewC * abs(screenDist) / 4;
 
 	VWB_VEC4d* pTLB = new VWB_VEC4d[wb.header.width+1]; // transformed of previous value and prevoius line, to calculate projected distance
 	VWB_VEC4d* pTL = pTLB, *pTLE = pTLB + (wb.header.width + 1);
 	for( pTL = pTLB; pTL != pTLE; pTL++ )
 		pTL->w = 0; // mark all entries invalid
-	for( int y = 0; y != wb.header.height; y++ )
+	for( VWB_WarpRecord const* pWE = pW + sz; pW != pWE; )
 	{
 		pTLB->w = 0; // mark predecessor invalid
 		pTL = pTLB + 1;
-		for( int x = 0; x != wb.header.width; x++, pW++, pB++, pTL++ )
+		for( VWB_WarpRecord const* pWLE = pW + wb.header.width; pW != pWLE; pW++, pB++, pTL++ )
 		{
 			if( 1 == pW->w && // map contains valid value
 				0 != pB->a && // not masked
@@ -1386,14 +1388,14 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				// find smallest distance between 2 neighbouring points
 				if( 1 == pTLB->w )
 				{ // previous value valid, go for horizontal
-					VWB_double d = vTT.x - pTLB->x;
-					if( minDx > d )
+					VWB_double d = abs( vTT.x - pTLB->x );
+					if( minDx > d && minX < d )
 						minDx = d;
 				}
 				if( 1 == pTL->w )
 				{ // upper value is valid
-					VWB_double d = vTT.y - pTL->y;
-					if( minDy > d )
+					VWB_double d = abs( vTT.y - pTL->y );
+					if( minDy > d && minY < d )
 						minDy = d;
 				}
 				*pTL = vTT; // w is set to 1 by implicit assignment by constructor
@@ -1491,6 +1493,14 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 VWB_ERROR VWB_Warper_base::getWarpBlend( VWB_WarpBlend const*& wb )
 {
 	return VWB_ERROR_NOT_IMPLEMENTED;
+}
+
+VWB_ERROR VWB_Warper_base::getShaderVPMatrix( VWB_float* pMVP )
+{
+	if( nullptr == pMVP )
+		return VWB_ERROR_PARAMETER;
+	memcpy( pMVP, &m_mVP._11, sizeof( m_mVP ) );
+	return VWB_ERROR_NONE;
 }
 
 VWB_ERROR VWB_Warper_base::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
