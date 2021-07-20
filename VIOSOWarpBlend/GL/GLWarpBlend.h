@@ -5,6 +5,9 @@
 #include "GLext.h"
 #include <string>
 
+#define GL_EXT_DEFINE
+#include "GLext.h"
+
 class GLWarpBlend : public VWB_Warper_base
 {
 public:
@@ -65,9 +68,11 @@ public:
 
 protected:
 	// Helper functions
-    GLuint					CreatePixelShader(const std::string &src, const std::string &main, const std::string &profile) const;
-    std::string             PixelShaderSource() const;
-    void                    SetTexture(GLuint texLoc, GLuint tex, GLuint wrapMode = GL_CLAMP_TO_BORDER) const;
+    VWB_ERROR CreatePixelShader();
+	VWB_ERROR FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid* data, GLint filter, GLenum wrap );
+    void    SetTexture(GLuint texLoc, GLuint tex, GLuint wrapMode = GL_CLAMP_TO_BORDER) const;
+	static GLfloat colBlack[4];
+	static bool savetex( char filename[MAX_PATH], GLint iTex );
 };
 
 #endif //ndef VWB_GLWARPBLEND_HPP

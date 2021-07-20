@@ -588,6 +588,19 @@ typedef struct VWB_D3D12_RENDERINPUT
 	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftX, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
 } VWB_D3D12_RENDERINPUT;
 
+
+typedef void (*VWB_pfnXPLMSetGraphicsState)( int inEnableFog, int inNumberTexUnits, int inEnableLighting, int inEnableAlphaTesting, int inEnableAlphaBlending, int inEnableDepthTesting, int inEnableDepthWriting );
+typedef void (*VWB_pfnXPLMBindTexture2d)( int inTextureNum, int inTextureUnit );
+typedef void (*VWB_pfnXPLMGenerateTextureNumbers)( int* outTextureIDs, int  inCount );
+
+struct __declspec( uuid("F4A32401-370C-4199-9C17-DD24C6988235")) __declspec( novtable ) IXPlaneRef : public IUnknown
+{
+public:
+	virtual void __stdcall SetGraphicsState( int inEnableFog, int inNumberTexUnits, int inEnableLighting, int inEnableAlphaTesting, int inEnableAlphaBlending, int inEnableDepthTesting, int inEnableDepthWriting ) = 0;
+	virtual void __stdcall BindTexture2d( int inTextureNum, int inTextureUnit ) = 0;
+	virtual void __stdcall GenerateTextureNumbers( int* outTextureIDs, int  inCount ) = 0;
+};
+
 //typedef struct VWB_D3D12Helper
 //{
 //	typedef UINT64( __stdcall *pfn_getfenceValue )( );

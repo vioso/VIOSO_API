@@ -3,6 +3,7 @@
 #include "DX/DX9EXWarpBlend.h"
 #include "DX/DX11WarpBlend.h"
 #include "DX/DX10WarpBlend.h"
+#include "GL/GLWarpBlendXPL.h"
 #include "Net.h"
 #ifndef VWB_WIN7_COMPAT
 #include "DX/DX12WarpBlend.h"
@@ -271,7 +272,6 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 	MkPath( g_logFilePath, MAX_PATH, ".log" );
 
 	try {
-#ifdef WIN32
 		if (VWB_DUMMYDEVICE == pDxDevice)
 		{
 			*ppWarper = new Dummywarper();
@@ -284,6 +284,18 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				IUnknown* pUK2 = NULL;
 				// destinguish between DX flavours
 				do {
+		#ifdef WIN32
+
+					if( SUCCEEDED( pUK->QueryInterface( __uuidof( IXPlaneRef ), (void**)&pUK2 ) ) )
+					{
+						pUK2->Release();
+						if( pUK == pUK2 )
+						{
+							*ppWarper = new GLWarpBlendXPL( (IXPlaneRef*)pDxDevice );
+							break;
+						}
+					}
+
 				#ifndef VWB_WIN7_COMPAT
 					if( SUCCEEDED( pUK->QueryInterface( __uuidof( ID3D12CommandQueue ), (void**)&pUK2 ) ) )
 					{
@@ -346,11 +358,11 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 						}
 					}
 
+		#endif //def WIN32
 				} while( 0 );
 			}
 		}
 		else
-#endif //def WIN32
 		{
 			*ppWarper = new GLWarpBlend();
 		}
