@@ -165,42 +165,26 @@ calibIndex=0
 	* @param [OUT]			pClip	it gets the updated clip planes: left, top, right, bottom, near, far, where all components are usually positive
 	* @param [OUT]			pPos    it gets the updated relative position: x,y,z
 	* @param [OUT]			pDir	it gets the updated relative direction: euler angles around x,y,z rotation order is y,x,z
-	* @param [OUT]			pSymClip	it gets the updated symmetric frustum: width, height, near, far
-* @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise
+	* @param [IN,OPT]		symmetric set to true, to force symmetric frustum, NOTE: symmetric frusta are worse in quality, as the image plane is no longer parallel to the screen plane
+	* @param [IN,OPT]		aspect	set to some ratio, to force clip planes to form a rect with this ratio, if set to 0, optimal aspect ratio is used. NOTE: Non-optimal aspect ratia are worse in quality, as part of the input image is rendered but not used.
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise
 	* @remarks If EyePointProvider is used, the eye point is set by calling it's getEye function. eye and rot are set to that if not NULL.
 	* Else, if eye and rot are not NULL, values taken from here.
 	* Else the eye and rot are set to 0-vectors.
 	* The internal view and projection matrices are calculated to render. You should set pView and pProj to get these matrices for rendering, if updated.
 	* positive rotation means turning right, up and clockwise.
-	* 	use these functions to get euler angles
-	// gets euler angles from a GL-style 3x3 rotation matrix in (right-handed coordinate system, z backward, y up and x right)
-	// gets euler angles from a GL-style 3x3 rotation matrix in (right-handed coordinate system, z backward, y up and x right)
-	// assumptions:
-	// positive rotation around x turns (pitch) up
-	// positive rotation around y turns (yaw) right
-	// positive rotation around z turns (roll) clockwise
-	// rotation order is y-x-z
-	// To decompose a DX-style (transposed) 3x3 matrix, use same function and negate the resulting angles.
-	// To decompose a left-handed matrix, z-roataion is reversed to counter-clockwise.
-	XMFLOAT3 GetR( VWB_float const* pView ) const // pView 4x4 matrix, float[16]
-	{
-		XMFLOAT3 a;
-		a.y = -atan2( pView[8], p[10] );
-		FLOAT s = sin( a.y );
-		FLOAT c = cos( a.y );
-		FLOAT l = sqrt( p[8] * p[8] + p[10] * p[10] );
-		a.x = -atan2( p[9], l );
-		a.z = atan2( s * p[6] + c * p[4], s * p[2] + c * p[0] );
-		return a;
-	}
-	XMFLOAT  r = GetR( pView );
-	XMMATRIX R = XMMatrixRotationRollPitchYaw( r.x, -r.y, -r.z );
+	* Calculate view Matrix from pDir and pPos for lefthanded direct X
+	XMMATRIX R = XMMatrixRotationRollPitchYaw( -pDir[0], pDir[1], pDir[2] );
+	XMMATRIX T = XMMatrixTranslation( pPos[0], pPos[1], pPos[2] );
+	XMMATRIX V = XMMatrixMultiply( R, T );
 
 	Use pClip this way to get the same matrix like from VWB_getViewProjection:
 	P = glm::frustum( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
-	P = XMMatrixPerspectiveOffCenterLH( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );*/
+	P = XMMatrixPerspectiveOffCenterLH( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
+	*/
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewProj, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) );
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getPosDirClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect ) );
 
 	/** set the view and projection matrix directly
 	* @param [IN]			pWarper	a valid warper

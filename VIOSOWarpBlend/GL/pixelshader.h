@@ -124,7 +124,7 @@ void main()
 )END";
 
 GLchar const* s_warp_blend_fragment_shader = R"END(
-void main()\n"
+void main()
 {																
 	vec4 tex = _tex2D( samWarp,texcoord.st );					
 	vec4 blend = _tex2D( samBlend, texcoord.st );				
@@ -139,7 +139,7 @@ void main()\n"
 		    tex.y*= 1.02;										
 		    tex.y-= 0.01;										
 		}														
-		tex.xy/= blend.a;										"
+		tex.xy/= blend.a;
 		FragColor = _texture2D( samContent, tex.xy );			
 		if( !bDoNotBlend )					
 			FragColor.rgb*= blend.rgb;		

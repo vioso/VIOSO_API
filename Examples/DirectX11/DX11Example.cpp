@@ -340,18 +340,27 @@ public:
         // far off from perpendicular to the screen. Try using asymetric frustum, especially in 
         // dynamic eye-point scenarios.
         static unsigned int pass = 2;
-        if( 2 == ++pass )
+        if( 3 == ++pass )
         //if( 0 == pass )
         {
             pass = 0;
             // get view and projection matrix directly
             VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, (float*)m_mProjection.r );
         }
-        else if( 1 == pass )
+        //else if( 1 == pass )
+        //{
+        //    float clip[6];
+        //    VWB_getViewClip( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, clip );
+        //    m_mProjection = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+        //}
+        else
         {
+            float pos[3];
+            float dir[3];
             float clip[6];
-            VWB_getViewClip( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, clip );
-            m_mProjection = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+            VWB_getPosDirClip( m_warper, &vEyePt.x, &vRot.x, pos, dir, clip, true, m_vp.Width / m_vp.Height );
+            m_mView = XMMatrixRotationRollPitchYaw( -dir[0], dir[1], dir[2] );
+			m_mProjection = XMMatrixPerspectiveLH( 2 * clip[0], 2 * clip[3], clip[4], clip[5] );
         }
         ////< end VIOSO API code
 

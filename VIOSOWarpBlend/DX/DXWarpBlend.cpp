@@ -17,12 +17,13 @@ DXWarpBlend::~DXWarpBlend()
 VWB_ERROR DXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
 	VWB_ERROR err = __super::Init( wbs );
+
 	// transpose view matrices to use DX common vector pre-multiplication
 	m_mBaseI.Transpose();
 	m_mViewIG.Transpose();
 	return err;
 }
-inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
+inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e )
 {
 	VWB_MAT44f V; //return value
 
@@ -42,15 +43,15 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_VEC3f& e )
 		e -= VWB_VEC3f::ptr( this->eye ) * R;
 
 	// translate to local coordinates
-	e = e * m_mViewIG;
+	e = e * igView;
 
 	VWB_MAT44f T = VWB_MAT44f::T( e ).Transposed();
-	m_mVP = m_mBaseI * m_mViewIG * T;
+	m_mVP = m_mBaseI * igView * T;
 
 	if( bTurnWithView )
-		V = R * m_mViewIG;
+		V = R * igView;
 	else
-		V = m_mViewIG * T;
+		V = igView * T;
 
 	return V;
 }
@@ -66,7 +67,7 @@ VWB_ERROR DXWarpBlend::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		VWB_MAT44f P; // the projection matrix to return 
 
 		VWB_VEC3f e;
-		VWB_MAT44f V = UpdateView( e ); // the view matrix to return
+		VWB_MAT44f V = UpdateView( m_mViewIG, e ); // the view matrix to return
 
 		VWB_float clip[6];
 		getClip( e, clip );
@@ -97,7 +98,7 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	{
 		VWB_MAT44f P;
 		VWB_VEC3f e;
-		VWB_MAT44f V = UpdateView( e );
+		VWB_MAT44f V = UpdateView( m_mViewIG, e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
@@ -122,56 +123,75 @@ VWB_ERROR DXWarpBlend::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	return ret;
 }
 
-VWB_ERROR DXWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR DXWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect )
 {
+
 	VWB_ERROR ret = UpdateEye( eye, rot );
 	if( VWB_ERROR_NONE == ret )
 	{
 
 		VWB_MAT44f P;
 		VWB_VEC3f e;
-		VWB_MAT44f V = UpdateView( e );
+
+		VWB_MAT44f V = UpdateView( m_mViewIG, e );;
 
 		VWB_float clip[6];
-		getClip(e, clip);
+		getClip( e, clip );
 
-		pSymClip[2] = clip[4];
-		pSymClip[3] = clip[5];
-		pPos[0] = V[3];
-		pPos[1] = V[7];
-		pPos[2] = V[11];
+		if( symmetric )
+		{
+			VWB_MAT44f ig = m_mViewIG;
+			if( m_bRH )
+				MakeSymmetricRH( ig, clip );
+			else
+				MakeSymmetricLH( ig, clip );
+			V = UpdateView( ig, e );
+		}
 
-		VWB_float angles[4] = {
-			atan2( clip[0], nearDist ),
-			atan2( clip[1], nearDist ),
-			atan2( clip[2], nearDist ),
-			atan2( clip[3], nearDist ),
-		};
+		if( pDir )
+		{
+			// extract rotation angles from upper View matrix
+			VWB_VEC3f::ptr( pDir ) = V.Upper().Transposed().GetR();
+			if( !m_bRH )
+				VWB_VEC3f::ptr( pDir ) *= -1;
 
-		// this is the sum of both angles, left+right resp. top+bottom 
-		pSymClip[0] = tan( ( angles[0] + angles[2] + ( angles[2] - angles[0] ) ) / 2 ) * 2 * nearDist;
-		pSymClip[1] = tan( ( angles[1] + angles[3] + ( angles[1] - angles[3] ) ) / 2 ) * 2 * nearDist;
+		}
 
-		// extract rotation angles from upper View matrix
-		VWB_VEC3f::ptr( pDir ) = V.Upper().Transposed().GetR();
-		if( !m_bRH )
-			VWB_VEC3f::ptr( pDir ) *= -1;
+		if( pPos )
+		{
+			pPos[0] = V._41;
+			pPos[1] = V._42;
+			pPos[2] = V._43;
+		}
 
-		// add difference of left/right, which add to rotation around y, and upper/lower clip, which add to rotation around x, as angles
-		pDir[0] += angles[1] - angles[3]; // rotation around x, "pitch" aka up and down
-		pDir[1] += angles[2] - angles[0]; // rotation around y, "yaw" aka left and right
+		if( 0 != aspect )
+		{
+			VWB_float a = ( clip[0] + clip[2] ) / ( clip[1] + clip[3] );
+			if( aspect > a ) // we need to make frustum wider
+			{
+				a = aspect / a;
+				clip[0] *= a;
+				clip[2] *= a;
+			}
+			else // we need to make frustum higher
+			{
+				a/= aspect;
+				clip[1] *= a;
+				clip[3] *= a;
+			}
+		}
 
-		V = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( pDir ) ).Transposed() : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( pDir ) ).Transposed();
-		m_mVP = m_mBaseI * V * VWB_MAT44f::T( pPos[0], pPos[1], pPos[2] ).Transposed();
-
-		clip[0] = clip[2] = pSymClip[0] / 2;
-		clip[1] = clip[3] = pSymClip[1] / 2;
 		if( m_bRH )
 			P = VWB_MAT44f::DXFrustumRH( clip );
 		else
 			P = VWB_MAT44f::DXFrustumLH( clip );
 
 		m_mVP *= P;
+
+		if( pClip )
+		{
+			memcpy( pClip, clip, sizeof( clip ) );
+		}
 	}
 
 	return ret;

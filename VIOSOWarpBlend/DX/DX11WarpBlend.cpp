@@ -230,7 +230,7 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 
 		for( int i = 0; i != ARRAYSIZE( d ); i++ )
 		{
-			VWB_MAT33d M = VWB_MAT33d::base( d[i].x, d[i].y );
+			VWB_MAT33d M = VWB_MAT33d::Base( d[i].x, d[i].y );
 			VWB_VEC3d r = M.GetR();
 			VWB_VEC3d rDeg = r * 180 / PI;
 			
@@ -278,23 +278,38 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 			if( !MLX.IsZero() )
 				logStr( 1, "Rotation Matrix test 7 ( LH multiplied vs XN Math) failed, difference norm is %f", MLX.Norm() );
 		}
-		float  clips[][6] =
 		{
-			{ 1.6f, 1.0f, 1.6f, 1.0f, 1.0f, 10.0f },
-			{ 3.2f, 1.0f, 0.0f, 1.0f, 1.0f, 10.0f },
-			{ 0.0f, 1.0f, 3.2f, 1.0f, 1.0f, 10.0f },
-			{ 1.6f, 0.0f, 1.6f, 2.0f, 1.0f, 10.0f },
-			{ 1.6f, 2.0f, 1.6f, 0.0f, 1.0f, 10.0f },
-		};
-		for( auto clip = *clips, clipE = *( clips + ARRAYSIZE( clips ) ); clip != clipE; clip+= ARRAYSIZE( clips[0] ) )
-		{
-			VWB_MAT44f P = VWB_MAT44f::DXFrustumLH( clip );
-			XMMATRIX MP = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			VWB_MAT44f PX; XMStoreFloat4x4A( (XMFLOAT4X4A*)&PX, MP );
-			PX-= P;
-			if( !PX.IsZero() )
-				logStr( 1, "Frustum Matrix test 1 failed, difference norm is %f", PX.Norm() );
+			float  clips[][6] =
+			{
+				{ 1.6f, 1.0f, 1.6f, 1.0f, 1.0f, 10.0f },
+				{ 3.2f, 1.0f, 0.0f, 1.0f, 1.0f, 10.0f },
+				{ 0.0f, 1.0f, 3.2f, 1.0f, 1.0f, 10.0f },
+				{ 1.6f, 0.0f, 1.6f, 2.0f, 1.0f, 10.0f },
+				{ 1.6f, 2.0f, 1.6f, 0.0f, 1.0f, 10.0f },
+			};
+			for( auto clip = *clips, clipE = *( clips + ARRAYSIZE( clips ) ); clip != clipE; clip += ARRAYSIZE( clips[0] ) )
+			{
+				VWB_MAT44f P = VWB_MAT44f::DXFrustumLH( clip );
+				XMMATRIX MP = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+				VWB_MAT44f PX; XMStoreFloat4x4A( (XMFLOAT4X4A*)&PX, MP );
+				PX -= P;
+				if( !PX.IsZero() )
+					logStr( 1, "Frustum Matrix test 1 failed, difference norm is %f", PX.Norm() );
 
+			}
+		}
+		{
+			double clips[][6] = {
+				{ 0.1, 0.2, 0.5, 0.4, 1, 1024 },
+				{ 0.5, 0.4, 0.1, 0.2, 1, 1024 },
+				{ -0.1, 0.2, 0.5, 0.4, 1, 1024 },
+				{ 0.1, 0.5, 0.5, -0.2, 1, 1024 },
+			};
+			for( int i = 0; i != ARRAYSIZE( clips ); i++ )
+			{
+				VWB_MAT44d V = VWB_MAT44d::I();
+				MakeSymmetricLH( V, clips[i] );
+			}
 		}
 	}
 	#endif //def _DEBUG

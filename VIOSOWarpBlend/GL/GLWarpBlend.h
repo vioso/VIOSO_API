@@ -55,11 +55,11 @@ public:
 
 	virtual VWB_ERROR Init( VWB_WarpBlendSet& wbs );
 
-	VWB_MAT44f UpdateView( VWB_VEC3f& e );
+	VWB_MAT44f UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e );
 
 	virtual VWB_ERROR GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj );
 	virtual VWB_ERROR GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip );
-	virtual VWB_ERROR GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) override;
+	virtual VWB_ERROR GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip, bool symmetric, VWB_float aspect ) override;
 
 	virtual VWB_ERROR SetViewProjection( VWB_float const* pView, VWB_float const* pProj );
 
