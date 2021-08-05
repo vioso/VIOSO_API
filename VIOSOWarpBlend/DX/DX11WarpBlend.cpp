@@ -252,7 +252,7 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 			XMMATRIX MMR = XMMatrixRotationRollPitchYaw( (FLOAT)r.x, (FLOAT)-r.y, (FLOAT)-r.z );
 			VWB_MAT44f MRX; XMStoreFloat4x4( (XMFLOAT4X4*)&MRX, MMR );
 
-			VWB_MAT44f RR = VWB_MAT44f::R( r );
+			VWB_MAT44f RR = VWB_MAT44f::R( VWB_VEC3f(r) );
 
 			MRX -= RR;
 			if( !MRX.IsZero() )

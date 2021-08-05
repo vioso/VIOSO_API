@@ -62,8 +62,10 @@ struct VWB_VECTOR3
 	T z;
 	_inline_ VWB_VECTOR3() {};
 	template< class _T2 >
-	_inline_ VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
-    // without the following initualizer commented out gcc complains about amiguity (with the preceding initialzer?)
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
+	template< class _T2 >
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x/other.w ), y( (T)other.y/other.w ), z( (T)other.z/other.w ) {}
+	// without the following initualizer commented out gcc complains about amiguity (with the preceding initialzer?)
 	//_inline_ VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR3( T _x, T _y, T _z ) : x(_x), y(_y), z(_z) {}
 
@@ -123,10 +125,6 @@ struct VWB_VECTOR3
 
 	_inline_ operator T const* () const { return &x; }
 	_inline_ operator T* () { return &x; }
-	template< class _T2 >
-	_inline_ VWB_VECTOR3& operator=( VWB_VECTOR3<_T2> const& other ) {
-		x = (T)other.x; y = (T)other.y; z = (T)other.z;
-		return *this; }
 	_inline_ T lenSq() const { return x * x + y * y + z * z; }
 	_inline_ T len() const { return sqrt( lenSq() ); }
 	_inline_ T norm() const { return sqrt( lenSq() ); }
@@ -268,7 +266,7 @@ struct VWB_VECTOR4
 	T w;
 	_inline_ VWB_VECTOR4() {};
 	template< class _T2>
-	_inline_ VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
+	_inline_ explicit VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
 	template< class _T2>
 	_inline_ explicit VWB_VECTOR4( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)1 ) {}
 	_inline_ VWB_VECTOR4( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
@@ -284,10 +282,6 @@ struct VWB_VECTOR4
 	_inline_ operator VWB_VECTOR3<T> const& () const { return *(VWB_VECTOR3<T>*)this; }
 	_inline_ operator T const* () const { return &x; }
 	_inline_ operator T* () { return &x; }
-	template< class _T2 >
-	_inline_ VWB_VECTOR4& operator=( VWB_VECTOR4<_T2> const& other ) {
-		x = (T)other.x; y = (T)other.y; z = (T)other.z; w = (T)other.w;
-		return *this; }
 
 	_inline_ VWB_VECTOR4 operator-() const { return VWB_VECTOR4( -x, -y, -z, -w ); }
 	_inline_ bool operator==(VWB_VECTOR4 const& other) const { return x == other.x && y == other.y && z == other.z && w == other.w; }
@@ -408,10 +402,11 @@ struct VWB_MATRIX
     };
 	_inline_ VWB_MATRIX() {};
 	_inline_ VWB_MATRIX( VWB_MATRIX const& other ) { memcpy( this, &other, sizeof( *this ) ); }
-	_inline_ explicit VWB_MATRIX( VWB_MATRIX33<_T> const& other ) :
-		_11( other._11 ), _12( other._12 ), _13( other._13 ), _14(0),
-		_21( other._21 ), _22( other._22 ), _23( other._23 ), _24(0), 
-		_31( other._31 ), _32( other._32 ), _33( other._33 ), _34(0),
+	template<class _T2>
+	_inline_ explicit VWB_MATRIX( VWB_MATRIX33<_T2> const& other ) :
+		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ), _14(0),
+		_21( (_T)other._21 ), _22( (_T)other._22 ), _23( (_T)other._23 ), _24(0),
+		_31( (_T)other._31 ), _32( (_T)other._32 ), _33( (_T)other._33 ), _34(0),
 		_41(0), _42(0), _43(0), _44(1) {}
 	template<class _T2>
 	_inline_ explicit VWB_MATRIX( VWB_MATRIX<_T2> const& other ) : 
@@ -428,13 +423,7 @@ struct VWB_MATRIX
 		_21(f21), _22(f22), _23(f23), _24(f24),
 		_31(f31), _32(f32), _33(f33), _34(f34),
 		_41(f41), _42(f42), _43(f43), _44(f44) {}
-	template< class _T2 >
-	_inline_ VWB_MATRIX& operator=( VWB_MATRIX<_T2> const& other ) {
-		_11 = (_T)other._11; _12 = (_T)other._12; _13 = (_T)other._13; _14 = (_T)other._14;
-		_21 = (_T)other._21; _22 = (_T)other._22; _23 = (_T)other._23; _24 = (_T)other._24; 
-		_31 = (_T)other._31; _32 = (_T)other._32; _33 = (_T)other._33; _34 = (_T)other._34;
-		_41 = (_T)other._41; _42 = (_T)other._42; _43 = (_T)other._43; _44 = (_T)other._44; 
-		return *this; }
+
 	_inline_ static VWB_MATRIX & ptr( _T* p ) { return *(VWB_MATRIX*)p; }
 	_inline_ static VWB_MATRIX const& ptr( _T const* p ) { return *(VWB_MATRIX const*)p; }
 	_inline_ static VWB_MATRIX I() { return VWB_MATRIX( 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1);}
@@ -977,12 +966,12 @@ struct VWB_MATRIX33
     };
 	_inline_ VWB_MATRIX33() {};
 	_inline_ VWB_MATRIX33( VWB_MATRIX33 const& other ) { memcpy( this, &other, sizeof( *this ) ); }
-	_inline_ VWB_MATRIX33( VWB_MATRIX<_T> const& other ) : 
+	_inline_ explicit VWB_MATRIX33( VWB_MATRIX<_T> const& other ) : 
 		_11( other._11 ), _12( other._12 ), _13( other._13 ),
 		_21( other._21 ), _22( other._22 ), _23( other._23 ), 
 		_31( other._31 ), _32( other._32 ), _33( other._33 ) {}
 	template<class _T2>
-	_inline_ VWB_MATRIX33( VWB_MATRIX33<_T2> const& other ) : 
+	_inline_ explicit VWB_MATRIX33( VWB_MATRIX33<_T2> const& other ) : 
 		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ),
 		_21( (_T)other._21 ), _22( (_T)other._22 ), _23( (_T)other._23 ), 
 		_31( (_T)other._31 ), _32( (_T)other._32 ), _33( (_T)other._33 ){}
@@ -995,12 +984,6 @@ struct VWB_MATRIX33
 		_21 = f21; _22 = f22; _23 = f23;
 		_31 = f31; _32 = f32; _33 = f33;
 	}
-	template< class _T2 >
-	_inline_ VWB_MATRIX33& operator=( VWB_MATRIX33<_T2> const& other ) {
-		_11 = (_T)other._11; _12 = (_T)other._12; _13 = (_T)other._13;
-		_21 = (_T)other._21; _22 = (_T)other._22; _23 = (_T)other._23; 
-		_31 = (_T)other._31; _32 = (_T)other._32; _33 = (_T)other._33;
-		return *this; }
 	_inline_ static VWB_MATRIX33 const& ptr( _T const* p ) { return *(VWB_MATRIX33 const*)p; }
 	_inline_ static VWB_MATRIX33& ptr( _T* p ) { return *(VWB_MATRIX33*)p; }
 	_inline_ static VWB_MATRIX33 I() { VWB_MATRIX33 res( 1,0,0, 0,1,0, 0,0,1 ); return res;}

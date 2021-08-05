@@ -336,31 +336,37 @@ public:
         XMFLOAT3 vRot( 0.0f, 0.0f, 0.0f );
 
         // we're switching methods each call, to show they are equivalent
-        // VWB_getPosDir yields a symmetric frustum. Image quality suffers, if view angle is
+        // VWB_getPosDir can yield a symmetric frustum. Image quality suffers, if view angle is
         // far off from perpendicular to the screen. Try using asymetric frustum, especially in 
-        // dynamic eye-point scenarios.
+        // dynamic eye-point scenarios. If a symmetric frustum is requested.
+        XMMATRIX mv1, mv2, mv3, mp1, mp2, mp3;
         static unsigned int pass = 2;
         if( 3 == ++pass )
-        //if( 0 == pass )
         {
             pass = 0;
             // get view and projection matrix directly
-            VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, (float*)m_mProjection.r );
+            VWB_getViewProj( m_warper, &vEyePt.x, &vRot.x, (float*)mv1.r, (float*)mp1.r );
+            m_mView = mv1;
+            m_mProjection = mp1;
         }
-        //else if( 1 == pass )
-        //{
-        //    float clip[6];
-        //    VWB_getViewClip( m_warper, &vEyePt.x, &vRot.x, (float*)m_mView.r, clip );
-        //    m_mProjection = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-        //}
+        else if( 1 == pass )
+        {
+            float clip[6];
+            VWB_getViewClip( m_warper, &vEyePt.x, &vRot.x, (float*)mv2.r, clip );
+            mp2 = XMMatrixPerspectiveOffCenterLH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+            m_mView = mv2;
+            m_mProjection = mp2;
+        }
         else
         {
             float pos[3];
             float dir[3];
             float clip[6];
             VWB_getPosDirClip( m_warper, &vEyePt.x, &vRot.x, pos, dir, clip, true, m_vp.Width / m_vp.Height );
-            m_mView = XMMatrixRotationRollPitchYaw( -dir[0], dir[1], dir[2] );
-			m_mProjection = XMMatrixPerspectiveLH( 2 * clip[0], 2 * clip[3], clip[4], clip[5] );
+            mv3 = XMMatrixRotationRollPitchYaw( -dir[0],  dir[1],  dir[2] );
+            mp3 = XMMatrixPerspectiveLH( clip[0] + clip[2], clip[1] + clip[3], clip[4], clip[5] );
+            m_mView = mv3;
+            m_mProjection = mp3;
         }
         ////< end VIOSO API code
 
@@ -452,11 +458,13 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 
         #else // from command line
 
+        // preinitialize with defaults
         int x = 0;
         int y = 0;
         int w = 0;
         int h = 0;
         std::wstring channel = L"Display1";
+        // set from cmdline
         std::wistringstream cmd( lpCmdLine );
         cmd >> channel >> x >> y >> w >> h;
 

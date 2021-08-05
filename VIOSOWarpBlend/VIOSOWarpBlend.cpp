@@ -1310,10 +1310,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	// use mid points and transform to IG coordinates
 	VWB_VEC3d dx,dy,dtl,dtr,dbl,dbr; // the main coordinate axes to-be.
 
-	dtl = VWB_VEC3f::ptr((VWB_float*)ptl);
-	dtr = VWB_VEC3f::ptr((VWB_float*)ptr);
-	dbl = VWB_VEC3f::ptr((VWB_float*)pbl);
-	dbr = VWB_VEC3f::ptr((VWB_float*)pbr);
+	dtl = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)ptl) );
+	dtr = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)ptr) );
+	dbl = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)pbl) );
+	dbr = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)pbr) );
 	dtl = Bi * dtl;
 	dtr = Bi * dtr;
 	dbr = Bi * dbr;
@@ -1336,7 +1336,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	logStr( 3, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
 			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
 
-	VWB_VEC3f::ptr( dir ) = ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI );
+	VWB_VEC3f::ptr( dir ) = VWB_VEC3f( ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI ) );
 
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
