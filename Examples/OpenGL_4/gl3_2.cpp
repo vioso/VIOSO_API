@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <memory>
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "../../VIOSOWarpBlend/GL/GLext.h"
 
@@ -14,11 +15,10 @@ const int c_numTri = 30;
 const GLfloat c_rad = 3;
 
 #ifdef USE_VIOSO_API
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
-#include "../../Include/VIOSOWarpBlend.h"
+#include "../../Include/VIOSOWarpBlend.hpp"
 
 LPCTSTR s_configFile = _T("VIOSOWarpBlendGL.ini");
-VWB_Warper* pWarper = NULL;
+std::shared_ptr<VWB> pWarper;
 #endif //USE_VIOSO_API
 
 #include <gl\gl.h>			// Header File For The OpenGL32 Library
@@ -138,8 +138,8 @@ void APIENTRY glLog( GLenum source, GLenum type, GLuint id, GLenum severity, GLs
 GLvoid KillGLWindow( GLvoid )								// Properly Kill The Window
 {
 	#ifdef USE_VIOSO_API
-	if( pWarper && VWB_Destroy )
-		VWB_Destroy( pWarper );
+	if( pWarper )
+		pWarper.reset();
 	#endif //def USE_VIOSO_API
 
 	if( hRC )											// Do We Have A Rendering Context?
@@ -511,13 +511,13 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	GLfloat eye[3] = { 0,0,0 };
 	GLfloat rot[3] = { 0,0,0 };
 
-	if( pWarper && VWB_getViewProj )
+	if( pWarper )
 	{
 		// either use this
-		VWB_getViewProj( pWarper, eye, rot, view, proj );
+		pWarper->GetViewProj( eye, rot, view, proj );
 
 		// or use this, which yields exact same result
-		VWB_getViewClip( pWarper, eye, rot, view2, clip );
+		pWarper->GetViewClip( eye, rot, view2, clip );
 		GLFrustumRH( proj2, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
 
 		// TODO: VWB_getPosDirFov or even this
@@ -571,9 +571,9 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	}
 	#ifdef USE_VIOSO_API
 	//< start VIOSO API code
-	if( pWarper && VWB_render )
+	if( pWarper )
 	{
-		VWB_render( pWarper, VWB_UNDEFINED_GL_TEXTURE, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
+		pWarper->Render( VWB_UNDEFINED_GL_TEXTURE, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
 	}
 	//< end VIOSO API code
 	#endif //def USE_VIOSO_API
@@ -804,16 +804,14 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	}
 
 	#ifdef USE_VIOSO_API
-	#define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-	#include "../../Include/VIOSOWarpBlend.h"
-
-	if( NULL == VWB_Create ||
-		VWB_ERROR_NONE != VWB_Create( NULL, s_configFile, channel.c_str(), &pWarper, 1, NULL ) )
+	try {
+		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
+	}
+	catch( VWB_ERROR  )
+	{
 		return FALSE;
-	// maybe check and modify settings here
-	if( NULL == pWarper ||
-		NULL == VWB_Init ||
-		VWB_ERROR_NONE != VWB_Init( pWarper ) )
+	}
+	if( VWB_ERROR_NONE != pWarper->Init() )
 		return FALSE;
 	#endif //def USE_VIOSO_API
 

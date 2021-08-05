@@ -18,6 +18,32 @@
 #define DEG2RADd( v ) ( (v) * VWB_double(PI / 180) )
 #define RAD2DEGd( v ) ( (v) * VWB_double(180 / M_PI) )
 
+/// calculates barycentric coordinates from a point p in relation to triangle formed by p1, p2, p3 all vec2, l is a vec3
+template< class T >
+_inline_ bool Cart2Bary2D( T const* p1, T const* p2, T const* p3, T const* p, T* l )
+{
+	T v0[2] = { p2[0] - p1[0], p2[1] - p1[1] };
+	T v1[2] = { p3[0] - p1[0], p3[1] - p1[1] };
+	T v2[2] = { p[0] - p1[0],  p[1] - p1[1] };
+	T den = v0[0] * v1[1] - v1[0] * v0[1];
+	if( std::numeric_limits<T>::epsilon() > abs( den ) )
+		return false;
+
+	den = T( 1 ) / den;
+	l[1] = ( v2[0] * v1[1] - v1[0] * v2[1] ) * den;
+	l[2] = ( v0[0] * v2[1] - v2[0] * v0[1] ) * den;
+	l[0] = 1.0f - l[2] - l[1];
+	return true;
+}
+
+/// calculates cartesian from barycentric coordinates, all vectors except l are vec2, which is vec3
+template< class T >
+_inline_ void Bary2Cart2D( T const* p1, T const* p2, T const* p3, T const* l, T* p )
+{
+	p[0] = l[0] * p1[0] + l[1] * p2[0] + l[2] * p3[0];
+	p[1] = l[0] * p1[1] + l[1] * p2[1] + l[2] * p3[1];
+}
+
 template<class T>
 struct VWB_MATRIX;
 
@@ -36,8 +62,10 @@ struct VWB_VECTOR3
 	T z;
 	_inline_ VWB_VECTOR3() {};
 	template< class _T2 >
-	_inline_ VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
-    // without the following initualizer commented out gcc complains about amiguity (with the preceding initialzer?)
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
+	template< class _T2 >
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x/other.w ), y( (T)other.y/other.w ), z( (T)other.z/other.w ) {}
+	// without the following initualizer commented out gcc complains about amiguity (with the preceding initialzer?)
 	//_inline_ VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR3( T _x, T _y, T _z ) : x(_x), y(_y), z(_z) {}
 
@@ -47,40 +75,56 @@ struct VWB_VECTOR3
 	_inline_ static VWB_VECTOR3 Ex() { return VWB_VECTOR3(1,0,0); }
 	_inline_ static VWB_VECTOR3 Ey() { return VWB_VECTOR3(0,1,0); }
 	_inline_ static VWB_VECTOR3 Ez() { return VWB_VECTOR3(0,0,1); }
-	// gets barycentric coordinates from p placed on a triangle p1-p2-p3, z-coordinate must be the same on all vectors!
-	_inline_ static bool Cart2Bary( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& p, VWB_VECTOR3& l ) 
+
+	
+	// calculates barycentric coordinates from a point p in relation to triangle formed by p1, p2, p3 all are vec3, l is vec3
+	_inline_ static bool Cart2Bary( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& p, VWB_VECTOR3& l )
 	{
 
-		VWB_VECTOR3 v0 = p2 - p1, v1 = p3 - p1, v2 = p - p1;
-		T d00 = v0.dot(v0);
-		T d01 = v0.dot(v1);
-		T d11 = v1.dot(v1);
-		T d20 = v2.dot(v0);
-		T d21 = v2.dot(v1);
-		T denom = T(1) / ( d00 * d11 - d01 * d01 );
-		l.x = (d11 * d20 - d01 * d21) * denom;
-		l.y = (d00 * d21 - d01 * d20) * denom;
-		l.z = T(1) - l.x - l.y;
-		if( 0 <= l.x && l.x <= 1 && 0 <= l.y && l.y <= 1 && 0 <= l.z && l.z <= 1 )
-			return true;
-		else
+		T v0[3] = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
+		T v1[3] = { p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2] };
+		T v2[3] = { p[0] - p1[0],  p[1] - p1[1],  p[2] - p1[2] };
+		T d00 = v0[0] * v0[0] + v0[1] * v0[1] + v0[2] * v0[2];
+		T d01 = v0[0] * v1[0] + v0[1] * v1[1] + v0[2] * v1[2];
+		T d11 = v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2];
+		T d20 = v2[0] * v0[0] + v2[1] * v0[1] + v2[2] * v0[2];
+		T d21 = v2[0] * v1[0] + v2[1] * v1[1] + v2[2] * v1[2];
+
+		T den = d00 * d11 - d01 * d01;
+		if( std::numeric_limits<T>::epsilon() > abs( den ) )
 			return false;
+
+		den = T( 1 ) / den;
+		l[1] = ( d11 * d20 - d01 * d21 ) * den;
+		l[2] = ( d00 * d21 - d01 * d20 ) * den;
+		l[0] = T( 1 ) - l[2] - l[1];
+		return true;
+	}
+	_inline_ VWB_VECTOR3 Cart2Bary( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& p )
+	{
+		VWB_VECTOR3& l;
+		if( Cart2Bary( p1, p2, p3, p, l ) )
+			return l;
+		else
+			return VWB_VECTOR3::O();
 	}
 
-	_inline_ static bool Bary2Cart( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& l, VWB_VECTOR3& p ) 
+	/// calculates cartesian from barycentric coordinates, all vectors are vec3
+	_inline_ static void Bary2Cart( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& l, VWB_VECTOR3& p )
 	{
-		p.x = l.x * p1.x + l.y * p2.x + l.z * p3.x;
-		p.y = l.x * p1.y + l.y * p2.y + l.z * p3.y;
-		p.z = l.x * p1.z + l.y * p2.z + l.z * p3.z;
-		return true;
+		p[0] = l[0] * p1[0] + l[1] * p2[0] + l[2] * p3[0];
+		p[1] = l[0] * p1[1] + l[1] * p2[1] + l[2] * p3[1];
+		p[2] = l[0] * p1[2] + l[1] * p2[2] + l[2] * p3[2];
+	}
+	_inline_ VWB_VECTOR3 Bary2Cart( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& l ) 
+	{
+		VWB_VECTOR3 p;
+		Bary2Cart( p1, p2, p3, l, p );
+		return p;
 	}
 
 	_inline_ operator T const* () const { return &x; }
 	_inline_ operator T* () { return &x; }
-	template< class _T2 >
-	_inline_ VWB_VECTOR3& operator=( VWB_VECTOR3<_T2> const& other ) {
-		x = (T)other.x; y = (T)other.y; z = (T)other.z;
-		return *this; }
 	_inline_ T lenSq() const { return x * x + y * y + z * z; }
 	_inline_ T len() const { return sqrt( lenSq() ); }
 	_inline_ T norm() const { return sqrt( lenSq() ); }
@@ -97,12 +141,12 @@ struct VWB_VECTOR3
 	}
 	_inline_ VWB_VECTOR3 operator*( T const& other ) const// scalar
 	{
-		VWB_VECTOR3 res( x * other, y * other, z * other );
-		return res;
+		return VWB_VECTOR3( x * other, y * other, z * other );
 	}
 	_inline_ VWB_VECTOR3 operator/( T const& other ) const// scalar
 	{
-		VWB_VECTOR3 res( x / other, y / other, z / other );
+		T const rec = T( 1 ) / other;
+		VWB_VECTOR3 res( x * rec, y * rec, z * rec );
 		return res;
 	}
 	_inline_ VWB_VECTOR3 operator*( VWB_VECTOR3 const& other ) const// cross
@@ -190,7 +234,7 @@ struct VWB_VECTOR3
 	{
 		memcpy( p, this, sizeof( *this ) );
 	}
-	_inline_ VWB_VECTOR3& normalize()
+	_inline_ VWB_VECTOR3& Normalize()
 	{
 		T l = len();
 		if( FLT_MIN < l || -FLT_MIN > l )
@@ -222,9 +266,9 @@ struct VWB_VECTOR4
 	T w;
 	_inline_ VWB_VECTOR4() {};
 	template< class _T2>
-	_inline_ VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
+	_inline_ explicit VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
 	template< class _T2>
-	_inline_ VWB_VECTOR4( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)1 ) {}
+	_inline_ explicit VWB_VECTOR4( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)1 ) {}
 	_inline_ VWB_VECTOR4( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR4( T _x, T _y, T _z, T _w ) : x(_x), y(_y), z(_z), w(_w) {}
 	_inline_ static VWB_VECTOR4 const& ptr( T const* p ) { return *(VWB_VECTOR4 const*)p; }
@@ -238,10 +282,6 @@ struct VWB_VECTOR4
 	_inline_ operator VWB_VECTOR3<T> const& () const { return *(VWB_VECTOR3<T>*)this; }
 	_inline_ operator T const* () const { return &x; }
 	_inline_ operator T* () { return &x; }
-	template< class _T2 >
-	_inline_ VWB_VECTOR4& operator=( VWB_VECTOR4<_T2> const& other ) {
-		x = (T)other.x; y = (T)other.y; z = (T)other.z; w = (T)other.w;
-		return *this; }
 
 	_inline_ VWB_VECTOR4 operator-() const { return VWB_VECTOR4( -x, -y, -z, -w ); }
 	_inline_ bool operator==(VWB_VECTOR4 const& other) const { return x == other.x && y == other.y && z == other.z && w == other.w; }
@@ -362,10 +402,11 @@ struct VWB_MATRIX
     };
 	_inline_ VWB_MATRIX() {};
 	_inline_ VWB_MATRIX( VWB_MATRIX const& other ) { memcpy( this, &other, sizeof( *this ) ); }
-	_inline_ explicit VWB_MATRIX( VWB_MATRIX33<_T> const& other ) :
-		_11( other._11 ), _12( other._12 ), _13( other._13 ), _14(0),
-		_21( other._21 ), _22( other._22 ), _23( other._23 ), _24(0), 
-		_31( other._31 ), _32( other._32 ), _33( other._33 ), _34(0),
+	template<class _T2>
+	_inline_ explicit VWB_MATRIX( VWB_MATRIX33<_T2> const& other ) :
+		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ), _14(0),
+		_21( (_T)other._21 ), _22( (_T)other._22 ), _23( (_T)other._23 ), _24(0),
+		_31( (_T)other._31 ), _32( (_T)other._32 ), _33( (_T)other._33 ), _34(0),
 		_41(0), _42(0), _43(0), _44(1) {}
 	template<class _T2>
 	_inline_ explicit VWB_MATRIX( VWB_MATRIX<_T2> const& other ) : 
@@ -382,13 +423,7 @@ struct VWB_MATRIX
 		_21(f21), _22(f22), _23(f23), _24(f24),
 		_31(f31), _32(f32), _33(f33), _34(f34),
 		_41(f41), _42(f42), _43(f43), _44(f44) {}
-	template< class _T2 >
-	_inline_ VWB_MATRIX& operator=( VWB_MATRIX<_T2> const& other ) {
-		_11 = (_T)other._11; _12 = (_T)other._12; _13 = (_T)other._13; _14 = (_T)other._14;
-		_21 = (_T)other._21; _22 = (_T)other._22; _23 = (_T)other._23; _24 = (_T)other._24; 
-		_31 = (_T)other._31; _32 = (_T)other._32; _33 = (_T)other._33; _34 = (_T)other._34;
-		_41 = (_T)other._41; _42 = (_T)other._42; _43 = (_T)other._43; _44 = (_T)other._44; 
-		return *this; }
+
 	_inline_ static VWB_MATRIX & ptr( _T* p ) { return *(VWB_MATRIX*)p; }
 	_inline_ static VWB_MATRIX const& ptr( _T const* p ) { return *(VWB_MATRIX const*)p; }
 	_inline_ static VWB_MATRIX I() { return VWB_MATRIX( 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1);}
@@ -879,11 +914,17 @@ struct VWB_MATRIX
 	_inline_ VWB_VECTOR4<_T> const& Z() const { return *(VWB_VECTOR4<_T>*)&_31; }
 	_inline_ VWB_VECTOR4<_T>& W() { return *(VWB_VECTOR4<_T>*)&_41; }
 	_inline_ VWB_VECTOR4<_T> const& W() const { return *(VWB_VECTOR4<_T>*)&_41; }
-	_inline_ VWB_MATRIX33<_T> Upper()
+	_inline_ VWB_MATRIX33<_T> Upper() const
 	{
 		return VWB_MATRIX33<_T>( _11, _12, _13,
 								 _21, _22, _23,
 								 _31, _32, _33 );
+	}
+	_inline_ void SetUpper( VWB_MATRIX33<_T> const& other )
+	{
+		_11 = other._11; _12 = other._12; _13 = other._13;
+		_21 = other._21; _22 = other._22; _23 = other._23;
+		_31 = other._31; _32 = other._32; _33 = other._33;
 	}
 
 	_inline_ bool IsZero() const
@@ -925,12 +966,12 @@ struct VWB_MATRIX33
     };
 	_inline_ VWB_MATRIX33() {};
 	_inline_ VWB_MATRIX33( VWB_MATRIX33 const& other ) { memcpy( this, &other, sizeof( *this ) ); }
-	_inline_ VWB_MATRIX33( VWB_MATRIX<_T> const& other ) : 
+	_inline_ explicit VWB_MATRIX33( VWB_MATRIX<_T> const& other ) : 
 		_11( other._11 ), _12( other._12 ), _13( other._13 ),
 		_21( other._21 ), _22( other._22 ), _23( other._23 ), 
 		_31( other._31 ), _32( other._32 ), _33( other._33 ) {}
 	template<class _T2>
-	_inline_ VWB_MATRIX33( VWB_MATRIX33<_T2> const& other ) : 
+	_inline_ explicit VWB_MATRIX33( VWB_MATRIX33<_T2> const& other ) : 
 		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ),
 		_21( (_T)other._21 ), _22( (_T)other._22 ), _23( (_T)other._23 ), 
 		_31( (_T)other._31 ), _32( (_T)other._32 ), _33( (_T)other._33 ){}
@@ -943,12 +984,6 @@ struct VWB_MATRIX33
 		_21 = f21; _22 = f22; _23 = f23;
 		_31 = f31; _32 = f32; _33 = f33;
 	}
-	template< class _T2 >
-	_inline_ VWB_MATRIX33& operator=( VWB_MATRIX33<_T2> const& other ) {
-		_11 = (_T)other._11; _12 = (_T)other._12; _13 = (_T)other._13;
-		_21 = (_T)other._21; _22 = (_T)other._22; _23 = (_T)other._23; 
-		_31 = (_T)other._31; _32 = (_T)other._32; _33 = (_T)other._33;
-		return *this; }
 	_inline_ static VWB_MATRIX33 const& ptr( _T const* p ) { return *(VWB_MATRIX33 const*)p; }
 	_inline_ static VWB_MATRIX33& ptr( _T* p ) { return *(VWB_MATRIX33*)p; }
 	_inline_ static VWB_MATRIX33 I() { VWB_MATRIX33 res( 1,0,0, 0,1,0, 0,0,1 ); return res;}
@@ -998,7 +1033,7 @@ struct VWB_MATRIX33
 	_inline_ static VWB_MATRIX33 R_LH( VWB_VECTOR3<_T> r ) { return R_LH( r.x, r.y, r.z ); }
 
 	// give device x and y axis
-	_inline_ static VWB_MATRIX33 base( VWB_VECTOR3<_T> dx, VWB_VECTOR3<_T> dy )
+	_inline_ static VWB_MATRIX33 Base( VWB_VECTOR3<_T> dx, VWB_VECTOR3<_T> dy )
 	{
 		VWB_MATRIX33 res;
 		res._11 = dx.x;
@@ -1012,9 +1047,9 @@ struct VWB_MATRIX33
 		res._21 = dx.z * res._32 - dx.y * res._33;
 		res._22 = dx.x * res._33 - dx.z * res._31;
 		res._23 = dx.y * res._31 - dx.x * res._32;
-		res.X().normalize();
-		res.Y().normalize();
-		res.Z().normalize();
+		res.X().Normalize();
+		res.Y().Normalize();
+		res.Z().Normalize();
 		return res;
 	}
 
@@ -1193,7 +1228,7 @@ struct VWB_MATRIX33
 		return pA;
 	}
 
-	_inline_ VWB_MATRIX33& normalize()
+	_inline_ VWB_MATRIX33& Normalize()
 	{
 		_T l = _11 * _11;
 		for( int i = 1; i != 9; i++ )
@@ -1204,7 +1239,7 @@ struct VWB_MATRIX33
 			for( int i = 0; i != 9; i++ )
 				p[i]/= l;
 		}
-	return *this;
+		return *this;
 	}
 	_inline_ VWB_VECTOR3<_T>& X() { return *(VWB_VECTOR3<_T>*)&_11; }
 	_inline_ VWB_VECTOR3<_T> const& X() const { return *(VWB_VECTOR3<_T>*)&_11; }
@@ -1241,63 +1276,63 @@ struct VWB_MATRIX33
 template< class T >
 struct VWB_BOX
 {
-	VWB_VECTOR3<T> min, max;
+	VWB_VECTOR3<T> vMin, vMax;
 	_inline_ VWB_BOX(){}
-	_inline_ VWB_BOX( VWB_BOX const& other ) : min( other.min ), max( other.max ) {}
-	_inline_ VWB_BOX( VWB_VECTOR3<T> const& _tl, VWB_VECTOR3<T> const& _br ) : min( _tl ), max( _br ) {}
+	_inline_ VWB_BOX( VWB_BOX const& other ) : vMin( other.vMin ), vMax( other.vMax ) {}
+	_inline_ VWB_BOX( VWB_VECTOR3<T> const& _tl, VWB_VECTOR3<T> const& _br ) : vMin( _tl ), vMax( _br ) {}
 	_inline_ VWB_BOX& operator+=( VWB_BOX const& other )
 	{
-		if( other.min[0] < min[0] )
-			min[0] = other.min[0];
-		if( other.max[0] > max[0] )
-			max[0] = other.max[0];
+		if( other.vMin[0] < vMin[0] )
+			vMin[0] = other.vMin[0];
+		if( other.vMax[0] > vMax[0] )
+			vMax[0] = other.vMax[0];
 
-		if( other.min[1] < min[1] )
-			min[1] = other.min[1];
-		if( other.max[1] > max[1] )
-			max[1] = other.max[1];
+		if( other.vMin[1] < vMin[1] )
+			vMin[1] = other.vMin[1];
+		if( other.vMax[1] > vMax[1] )
+			vMax[1] = other.vMax[1];
 
-		if( other.min[2] < min[2] )
-			min[2] = other.min[2];
-		if( other.max[2] > max[2] )
-			max[2] = other.max[2];
+		if( other.vMin[2] < vMin[2] )
+			vMin[2] = other.vMin[2];
+		if( other.vMax[2] > vMax[2] )
+			vMax[2] = other.vMax[2];
 		return *this;
 	};
 	_inline_ VWB_BOX& operator+=( VWB_VECTOR3<T> const& other )
 	{
-		if( other[0] < min[0] )
-			min[0] = other[0];
-		if( other[0] > max[0] )
-			max[0] = other[0];
+		if( other[0] < vMin[0] )
+			vMin[0] = other[0];
+		if( other[0] > vMax[0] )
+			vMax[0] = other[0];
 
-		if( other[1] < min[1] )
-			min[1] = other[1];
-		if( other[1] > max[1] )
-			max[1] = other[1];
+		if( other[1] < vMin[1] )
+			vMin[1] = other[1];
+		if( other[1] > vMax[1] )
+			vMax[1] = other[1];
 
-		if( other[2] < min[2] )
-			min[2] = other[2];
-		if( other[2] > max[2] )
-			max[2] = other[2];
+		if( other[2] < vMin[2] )
+			vMin[2] = other[2];
+		if( other[2] > vMax[2] )
+			vMax[2] = other[2];
 		return *this;
 	};
 	_inline_ VWB_BOX operator+( VWB_BOX const& other ) const
 	{
 		VWB_BOX r( *this );
-		if( other.min[0] < r.min[0] )
-			r.min[0] = other.r.tl[0];
-		if( other.max[0] > r.max[0] )
-			r.max[0] = other.max[0];
+		if( other.vMin[0] < r.vMin[0] )
+			r.vMin[0] = other.r.tl[0];
+		if( other.vMax[0] > r.vMax[0] )
+			r.vMax[0] = other.vMax[0];
 
-		if( other.min[1] < r.min[1] )
-			r.min[1] = other[1];
-		if( other.max[1] > r.max[1] )
-			r.max[1] = other.max[1];
+		if( other.vMin[1] < r.vMin[1] )
+			r.vMin[1] = other[1];
+		if( other.vMax[1] > r.vMax[1] )
+			r.vMax[1] = other.vMax[1];
 
-		if( other.min[2] < r.min[2] )
-			r.min[2] = other.min[2];
-		if( other.max[2] > r.max[2] )
-			r.max[2] = other.max[2];
+		if( other.vMin[2] < r.vMin[2] )
+			r.vMin[2] = other.vMin[2];
+		if( other.vMax[2] > r.vMax[2] )
+			r.vMax[2] = other.vMax[2];
 		return r;
 	};
 
@@ -1305,25 +1340,80 @@ struct VWB_BOX
 	{
 		VWB_BOX r( *this );
 		if( other[0] < r.r.tl[0] )
-			r.min[0] = other[0];
-		if( other[0] > r.min[0] )
-			r.min[0] = other[0];
+			r.vMin[0] = other[0];
+		if( other[0] > r.vMin[0] )
+			r.vMin[0] = other[0];
 
-		if( other[1] < r.min[1] )
-			r.min[1] = other[1];
-		if( other[1] > r.min[1] )
-			r.min[1] = other[1];
+		if( other[1] < r.vMin[1] )
+			r.vMin[1] = other[1];
+		if( other[1] > r.vMin[1] )
+			r.vMin[1] = other[1];
 
-		if( other[2] < r.min[2] )
-			r.min[2] = other[2];
-		if( other[2] > r.max[2] )
-			r.max[2] = other[2];
+		if( other[2] < r.vMin[2] )
+			r.vMin[2] = other[2];
+		if( other[2] > r.vMax[2] )
+			r.vMax[2] = other[2];
 		return r;
 	};
-	_inline_ bool IsEmpty() { return min.x < max.x && min.y < max.y && min.z < max.z; }
+	_inline_ bool IsEmpty() { return vMin.x < vMax.x && vMin.y < vMax.y && vMin.z < vMax.z; }
 	_inline_ static VWB_BOX M() { return VWB_BOX( VWB_VECTOR3<T>( FLT_MAX,FLT_MAX,FLT_MAX ), VWB_VECTOR3<T>( -FLT_MAX,-FLT_MAX,-FLT_MAX ) ); }
 	_inline_ static VWB_BOX O() { return VWB_BOX( VWB_VECTOR3<T>( 0,0,0 ), VWB_VECTOR3<T>( 0,0,0 ) ); }
 };
+
+template< class T, bool rh >
+_inline_ void MakeSymmetric( VWB_MATRIX<T>& V, T( &clip )[6] )
+{
+	// calc reciprocal to avoid extra division
+	T nearRec = T( 1 ) / clip[4];
+
+	// angles
+	T a[] = {
+		atan( clip[0] * nearRec ),
+		atan( clip[1] * nearRec ),
+		atan( clip[2] * nearRec ),
+		atan( clip[3] * nearRec ) };
+
+	// normalized distance in x and y
+	T dxn = tan( ( a[2] - a[0] ) / 2 );
+	T dyn = tan( ( a[3] - a[1] ) / 2 );
+
+	// new clip
+	clip[0] = clip[2] = tan( ( a[0] + a[2] ) / 2 ) * clip[4];
+	clip[1] = clip[3] = tan( ( a[1] + a[3] ) / 2 ) * clip[4];
+
+	// add up clip differences in direction of base vectors
+	VWB_VECTOR3<T> mx;
+	VWB_VECTOR3<T> my;
+	if( rh )
+	{
+		mx = VWB_VECTOR3<T>( V.X() ) + VWB_VECTOR3<T>( V.Z() ) * dxn;
+		my = VWB_VECTOR3<T>( V.Y() ) - VWB_VECTOR3<T>( V.Z() ) * dyn;
+	}
+	else
+	{
+		mx = VWB_VECTOR3<T>( V.X() ) - VWB_VECTOR3<T>( V.Z() ) * dxn;
+		my = VWB_VECTOR3<T>( V.Y() ) + VWB_VECTOR3<T>( V.Z() ) * dyn;
+	}
+
+	// create new base
+	VWB_MATRIX33<T> R = VWB_MATRIX33<T>::Base( mx, my );
+
+	// set new rotation
+	V.SetUpper( R );
+
+}
+
+template< class T>
+_inline_ void MakeSymmetricRH( VWB_MATRIX<T>& V, T( &clip )[6] )
+{
+	MakeSymmetric<T, true>( V, clip );
+}
+
+template< class T>
+_inline_ void MakeSymmetricLH( VWB_MATRIX<T>& V, T( &clip )[6] )
+{
+	MakeSymmetric<T, false>( V, clip );
+}
 
 #pragma pack(pop)
 

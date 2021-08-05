@@ -571,6 +571,7 @@
       </MinimalRebuild>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <ShowIncludes>true</ShowIncludes>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -770,6 +771,7 @@
   <ItemGroup>
     <ClInclude Include="..\Include\EyePointProvider.h" />
     <ClInclude Include="..\Include\VIOSOWarpBlend.h" />
+    <ClInclude Include="..\Include\VIOSOWarpBlend.hpp" />
     <ClInclude Include="..\Include\VWBDef.h" />
     <ClInclude Include="..\Include\VWBTypes.h" />
     <ClInclude Include="3rdparty\delauney\DelaunayTriangles.h" />
@@ -784,6 +786,7 @@
     <ClInclude Include="DX\pixelshader.h" />
     <ClInclude Include="GL\GLext.h" />
     <ClInclude Include="GL\GLWarpBlend.h" />
+    <ClInclude Include="GL\GLWarpBlendXPL.h" />
     <ClInclude Include="GL\pixelshader.h" />
     <ClInclude Include="JSONWrapper.h" />
     <ClInclude Include="logging.h" />
@@ -825,6 +828,7 @@
     <ClCompile Include="DX\DX9WarpBlend.cpp" />
     <ClCompile Include="DX\DXWarpBlend.cpp" />
     <ClCompile Include="GL\GLWarpBlend.cpp" />
+    <ClCompile Include="GL\GLWarpBlendXPL.cpp" />
     <ClCompile Include="JSONWrapper.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Mantis|Win32'">true</ExcludedFromBuild>

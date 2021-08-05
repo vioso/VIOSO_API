@@ -5,10 +5,10 @@ void main()
 {
 	gl_Position=gl_Vertex;			
 	gl_TexCoord[0]=gl_MultiTexCoord0;
-	gl_TexCoord[0].x-=offScale.x;	
-	gl_TexCoord[0].y-=offScale.y;	
-	gl_TexCoord[0].x*=offScale.z;	
-	gl_TexCoord[0].x*=offScale.w;	
+	gl_TexCoord[0].x-=offsScale.x;	
+	gl_TexCoord[0].y-=offsScale.y;	
+	gl_TexCoord[0].x*=offsScale.z;	
+	gl_TexCoord[0].x*=offsScale.w;	
 }
 )END";
 
@@ -124,7 +124,7 @@ void main()
 )END";
 
 GLchar const* s_warp_blend_fragment_shader = R"END(
-void main()\n"
+void main()
 {																
 	vec4 tex = _tex2D( samWarp,texcoord.st );					
 	vec4 blend = _tex2D( samBlend, texcoord.st );				
@@ -139,7 +139,7 @@ void main()\n"
 		    tex.y*= 1.02;										
 		    tex.y-= 0.01;										
 		}														
-		tex.xy/= blend.a;										"
+		tex.xy/= blend.a;
 		FragColor = _texture2D( samContent, tex.xy );			
 		if( !bDoNotBlend )					
 			FragColor.rgb*= blend.rgb;		
@@ -172,7 +172,7 @@ void main()
 	if( 0.01 < blend.a )
 	{
 		tex/= blend.a;
-		tex.a = 1;
+		tex.a = 1.0;
 		tex = matView * tex;
 		tex.xy/= tex.w;
 		tex.x/=2.0;
@@ -205,5 +205,14 @@ void main()
 	{
 		FragColor = vec4( 0.0,0.0,0.0,1.0 );
 	}
+}
+)END";
+
+GLchar const* s_warp_blend_fragment_shader_3D_ = R"END(
+void main()
+{
+	//vec4 tex = _tex2D( samWarp, texcoord.st );
+	FragColor = _tex2D( samBlend, texcoord.st );
+	//FragColor = vec4( 1.0,texcoord.s,texcoord.t,1.0 );
 }
 )END";

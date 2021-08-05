@@ -3,6 +3,7 @@
 #include "DX/DX9EXWarpBlend.h"
 #include "DX/DX11WarpBlend.h"
 #include "DX/DX10WarpBlend.h"
+#include "GL/GLWarpBlendXPL.h"
 #include "Net.h"
 #ifndef VWB_WIN7_COMPAT
 #include "DX/DX12WarpBlend.h"
@@ -271,7 +272,6 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 	MkPath( g_logFilePath, MAX_PATH, ".log" );
 
 	try {
-#ifdef WIN32
 		if (VWB_DUMMYDEVICE == pDxDevice)
 		{
 			*ppWarper = new Dummywarper();
@@ -284,6 +284,18 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				IUnknown* pUK2 = NULL;
 				// destinguish between DX flavours
 				do {
+		#ifdef WIN32
+
+					if( SUCCEEDED( pUK->QueryInterface( __uuidof( IXPlaneRef ), (void**)&pUK2 ) ) )
+					{
+						pUK2->Release();
+						if( pUK == pUK2 )
+						{
+							*ppWarper = new GLWarpBlendXPL( (IXPlaneRef*)pDxDevice );
+							break;
+						}
+					}
+
 				#ifndef VWB_WIN7_COMPAT
 					if( SUCCEEDED( pUK->QueryInterface( __uuidof( ID3D12CommandQueue ), (void**)&pUK2 ) ) )
 					{
@@ -346,11 +358,11 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 						}
 					}
 
+		#endif //def WIN32
 				} while( 0 );
 			}
 		}
 		else
-#endif //def WIN32
 		{
 			*ppWarper = new GLWarpBlend();
 		}
@@ -704,7 +716,7 @@ dynamic eye - point scenarios.
 	m_mView = XMMatrixRotationRollPitchYaw( rot[0], -rot[1], -rot[2] ) * XMMatrixTranslation( pos[0], pos[1], pos[2] );
 	m_mProjection = XMMatrixPerspectiveFovLH( symClip[0], symClip[1], symClip[2], symClip[3] );
 */
-VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+	VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, float aspect )
 {
 	if( NULL != pEye && NULL != pRot )
 	{
@@ -716,16 +728,16 @@ VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pR
 	}
 	if( pWarper )
 	{
-		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosDirClip( pEye, pRot, pPos, pDir, pSymClip );
-		if( NULL != pPos && NULL != pDir && NULL != pSymClip )
+		VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->GetPosDirClip( pEye, pRot, pPos, pDir, pClip, symmetric, aspect );
+		if( NULL != pPos && NULL != pDir && NULL != pClip )
 		{
 			logStr( 4,
 					" OUT: pos: (%f, %f, %f)\n"
 					"      dir: (%f, %f, %f)\n"
-					"      clip: (%f, %f, %f, %f)\n"
+					"      clip: (%f, %f, %f, %f, %f, %f)\n"
 					, pPos[0], pPos[1], pPos[2]
 					, pDir[0], pDir[1], pDir[2]
-					, pSymClip[0], pSymClip[1], pSymClip[2], pSymClip[3]
+					, pClip[0], pClip[1], pClip[2], pClip[3]
 			);
 		}
 		return err;
@@ -1151,7 +1163,7 @@ VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_floa
 	return VWB_ERROR_NOT_IMPLEMENTED;
 }
 
-VWB_ERROR VWB_Warper_base::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip )
+VWB_ERROR VWB_Warper_base::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect )
 {
 	return VWB_ERROR_NOT_IMPLEMENTED;
 }
@@ -1298,10 +1310,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	// use mid points and transform to IG coordinates
 	VWB_VEC3d dx,dy,dtl,dtr,dbl,dbr; // the main coordinate axes to-be.
 
-	dtl = VWB_VEC3f::ptr((VWB_float*)ptl);
-	dtr = VWB_VEC3f::ptr((VWB_float*)ptr);
-	dbl = VWB_VEC3f::ptr((VWB_float*)pbl);
-	dbr = VWB_VEC3f::ptr((VWB_float*)pbr);
+	dtl = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)ptl) );
+	dtr = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)ptr) );
+	dbl = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)pbl) );
+	dbr = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)pbr) );
 	dtl = Bi * dtl;
 	dtr = Bi * dtr;
 	dbr = Bi * dbr;
@@ -1311,7 +1323,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	dy = dtl + dtr - dbl - dbr;
 	
 	// calculate local base matrix to IG coordinates
-	VWB_MAT33d M = VWB_MAT33d::base( dx, dy ); // this will always create a right-handed base with normalized vectors
+	VWB_MAT33d M = VWB_MAT33d::Base( dx, dy ); // this will always create a right-handed base with normalized vectors
 	VWB_MAT44d T = VWB_MAT44d(M) * Bi; // T contains now a transformation to a client coordinate system so that
 	// it's x-z plane most parallel to the plane span by the corners of the mapping
 	// y is aligned to point up
@@ -1324,7 +1336,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	logStr( 3, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
 			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
 
-	VWB_VEC3f::ptr( dir ) = ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI );
+	VWB_VEC3f::ptr( dir ) = VWB_VEC3f( ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI ) );
 
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
@@ -1398,8 +1410,8 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 					if( minDy > d && minY < d )
 						minDy = d;
 				}
-				*pTL = vTT; // w is set to 1 by implicit assignment by constructor
-				*pTLB = vTT;
+				*pTL = VWB_VEC4d( vTT ); // w is set to 1 by assignment by constructor
+				*pTLB = VWB_VEC4d( vTT );
 			}
 			else
 				pTL->w = 0;
@@ -1418,10 +1430,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	// now we have a minimal box around our point cloud, but in local base coordinates
 	// now we transform IG's eye to that coordinate system
 
-	double left =	b.min.x;
-	double top =	b.max.y;
-	double right =	b.max.x;
-	double bottom = b.min.y;
+	double left =	b.vMin.x;
+	double top =	b.vMax.y;
+	double right =	b.vMax.x;
+	double bottom = b.vMin.y;
 	screenDist = abs( screenDist );
 
 	fov[0] = VWB_float( RAD2DEG( atan( -maxEL ) ) );

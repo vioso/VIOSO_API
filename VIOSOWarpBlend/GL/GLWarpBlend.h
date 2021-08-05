@@ -5,6 +5,9 @@
 #include "GLext.h"
 #include <string>
 
+#define GL_EXT_DEFINE
+#include "GLext.h"
+
 class GLWarpBlend : public VWB_Warper_base
 {
 public:
@@ -52,11 +55,11 @@ public:
 
 	virtual VWB_ERROR Init( VWB_WarpBlendSet& wbs );
 
-	VWB_MAT44f UpdateView( VWB_VEC3f& e );
+	VWB_MAT44f UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e );
 
 	virtual VWB_ERROR GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj );
 	virtual VWB_ERROR GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip );
-	virtual VWB_ERROR GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip ) override;
+	virtual VWB_ERROR GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pSymClip, bool symmetric, VWB_float aspect ) override;
 
 	virtual VWB_ERROR SetViewProjection( VWB_float const* pView, VWB_float const* pProj );
 
@@ -65,9 +68,11 @@ public:
 
 protected:
 	// Helper functions
-    GLuint					CreatePixelShader(const std::string &src, const std::string &main, const std::string &profile) const;
-    std::string             PixelShaderSource() const;
-    void                    SetTexture(GLuint texLoc, GLuint tex, GLuint wrapMode = GL_CLAMP_TO_BORDER) const;
+    VWB_ERROR CreatePixelShader();
+	VWB_ERROR FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid* data, GLint filter, GLenum wrap );
+    void    SetTexture(GLuint texLoc, GLuint tex, GLuint wrapMode = GL_CLAMP_TO_BORDER) const;
+	static GLfloat colBlack[4];
+	static bool savetex( char filename[MAX_PATH], GLint iTex );
 };
 
 #endif //ndef VWB_GLWARPBLEND_HPP
