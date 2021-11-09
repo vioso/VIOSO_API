@@ -84,7 +84,7 @@ VWB_ERROR LoadBMP( std::istream& is, BITMAPFILEHEADER& bmfh, BITMAPINFO*& pBmi, 
 				is.read( (char*)pBmi->bmiColors, colorTableLength * sizeof( RGBQUAD ) );
 		}
 		// skip to data
-		is.seekg( bmfh.bfOffBits - sizeof( BITMAPFILEHEADER ) - sizeof( BITMAPINFOHEADER ) - colorTableLength * sizeof( RGBQUAD ), std::ios_base::_Seekcur );
+		is.seekg( bmfh.bfOffBits - sizeof( BITMAPFILEHEADER ) - sizeof( BITMAPINFOHEADER ) - colorTableLength * sizeof( RGBQUAD ), std::ios_base::cur );
 		if( 0 == pBmi->bmiHeader.biSizeImage )
 		{
 			int stride = ( ( ( ( bmih.biWidth * bmih.biBitCount ) + 31 ) & ~31 ) >> 3 );
@@ -99,7 +99,7 @@ VWB_ERROR LoadBMP( std::istream& is, BITMAPFILEHEADER& bmfh, BITMAPINFO*& pBmi, 
 		if( bSkipData )
 		{
 			pData = nullptr;
-			is.seekg( pBmi->bmiHeader.biSizeImage, std::ios_base::_Seekcur );
+			is.seekg( pBmi->bmiHeader.biSizeImage, std::ios_base::cur );
 		}
 		else
 		{
@@ -332,7 +332,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 					case '0fwv':
 						{
 							logStr( 2, "Load warp map %d...\n", VWB_uint(set.size()) );
-							ifs.seekg( -(std::streampos)sizeof( VWB_WarpSetFileHeader ), std::ios_base::_Seekcur );
+							ifs.seekg( -(std::streampos)sizeof( VWB_WarpSetFileHeader ), std::ios_base::cur );
 							VWB_WarpBlend* pWB = new VWB_WarpBlend;
 							memset( pWB, 0, sizeof( VWB_WarpBlend ) );
 
@@ -362,7 +362,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 										{
 											// skip data
 											set.push_back( pWB );
-											ifs.seekg( pWB->header.size, std::ios_base::_Seekcur );
+											ifs.seekg( pWB->header.size, std::ios_base::cur );
 											iExtMap = 0;
 											logStr( 2, "Warp map successfully added, new dataset (%d) %dx%d created, data loading skipped.\n", VWB_uint( set.size() ), pWB->header.width, pWB->header.height );
 											nSets--;
@@ -396,11 +396,11 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 					case '1fwv': 
 						// load only file header, which is already done
 						nSets = h0.numBlocks;
-						ifs.seekg( h0.offs - sizeof( VWB_WarpSetFileHeader ), std::ios_base::_Seekcur ); // jump to begin of data
+						ifs.seekg( h0.offs - sizeof( VWB_WarpSetFileHeader ), std::ios_base::cur ); // jump to begin of data
 						logStr( 2, "File contains %d chunks.\n", nSets );
 						break;
 					default:
-						ifs.seekg( -(std::streampos)sizeof( VWB_WarpSetFileHeader ), std::ios_base::_Seekcur );
+						ifs.seekg( -(std::streampos)sizeof( VWB_WarpSetFileHeader ), std::ios_base::cur );
 						if( 'B' == h0.magicNumber[0] && 'M' == h0.magicNumber[1] )
 						{ // load bitmap
 							logStr( 2, "Load bitmap for dataset %d...\n", VWB_uint( set.size() ) );
@@ -607,7 +607,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary );
+	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -692,7 +692,7 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary );
+	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -707,7 +707,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, cha
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary );
+	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -722,7 +722,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, ch
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary );
+	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -797,7 +797,7 @@ VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path)
 	char pp[MAX_PATH];
 	strcpy_s(pp, path);
 	MkPath(pp, MAX_PATH, ".vwf");
-	std::ofstream os( pp, std::ios_base::binary );
+	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
 	if (os.fail())
 	{
 		logStr(0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp);
