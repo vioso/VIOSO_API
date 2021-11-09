@@ -60,13 +60,13 @@ struct VWB_VECTOR3
 	T x;
 	T y;
 	T z;
-	_inline_ VWB_VECTOR3() {};
+	_inline_ VWB_VECTOR3() = default;
+	_inline_ VWB_VECTOR3( VWB_VECTOR3 const& other ) = default;
 	template< class _T2 >
 	_inline_ explicit VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
 	template< class _T2 >
-	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x/other.w ), y( (T)other.y/other.w ), z( (T)other.z/other.w ) {}
-	// without the following initualizer commented out gcc complains about amiguity (with the preceding initialzer?)
-	//_inline_ VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)(other.x/other.w) ), y( (T)(other.y/other.w) ), z( (T)(other.z/other.w) ) {}
+	_inline_ explicit VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR3( T _x, T _y, T _z ) : x(_x), y(_y), z(_z) {}
 
 	_inline_ static VWB_VECTOR3 const& ptr( T const* p ) { return *(VWB_VECTOR3 const*)p; }
@@ -264,12 +264,13 @@ struct VWB_VECTOR4
 	T y;
 	T z;
 	T w;
-	_inline_ VWB_VECTOR4() {};
+	_inline_ VWB_VECTOR4() = default;
+	_inline_ VWB_VECTOR4( VWB_VECTOR4 const& other ) = default;
 	template< class _T2>
 	_inline_ explicit VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
 	template< class _T2>
 	_inline_ explicit VWB_VECTOR4( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)1 ) {}
-	_inline_ VWB_VECTOR4( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
+	_inline_ explicit VWB_VECTOR4( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR4( T _x, T _y, T _z, T _w ) : x(_x), y(_y), z(_z), w(_w) {}
 	_inline_ static VWB_VECTOR4 const& ptr( T const* p ) { return *(VWB_VECTOR4 const*)p; }
 	_inline_ static VWB_VECTOR4& ptr( T* p ) { return *(VWB_VECTOR4*)p; }
@@ -400,8 +401,8 @@ struct VWB_MATRIX
         _T m[4][4];
         _T p[16];
     };
-	_inline_ VWB_MATRIX() {};
-	_inline_ VWB_MATRIX( VWB_MATRIX const& other ) { memcpy( this, &other, sizeof( *this ) ); }
+	_inline_ VWB_MATRIX() = default;
+	_inline_ VWB_MATRIX( VWB_MATRIX const& other ) = default;
 	template<class _T2>
 	_inline_ explicit VWB_MATRIX( VWB_MATRIX33<_T2> const& other ) :
 		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ), _14(0),
@@ -964,8 +965,8 @@ struct VWB_MATRIX33
         _T m[3][3];
 		_T p[9];
     };
-	_inline_ VWB_MATRIX33() {};
-	_inline_ VWB_MATRIX33( VWB_MATRIX33 const& other ) { memcpy( this, &other, sizeof( *this ) ); }
+	_inline_ VWB_MATRIX33() = default;
+	_inline_ VWB_MATRIX33( VWB_MATRIX33 const& other ) = default;
 	_inline_ explicit VWB_MATRIX33( VWB_MATRIX<_T> const& other ) : 
 		_11( other._11 ), _12( other._12 ), _13( other._13 ),
 		_21( other._21 ), _22( other._22 ), _23( other._23 ), 
@@ -975,7 +976,7 @@ struct VWB_MATRIX33
 		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ),
 		_21( (_T)other._21 ), _22( (_T)other._22 ), _23( (_T)other._23 ), 
 		_31( (_T)other._31 ), _32( (_T)other._32 ), _33( (_T)other._33 ){}
-	_inline_ VWB_MATRIX33( _T const* p ) { memcpy( this, p, sizeof( *this ) ); }
+	_inline_ explicit VWB_MATRIX33( _T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_MATRIX33( _T f11, _T f12, _T f13,
 			  _T f21, _T f22, _T f23,
 			  _T f31, _T f32, _T f33 )
@@ -1277,8 +1278,8 @@ template< class T >
 struct VWB_BOX
 {
 	VWB_VECTOR3<T> vMin, vMax;
-	_inline_ VWB_BOX(){}
-	_inline_ VWB_BOX( VWB_BOX const& other ) : vMin( other.vMin ), vMax( other.vMax ) {}
+	_inline_ VWB_BOX() = default;
+	_inline_ VWB_BOX( VWB_BOX const& other ) = default;
 	_inline_ VWB_BOX( VWB_VECTOR3<T> const& _tl, VWB_VECTOR3<T> const& _br ) : vMin( _tl ), vMax( _br ) {}
 	_inline_ VWB_BOX& operator+=( VWB_BOX const& other )
 	{
