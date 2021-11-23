@@ -207,12 +207,3 @@ void main()
 	}
 }
 )END";
-
-GLchar const* s_warp_blend_fragment_shader_3D_ = R"END(
-void main()
-{
-	//vec4 tex = _tex2D( samWarp, texcoord.st );
-	FragColor = _tex2D( samBlend, texcoord.st );
-	//FragColor = vec4( 1.0,texcoord.s,texcoord.t,1.0 );
-}
-)END";

@@ -6,6 +6,9 @@
 
 char g_logFilePath[MAX_PATH] = {0};
 VWB_int g_logLevel = 2;
+#ifndef WIN32
+#define NOERROR 0
+#endif
 
 int logStr( VWB_int level, char const* format, ... )
 {

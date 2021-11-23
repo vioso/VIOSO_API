@@ -14,17 +14,29 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string>
+
 typedef int errno_t;
 static const errno_t NO_ERROR = 0;
+static const errno_t NOERROR = 0;
+typedef void VOID;
+typedef struct {
+   int cx;
+   int cy;
+ } SIZE;
+#define ARRAYSIZE(a) \
+  ((sizeof(a) / sizeof(*(a))) / \
+   static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
+typedef int LONG;
 
-constexpr errno_t localtime_s( struct tm* const tmDest, time_t const* const sourceTime ) { *tmDest = *localtime( sourceTime );  return tmDest != NULL; }
-constexpr errno_t strcat_s( char* dest, size_t n, const char* src ) { return n <= strlcat( dest, src, n ); }
-constexpr errno_t strcat_s( char* dest, const char* src ) { strcat( dest, src ); return 0; }
-constexpr errno_t strcpy_s( char* dest, size_t n, const char* src ) { return n <= strlcpy( dest, src, n ); }
-constexpr errno_t strcpy_s( char* dest, const char* src ) { strcpy( dest, src ); return 0; }
-constexpr errno_t strncpy_s( char* dest, size_t n, const char* src, size_t count ) { if( n < count ) count = n; return n <= strlcpy( dest, src, count ); }
-constexpr errno_t strncpy_s( char* dest, const char* src, size_t count ) { strlcpy( dest, src, count ); return 0; }
-constexpr int fopen_s( FILE** f, const char* __restrict __filename, const char* __restrict __mode ) { *f = fopen( __filename, __mode );   return ( *f ? 0 : -1 ); }
+ errno_t localtime_s( struct tm* const tmDest, time_t const* const sourceTime );
+ errno_t strcat_s( char* dest, size_t n, const char* src );
+ constexpr errno_t strcat_s( char* dest, const char* src ) { strcat( dest, src ); return 0; }
+ errno_t strcpy_s( char* dest, size_t n, const char* src );
+ constexpr errno_t strcpy_s( char* dest, const char* src ) { strcpy( dest, src ); return 0; }
+ errno_t strncpy_s( char* dest, size_t n, const char* src, size_t count );
+ errno_t strncpy_s( char* dest, const char* src, size_t count );
+ int fopen_s( FILE** f, const char* __restrict __filename, const char* __restrict __mode );
+ errno_t wcstombs_s(size_t* pReturn, char*mbstr, const wchar_t* src, size_t cnt );
 
 #define vfprintf_s vfprintf
 #define fread_s(a,b,c,d,e) fread(a,c,d,e)

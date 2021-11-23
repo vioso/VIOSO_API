@@ -5,9 +5,6 @@
 #include "GLext.h"
 #include <string>
 
-#define GL_EXT_DEFINE
-#include "GLext.h"
-
 class GLWarpBlend : public VWB_Warper_base
 {
 public:

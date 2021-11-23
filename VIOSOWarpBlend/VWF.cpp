@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <fstream>
+#include <math.h>
 
 bool DeleteVWF( VWB_WarpBlend& wb )
 {
@@ -607,7 +608,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
+	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -692,7 +693,7 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
+	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -707,7 +708,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, cha
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
+	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -722,7 +723,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, ch
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
 	MkPath( pp, MAX_PATH, ".bmp" );
-	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
+	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
 		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
@@ -797,7 +798,7 @@ VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path)
 	char pp[MAX_PATH];
 	strcpy_s(pp, path);
 	MkPath(pp, MAX_PATH, ".vwf");
-	std::ofstream os( pp, std::ios_base::binary | std::ios_base::trunc );
+	std::ofstream os( pp, std::ios_base::binary );
 	if (os.fail())
 	{
 		logStr(0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp);
@@ -1180,7 +1181,7 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 	// create basic set, no warping no blending
 	VWB_uint nRecords = (VWB_uint)width * (VWB_uint)height;
 	set.push_back( new VWB_WarpBlend() );
-	set.back()->header = {
+	set.back()->header = VWB_WarpFileHeader4{
 		{'v','w','f','0'},
 		sizeof( VWB_WarpFileHeader4 ),
 		FLAG_WARPFILE_HEADER_CALIBRATION_BASE_TYP|FLAG_WARPFILE_HEADER_OFFSET|FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR,

@@ -517,7 +517,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 	VWB_ERROR err = VWB_ERROR_NONE;
 
-#ifdef _DEBUG
+#ifdef _SOCKTEST_DEV
 	if( pWarper->port )
 	{
 		SocketAddress sa = Socket::gethostbyname( "localhost" );
@@ -565,7 +565,8 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 			return err;
 		}
 	}
-#endif //def _DEBUG
+#endif //def _SOCKTEST_DEV
+
 	
 	if( nullptr != extSet )
 	{
@@ -608,7 +609,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 void VWB_Destroy( VWB_Warper* pWarper )
 {
-#ifdef WIN32
+#ifdef _SOCKTEST_DEV
 	if( !g_listeners.empty() )
 	{
 		for( std::vector< SPtr< VWBTCPListener > >::iterator it = g_listeners.begin(); it != g_listeners.end(); it++ )
@@ -626,7 +627,7 @@ void VWB_Destroy( VWB_Warper* pWarper )
 			}
 		}
 	}
-#endif def WIN32
+#endif //def _SOCKTEST_DEV
 	if( pWarper )
 		delete (VWB_Warper_base*)pWarper;
 }
@@ -1470,6 +1471,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
+#ifdef _SOCKTEST_DEV
 	if( 0 != port )
 	{
 		for( auto listener = g_listeners.begin(); listener != g_listeners.end(); listener++ )
@@ -1499,6 +1501,7 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 			}
 		}
 	}
+#endif //def _SOCKTEST_DEV
 	return VWB_ERROR_NONE;
 }
 
@@ -3147,4 +3150,4 @@ BOOL APIENTRY DllMain( HMODULE hModule,DWORD  ul_reason_for_call,LPVOID lpReserv
   void __attribute__ ((destructor)) my_fini(void)
   {
   }
-#endif /def WIN32
+#endif //def WIN32

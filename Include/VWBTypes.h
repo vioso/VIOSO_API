@@ -9,7 +9,7 @@ typedef void* VWB_param;	/// A versatile type to transfer an object pointer or i
 typedef wchar_t VWB_wchar;	/// a 16bit unsignd integer
 #ifndef MAX_PATH
 #define MAX_PATH 260		/// define a maximum file path length, if not done by the OS SDK
-#elsif( MAX_PATH != 260 )
+#elif( MAX_PATH != 260 )
 #error MAX_PATH define mismatch
 #endif //ndef MAX_PATH
 #else
@@ -539,6 +539,18 @@ typedef struct BITMAPINFO {
   BITMAPINFOHEADER bmiHeader;
   RGBQUAD          bmiColors[1];
 } BITMAPINFO;
+typedef  enum
+{
+  BI_RGB = 0x0000,
+  BI_RLE8 = 0x0001,
+  BI_RLE4 = 0x0002,
+  BI_BITFIELDS = 0x0003,
+  BI_JPEG = 0x0004,
+  BI_PNG = 0x0005,
+  BI_CMYK = 0x000B,
+  BI_CMYKRLE8 = 0x000C,
+  BI_CMYKRLE4 = 0x000D
+} VWF_WIN32_BitmapCompression;
 #endif
 #endif
 #pragma pack(pop)

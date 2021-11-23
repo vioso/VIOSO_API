@@ -33,6 +33,7 @@
 	#include "sys/param.h"
 	#include "sys/time.h"
 	#include "netinet/in.h"
+	#include "sys/select.h"
 
 	#define SOCKET int
 	#define INVALID_SOCKET (SOCKET)(~0)
@@ -249,7 +250,7 @@ public:
 	// accepts connections; socket needs to be stream oriented
 	Socket accept( SocketAddress& peerAddr )
 	{ 
-		int l = sizeof( SocketAddress );
+		socklen_t l = sizeof( SocketAddress );
 		return (SOCKET)::accept(sock, (sockaddr*)&peerAddr, &l );
 	}; 
 
