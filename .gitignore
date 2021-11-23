@@ -74,3 +74,4 @@ Release
 /bin/DirectX11Example64.exe
 /bin/DirectX11Example64.pdb
 /bin/VIOSOWarpBlend.log
+/cmake-build-debug/

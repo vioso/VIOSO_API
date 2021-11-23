@@ -30,6 +30,10 @@ add_compile_definitions(VIOSOWARPBLEND_EXPORTS)
 
 file(GLOB_RECURSE SOURCES "VIOSOWarpBlend/*.cpp")
 
+if (NOT UNIX)
+	list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/VIOSOWarpBlend/linux_compat.cpp)
+endif()
+
 if(WIN32)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
 	    set(ARCH_POSTFIX "")
