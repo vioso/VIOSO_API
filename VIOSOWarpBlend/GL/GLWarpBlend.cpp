@@ -1,8 +1,7 @@
 #include "GLWarpBlend.h"
-
 #include "pixelshader.h"
 
-#define GL_EXT_IMPLEMENT
+#define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "GLext.h"
 
 GLfloat GLWarpBlend::colBlack[4] = {0,0,0,0};
@@ -96,6 +95,18 @@ GLWarpBlend::GLWarpBlend():
 	m_ProgramBypass(-1)
 {
 	logStr( 1, "INFO: Start initializing OGL-Warper...\n" );
+
+#ifndef WIN32
+	// FF 10.8.21: use GLEW and initialize it manually because the GLext.h header
+	// doesn't seem to work correctly with current Linuxen.
+	GLenum err=glewInit();
+	if(err!=GLEW_OK)
+	{
+	  //Problem: glewInit failed, something is seriously wrong.
+	  logStr( 1, "glewInit failed.\n" );
+	}
+#endif
+
 	#define GL_EXT_TEST
 	if(
 		#include "GLext.h"

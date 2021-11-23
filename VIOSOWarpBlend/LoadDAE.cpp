@@ -1,7 +1,7 @@
 #include "Platform.h"
 
 #include "LoadDAE.h"
-#include "3rdparty\tinyxml2\tinyxml2.h"
+#include "3rdparty/tinyxml2/tinyxml2.h"
 #include "logging.h"
 #include "PathHelper.h"
 #include "Platform.h"

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
 /*****************************************************************************/
 /*                                                                           */
@@ -12449,7 +12450,7 @@ char *polyfilename;
 
 {
 #ifdef TRILIBRARY
-  char polyfilename[6];
+  char polyfilename[6] ="input";
   int index;
 #else /* not TRILIBRARY */
   char inputline[INPUTLINESIZE];
@@ -12466,7 +12467,6 @@ char *polyfilename;
       printf("Recovering segments in Delaunay triangulation.\n");
     }
 #ifdef TRILIBRARY
-    strcpy_s( polyfilename, 6, "input");
     m->insegments = numberofsegments;
     segmentmarkers = segmentmarkerlist != (int *) NULL;
     index = 0;

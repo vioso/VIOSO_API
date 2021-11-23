@@ -16,7 +16,7 @@
 #define _inline_ __forceinline
 #else
 #define _inline_ inline
-#define VWB_inet_ntop_cast IN_ADDR*
+#define VWB_inet_ntop_cast in_addr*
 #endif //defined( _MSC_VER )
 
 #ifdef WIN32

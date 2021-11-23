@@ -9,7 +9,9 @@
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
+#ifdef WIN32
 #include <crtdbg.h>
+#endif
 #else
 #include <stdlib.h>
 #endif //def _DEBUG
