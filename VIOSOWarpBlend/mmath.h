@@ -65,7 +65,16 @@ struct VWB_VECTOR3
 	template< class _T2 >
 	_inline_ explicit VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
 	template< class _T2 >
-	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)(other.x/other.w) ), y( (T)(other.y/other.w) ), z( (T)(other.z/other.w) ) {}
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)( other.x ) ), y( (T)( other.y ) ), z( (T)( other.z ) )
+	{
+		T w = (T)other.w;
+		if( w )
+		{
+			x /= w;
+			y /= w;
+			z /= w;
+		}
+	}
 	_inline_ explicit VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
 	_inline_ VWB_VECTOR3( T _x, T _y, T _z ) : x(_x), y(_y), z(_z) {}
 

@@ -17,7 +17,7 @@ const GLfloat c_rad = 3;
 #ifdef USE_VIOSO_API
 #include "../../Include/VIOSOWarpBlend.hpp"
 
-LPCTSTR s_configFile = _T("VIOSOWarpBlendGL.ini");
+LPCTSTR s_configFile = _T( "VIOSOWarpBlendGL.ini" );
 std::shared_ptr<VWB> pWarper;
 #endif //USE_VIOSO_API
 
@@ -478,18 +478,18 @@ void GLFrustumRH( GLfloat( &M )[16], GLfloat left, GLfloat right, GLfloat bottom
 	GLfloat hr = 1.0f / ( top - bottom );
 	GLfloat zn2 = 2.0f * zNear;
 	GLfloat zr = 1.0f / ( zNear - zFar );
-	M[0]  = zn2 * wr;
-	M[1]  = 0;
-	M[2]  = 0;
-	M[3]  = 0;
+	M[0] = zn2 * wr;
+	M[1] = 0;
+	M[2] = 0;
+	M[3] = 0;
 
-	M[4]  = 0;
-	M[5]  = zn2 * hr;
-	M[6]  = 0;
-	M[7]  = 0;
+	M[4] = 0;
+	M[5] = zn2 * hr;
+	M[6] = 0;
+	M[7] = 0;
 
-	M[8]  = ( right + left ) * wr;
-	M[9]  = ( top + bottom ) * hr;
+	M[8] = ( right + left ) * wr;
+	M[9] = ( top + bottom ) * hr;
 	M[10] = ( zNear + zFar ) * zr;
 	M[11] = -1;
 
@@ -499,6 +499,35 @@ void GLFrustumRH( GLfloat( &M )[16], GLfloat left, GLfloat right, GLfloat bottom
 	M[15] = 0;
 }
 
+void GLRotRPY( GLfloat( &M )[16], GLfloat x, GLfloat y, GLfloat z )  // this is Rz(z) * Rx(x) * Ry(y)
+{
+	const GLfloat sx = std::sin( x );
+	const GLfloat sy = std::sin( y );
+	const GLfloat sz = std::sin( z );
+	const GLfloat cx = std::cos( x );
+	const GLfloat cy = std::cos( y );
+	const GLfloat cz = std::cos( z );
+	M[0] = cy * cz + sx * sy * sz;
+	M[1] = cy * sz - cz * sx * sy;
+	M[2] = -cx * sy;
+	M[3] = 0.0f;
+
+	M[4] = -cx * sz;
+	M[5] = cx * cz;
+	M[6] = -sx;
+	M[7] = 0.0f;
+
+	M[7] = 0.0f;
+	M[9] = cy * cz * sx + sy * sz;
+	M[10] = cx * cy;
+	M[11] = 0.0f;
+
+	M[12] = 0.0f;
+	M[13] = 0.0f;
+	M[14] = 0.0f;
+	M[15] = 1.0f;
+}
+
 bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f )
 {
 	//#ifdef WIN32
@@ -506,8 +535,10 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	//#endif
 	#ifdef USE_VIOSO_API
 	//< start VIOSO API code
-	GLfloat view[16], proj[16], view2[16], proj2[16];
+	GLfloat view[16], proj[16], view2[16], view3[16], proj2[16];
 	GLfloat clip[6];
+	GLfloat pos[3];
+	GLfloat dir[3];
 	GLfloat eye[3] = { 0,0,0 };
 	GLfloat rot[3] = { 0,0,0 };
 
@@ -520,13 +551,18 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 		pWarper->GetViewClip( eye, rot, view2, clip );
 		GLFrustumRH( proj2, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
 
-		// TODO: VWB_getPosDirFov or even this
+		// or use this, which yields exact same result
+		pWarper->GetPosDirClip( eye, rot, pos, dir, clip );
+		GLRotRPY( view3, dir[0], dir[1], dir[2] );
+		view[3] = pos[0];
+		view[7] = pos[1];
+		view[11] = pos[2];
 	}
 	//< end VIOSO API code
 	#else
-		GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 }; // identity
-		GLfloat proj[16] = { 0 };
-		GLFrustumRH( proj, -0.128f, 0.128f, -0.8f, 0.8f, 0.128f, 1000.0f ); // 16:10 frustum
+	GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 }; // identity
+	GLfloat proj[16] = { 0 };
+	GLFrustumRH( proj, -0.128f, 0.128f, -0.8f, 0.8f, 0.128f, 1000.0f ); // 16:10 frustum
 	#endif //def USE_VIOSO_API
 
 
@@ -807,7 +843,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	try {
 		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
 	}
-	catch( VWB_ERROR  )
+	catch( VWB_ERROR )
 	{
 		return FALSE;
 	}
