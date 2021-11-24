@@ -517,7 +517,7 @@ void GLRotRPY( GLfloat( &M )[16], GLfloat x, GLfloat y, GLfloat z )  // this is 
 	M[6] = -sx;
 	M[7] = 0.0f;
 
-	M[7] = 0.0f;
+	M[8] = cz * sy - cy * sx * sz;
 	M[9] = cy * cz * sx + sy * sz;
 	M[10] = cx * cy;
 	M[11] = 0.0f;
@@ -535,34 +535,47 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	//#endif
 	#ifdef USE_VIOSO_API
 	//< start VIOSO API code
-	GLfloat view[16], proj[16], view2[16], view3[16], proj2[16];
-	GLfloat clip[6];
-	GLfloat pos[3];
-	GLfloat dir[3];
+	GLfloat view[16], proj[16];
 	GLfloat eye[3] = { 0,0,0 };
 	GLfloat rot[3] = { 0,0,0 };
 
 	if( pWarper )
 	{
-		// either use this
-		pWarper->GetViewProj( eye, rot, view, proj );
-
-		// or use this, which yields exact same result
-		pWarper->GetViewClip( eye, rot, view2, clip );
-		GLFrustumRH( proj2, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-
-		// or use this, which yields exact same result
-		pWarper->GetPosDirClip( eye, rot, pos, dir, clip );
-		GLRotRPY( view3, dir[0], dir[1], dir[2] );
-		view[3] = pos[0];
-		view[7] = pos[1];
-		view[11] = pos[2];
+		static int c = 2;
+		if( 0 == c )
+		{
+			// either use this
+			pWarper->GetViewProj( eye, rot, view, proj );
+			c = 1;
+		}
+		else if( 1 == c )
+		{
+			// or use this, which yields exact same result
+			GLfloat clip[6];
+			pWarper->GetViewClip( eye, rot, view, clip );
+			GLFrustumRH( proj, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			c = 2;
+		}
+		else
+		{
+			// or use this, which yields also exact same result
+			GLfloat clip[6];
+			GLfloat pos[3];
+			GLfloat dir[3];
+			pWarper->GetPosDirClip( eye, rot, pos, dir, clip, true );
+			GLRotRPY( view, dir[0], dir[1], dir[2] );
+			view[3] = pos[0];
+			view[7] = pos[1];
+			view[11] = pos[2];
+			GLFrustumRH( proj, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			c = 1;
+		}
 	}
 	//< end VIOSO API code
 	#else
 	GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 }; // identity
 	GLfloat proj[16] = { 0 };
-	GLFrustumRH( proj, -0.128f, 0.128f, -0.8f, 0.8f, 0.128f, 1000.0f ); // 16:10 frustum
+	GLFrustumRH( proj, -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
 	#endif //def USE_VIOSO_API
 
 

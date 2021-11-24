@@ -631,10 +631,11 @@ VWB_ERROR GLWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float*
 		VWB_MAT44f P;
 		VWB_VEC3f e;
 
+		VWB_MAT44f V = UpdateView( m_mViewIG, e );
+
 		VWB_float clip[6];
 		getClip( e, clip );
 
-		VWB_MAT44f V;
 		if( symmetric )
 		{
 			VWB_MAT44f ig = m_mViewIG;
@@ -643,10 +644,6 @@ VWB_ERROR GLWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float*
 			else
 				MakeSymmetricLH( ig, clip );
 			V = UpdateView( ig, e );
-		}
-		else
-		{
-			V = UpdateView( m_mViewIG, e );
 		}
 
 		if( pDir )
@@ -686,7 +683,7 @@ VWB_ERROR GLWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float*
 		else
 			P = VWB_MAT44f::GLFrustumLH( clip );
 
-		m_mVP *= P;
+		m_mVP = P * m_mVP;
 
 		if( pClip )
 		{
