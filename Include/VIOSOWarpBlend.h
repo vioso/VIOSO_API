@@ -244,7 +244,15 @@ calibIndex=0
 	/* log some string to the API's log file, exposed version; use VWB_logString instead.
 	* @param [IN]			level	a level indicator. The string is only written to log file, if this is lower or equal to currently set global log level
 	* @param [IN]			str		a null terminated multibyte character string
-    * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER otherwise */
-    VIOSOWARPBLEND_API( VWB_ERROR, VWB__logString, ( VWB_int level, char const* str ) );
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER otherwise */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB__logString, ( VWB_int level, char const* str ) );
 
-#undef VIOSOWARPBLEND_API
+	/* get the version of the API
+	* @param[OUT]			major	major version
+	* @param[OUT]			minor	minor version
+	* @param[OUT]			maintenance	maintenance revision
+	* @param[OUT]			build	build number
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getVersion, ( VWB_int* major, VWB_int* minor, VWB_int* maintenance, VWB_int* build ) );
+
+	#undef VIOSOWARPBLEND_API

@@ -3,7 +3,9 @@
 
 #include "Platform.h"
 //#include "../Include/VWBTypes.h"
+#define DONT_IMPLEMENT_SHND
 #include "SPtr.h"
+#undef DONT_IMPLEMENT_SHND
 #include <list>
 #include <queue>
 #include <map>
@@ -276,7 +278,7 @@ public:
 	int recvDirect(char* pch, const int iSize); 
 
 	// sends datagram to peer
-	int sendDatagram(const char* buf, const int iSize, SocketAddress& sa, bool dontRoute = false);
+	int sendDatagram(const char* buf, const int iSize, SocketAddress const& sa, bool dontRoute = false);
 
 	// receives datagram from socket, peer address will be stored in 'sa' if specified
 	int recvDatagram(char* buf, const int iSize, SocketAddress* sa=NULL);

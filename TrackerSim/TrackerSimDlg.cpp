@@ -185,7 +185,6 @@ BOOL CTrackerSimDlg::OnInitDialog()
 
 BOOL CTrackerSimDlg::PreTranslateMessage( MSG* pMsg )
 {
-	// TODO: Add your specialized code here and/or call the base class
 	if( m_hAccel && ::TranslateAccelerator( m_hWnd, m_hAccel, pMsg ) )
 	{
 		return TRUE;
@@ -501,7 +500,6 @@ void CTrackerSimDlg::OnUpdateButtonSend( CCmdUI *pCmdUI )
 
 void CTrackerSimDlg::OnTimer( UINT_PTR nIDEvent )
 {
-	// TODO: Add your message handler code here and/or call default
 	DWORD tick = ::GetTickCount();
 	DWORD delta = tick - m_tick;
 	if( 99 == nIDEvent )
@@ -640,16 +638,12 @@ void CTrackerSimDlg::OnEnChangeEditRange( UINT nID )
 
 void CAboutDlg::OnCancel()
 {
-	// TODO: Add your specialized code here and/or call the base class
-
 	CDialog::OnCancel();
 }
 
 
 void CAboutDlg::OnOK()
 {
-	// TODO: Add your specialized code here and/or call the base class
-
 	CDialog::OnOK();
 }
 

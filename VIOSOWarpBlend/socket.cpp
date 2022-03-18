@@ -338,7 +338,7 @@ int Socket::getsockaddr(sockaddr_in& addr,int& qAddr)
 	return ::getsockname( sock, (sockaddr*)&addr, &qAddr);
 }
 
-int Socket::sendDatagram(const char* pch,const int iSize,SocketAddress& sa, bool dontRoute)
+int Socket::sendDatagram(const char* pch,const int iSize,SocketAddress const& sa, bool dontRoute)
 {
 	//fd_set fd={1,sock};
 
@@ -1571,7 +1571,7 @@ int Server::doModal()
 			m_thread.join();
 		}
 	}
-	m_thread.swap( std::thread( Server::_theadFn, this ) );
+	m_thread = std::thread( Server::_theadFn, this );
 	if( m_thread.joinable() )
 		return 0;
 	logStr( 0, "Server: FATAL ERROR cannot sart listener loop.\n" );

@@ -310,17 +310,21 @@ void XMLUtil::ConvertUTF32ToUTF8( unsigned long input, char* output, int* length
             --output;
             *output = (char)((input | BYTE_MARK) & BYTE_MASK);
             input >>= 6;
+            [[fallthrough]];
         case 3:
             --output;
             *output = (char)((input | BYTE_MARK) & BYTE_MASK);
             input >>= 6;
+            [[fallthrough]];
         case 2:
             --output;
             *output = (char)((input | BYTE_MARK) & BYTE_MASK);
             input >>= 6;
+            [[fallthrough]];
         case 1:
             --output;
             *output = (char)(input | FIRST_BYTE_MARK[*length]);
+            [[fallthrough]];
         default:
             break;
     }
@@ -581,7 +585,8 @@ XMLNode::XMLNode( XMLDocument* doc ) :
     _document( doc ),
     _parent( 0 ),
     _firstChild( 0 ), _lastChild( 0 ),
-    _prev( 0 ), _next( 0 )
+    _prev( 0 ), _next( 0 ),
+    _memPool( nullptr )
 {
 }
 

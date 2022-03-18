@@ -17,6 +17,7 @@ class SPtr
 {
 public:
 	volatile unsigned int* piRef;		//< the reference counter
+	volatile unsigned int* piWRef;		//< the waek reference counter
 	T* ptr;				//< the object pointer
 
 	/**
@@ -25,7 +26,8 @@ public:
 	*/
 	SPtr()
 	: ptr( NULL )
-	, piRef( NULL ) 
+	, piRef( NULL )
+	, piWRef( NULL )
 	{
 	}
 
@@ -38,11 +40,17 @@ public:
 	SPtr( SPtr<T2> const& other )
 	: ptr( dynamic_cast< T* >( other.ptr ) )
 	, piRef( other.piRef )
-	{ 
+	, piWRef( other.piWRef )
+	{
 		if( NULL == ptr )
+		{
 			piRef = NULL;
+			piWRef = NULL;
+		}
 		else if( piRef )
+		{
 			InterlockedIncrement( piRef );
+		}
 	}
 
 	/**
@@ -51,12 +59,11 @@ public:
 	* @param other the object to make a copy from
 	*/
 	SPtr( SPtr const& other )
-	: ptr( other.ptr )
-	, piRef( other.piRef )
+	: piRef( ((unsigned int*)(intptr_t)( other.piRef ? InterlockedIncrement( other.piRef ) : 0 ), other.piRef) )
+	, ptr( other.ptr )
+	, piWRef( other.piRef )
 	{
 		ASSERT( ( NULL == ptr && NULL == piRef ) || ( ptr && piRef ) );
-		if( piRef )
-			InterlockedIncrement( piRef ); 
 	}
 
 	/**
@@ -65,10 +72,12 @@ public:
 	*/
 	explicit SPtr( T const& v )
 	: ptr( new T )
-	, piRef( new volatile unsigned int ) 
-	{ 
+	, piRef( new volatile unsigned int )
+	, piWRef( new volatile unsigned int )
+	{
 		*piRef = 1;
-		*ptr = v; 
+		*piWRef = 0;
+		*ptr = v;
 	}
 
 	/**
@@ -79,9 +88,47 @@ public:
 	SPtr( T* p )
 	: ptr( p )
 	, piRef( p ? new volatile unsigned int : NULL )
-	{ 
+	, piWRef( p ? new volatile unsigned int : NULL )
+	{
 		if( piRef )
-			*piRef = 1; 
+			*piRef = 1;
+		if( piWRef )
+			*piRef = 0;
+	}
+
+	unsigned int ResetDirty()
+	{
+		if( piRef &&
+			0 == ::InterlockedDecrement( piRef ) )
+		{
+			if( 0 == piWRef )
+			{
+				delete piWRef;
+				delete piRef;
+			}
+			if( ptr )
+				delete ptr;
+		}
+		return piRef ? *piRef : 0;
+	}
+
+	unsigned int Reset( T* v = NULL )
+	{
+		ResetDirty();
+		ptr = v;
+		if( ptr )
+		{
+			piRef = new volatile unsigned int;
+			*piRef = 1;
+			piWRef = new volatile unsigned int;
+			*piWRef = 0;
+		}
+		else
+		{
+			piRef = NULL;
+			piWRef = 0;
+		}
+		return piRef ? *piRef : 0;
 	}
 
 	/**
@@ -89,20 +136,8 @@ public:
 	*/
 	~SPtr()
 	{ 
-		if( piRef && 
-			0 == ::InterlockedDecrement( piRef ) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
+		ResetDirty();
 	}
-
-	/**
-	* operator bool
-	* @return true if the containing pointer is not NULL
-	*/
-	operator bool() const { return NULL != ptr; }
 
 	/**
 	* operator ==
@@ -119,6 +154,13 @@ public:
 	bool operator !=( SPtr const& other ) const { return ptr != other.ptr; }
 
 	/**
+	* operator bool
+	* @return true if internal pointer valid
+	*/
+	operator bool() const { return ptr && piRef && 0 != *piRef; }
+
+	
+	/**
 	* operator =
 	* Standard assignment operator
 	* @param other const reference of another smartpointer
@@ -126,18 +168,14 @@ public:
 	*/
 	SPtr& operator=( SPtr const& other ) 
 	{ 
-		if( piRef && 
-			0 == InterlockedDecrement( piRef ) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
+		if( other.piRef )
+			InterlockedIncrement( other.piRef );
 
-		ptr = other.ptr; 
+		ResetDirty();
+
+		ptr = other.ptr;
 		piRef = other.piRef;
-		if( piRef )
-			InterlockedIncrement( piRef ); 
+		piWRef = other.piWRef;
 		return *this;
 	}
 
@@ -153,20 +191,7 @@ public:
 		if( ptr == p  )
 			return *this;
 
-		if( piRef && 
-			0 == InterlockedDecrement( piRef ) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
-
-		ptr = p; 
-		if( p )
-		{
-			piRef = new volatile unsigned int; 
-			*piRef = 1;
-		}
+		Reset( p );
 		return *this;
 	}
 
@@ -181,25 +206,6 @@ public:
 	* operator to dereference the smartpointer like a pointer
 	*/
 	T const* operator->() const { return ptr; }
-
-	///**
-	//* operator *
-	//* operator to use the smartpointer like a pointer
-	//*/
-	//operator T*() { return ptr; }
-
-	///**
-	//* operator const *
-	//* operator to use the smartpointer like a pointer
-	//*/
-	//operator const T*() const { return ptr; }
-
-	/**
-	* operator & const
-	* operator to make & references to the containing pointer
-	* @return a const pointer to the managed pointer
-	*/
-	T* const* operator&() const { return &ptr; }
 
 	/**
 	* operator &
@@ -216,6 +222,8 @@ public:
 		ASSERT( NULL == piRef && NULL == ptr );
 		piRef = new volatile unsigned int;
 		*piRef = 1;
+		piWRef = new volatile unsigned int;
+		*piWRef = 0;
 		return &ptr; 
 	}
 
@@ -238,14 +246,11 @@ public:
 	*/
 	SPtr& Create()
 	{
-		if( piRef && 0 == (InterlockedDecrement( piRef )) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
+		ResetDirty();
 		piRef = new volatile unsigned int;
 		*piRef = 1;
+		piWRef = new volatile unsigned int;
+		*piWRef = 0;
 		ptr = new T;
 	}
 
@@ -255,44 +260,15 @@ public:
 	* @param a value to the managed type, this will be used as parameter in the type's constructor
 	* @return reference to this object
 	*/
-	SPtr& Create( T const& v )
+	template< class... P >
+	SPtr& Create( const P&... args )
 	{
-		if( piRef && 0 == (InterlockedDecrement( piRef )) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
+		ResetDirty();
 		piRef = new volatile unsigned int;
 		*piRef = 1;
-		ptr = new T( v );
-	}
-
-	/**
-	* AddRef
-	increase this smartpointer object, reference counter is decreased, the containing pointer is freed if no longer used
-	*/
-	SPtr& AddRef()
-	{
-		if( piRef )
-			::InterlockedIncrement( piRef );
-		return *this;
-	}
-
-	/**
-	* Release
-	empties this smartpointer object, reference counter is decreased, the containing pointer is freed if no longer used
-	*/
-	void Release()
-	{
-		if( piRef && 0 == (InterlockedDecrement( piRef )) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
-		ptr = NULL;
-		piRef = NULL;
+		piWRef = new volatile unsigned int;
+		*piWRef = 0;
+		ptr = new T( args... );
 	}
 
 	/** ref
@@ -309,16 +285,7 @@ public:
 	*/
 	SPtr& attach( T* p )
 	{ 
-		if( piRef && 0 == (InterlockedDecrement( piRef )) )
-		{
-			delete piRef;
-			if( ptr ) 
-				delete ptr;
-		}
-
-		ptr = p; 
-		piRef = new volatile unsigned int; 
-		*piRef = 1;
+		Reset(p);
 		return *this; 
 	}
 
@@ -332,17 +299,39 @@ public:
 	T* detach() 
 	{ 
 		T* ret = ptr;
-		if( piRef )
-		{
-			ASSERT( 1 == *piRef );
-			delete piRef;
-			piRef = NULL;
-		}		
 		ptr = NULL;
-		return ret; 
+		Reset();
+		return ret;
 	}
 };
 
+template< class T >
+class WPtr
+{
+protected:
+	SPtr<T> ref;
+public:
+	WPtr( SPtr<T> const& p )
+	{
+		if( p.piWRef )
+			::InterlockedIncrement( p.piWRef );
+		ref.piRef = p.piRef;
+		ref.piWRef = p.piWRef;
+		ref.ptr = p.ptr;
+	}
+	~WPtr()
+	{
+		if( ref.piWRef && 0 == ::InterlockedDecrement( ref.piWRef ) )
+		{
+			delete ref.piWef;
+			delete ref.piWRef;
+		}
+	}
+
+	operator SPtr<T>() { return *ref.piRef ? SPtr<T>( ref ) : SPtr<T>(); };
+
+	operator T() { return *ref.piRef ? SPtr<T>( ref ).operator T() : 0; }
+};
 
 #endif //ndef VWB_SPTR_INCLUDE_HPP
 

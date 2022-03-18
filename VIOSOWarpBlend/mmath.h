@@ -61,7 +61,7 @@ struct VWB_VECTOR3
 	T y;
 	T z;
 	_inline_ VWB_VECTOR3() = default;
-	_inline_ VWB_VECTOR3( VWB_VECTOR3 const& other ) = default;
+	_inline_ VWB_VECTOR3( VWB_VECTOR3 const& ) = default;
 	template< class _T2 >
 	_inline_ explicit VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
 	template< class _T2 >
@@ -274,7 +274,7 @@ struct VWB_VECTOR4
 	T z;
 	T w;
 	_inline_ VWB_VECTOR4() = default;
-	_inline_ VWB_VECTOR4( VWB_VECTOR4 const& other ) = default;
+	_inline_ VWB_VECTOR4( VWB_VECTOR4 const& ) = default;
 	template< class _T2>
 	_inline_ explicit VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
 	template< class _T2>
@@ -411,7 +411,7 @@ struct VWB_MATRIX
         _T p[16];
     };
 	_inline_ VWB_MATRIX() = default;
-	_inline_ VWB_MATRIX( VWB_MATRIX const& other ) = default;
+	_inline_ VWB_MATRIX( VWB_MATRIX const& ) = default;
 	template<class _T2>
 	_inline_ explicit VWB_MATRIX( VWB_MATRIX33<_T2> const& other ) :
 		_11( (_T)other._11 ), _12( (_T)other._12 ), _13( (_T)other._13 ), _14(0),
@@ -975,7 +975,7 @@ struct VWB_MATRIX33
 		_T p[9];
     };
 	_inline_ VWB_MATRIX33() = default;
-	_inline_ VWB_MATRIX33( VWB_MATRIX33 const& other ) = default;
+	_inline_ VWB_MATRIX33( VWB_MATRIX33 const& ) = default;
 	_inline_ explicit VWB_MATRIX33( VWB_MATRIX<_T> const& other ) : 
 		_11( other._11 ), _12( other._12 ), _13( other._13 ),
 		_21( other._21 ), _22( other._22 ), _23( other._23 ), 
@@ -1288,7 +1288,7 @@ struct VWB_BOX
 {
 	VWB_VECTOR3<T> vMin, vMax;
 	_inline_ VWB_BOX() = default;
-	_inline_ VWB_BOX( VWB_BOX const& other ) = default;
+	_inline_ VWB_BOX( VWB_BOX const& ) = default;
 	_inline_ VWB_BOX( VWB_VECTOR3<T> const& _tl, VWB_VECTOR3<T> const& _br ) : vMin( _tl ), vMax( _br ) {}
 	_inline_ VWB_BOX& operator+=( VWB_BOX const& other )
 	{

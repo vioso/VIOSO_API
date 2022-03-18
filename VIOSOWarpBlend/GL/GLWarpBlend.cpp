@@ -726,7 +726,6 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint						active_client_texture_unit = -1;
 	GLint						oldVA = -1;
 
-	//TODO record current state
 	if( ( ( VWB_STATEMASK_RASTERSTATE | VWB_STATEMASK_SAMPLER ) & stateMask ) && bUseGL110 )
 	{
 		glPushAttrib( GL_ALL_ATTRIB_BITS );

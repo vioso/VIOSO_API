@@ -705,19 +705,7 @@ VWB_ERROR VWB_getViewClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot
 	return VWB_ERROR_PARAMETER;
 }
 
-/*
-* TODO: does not work; fix direction by decomposing cantral axis of frustum instead of adding angles
-VWB_getPosDirClip yields a symmetric frustum.Image quality suffers, if view angle is
-far off from perpendicular to the screen.Try using asymetric frustum, especially in
-dynamic eye - point scenarios.
-	float pos[3];
-	float rot[3];
-	float symClip[4];
-	VWB_getPosDirClip( m_warper, &vEyePt.x, &vRot.x, pos, rot, symClip );
-	m_mView = XMMatrixRotationRollPitchYaw( rot[0], -rot[1], -rot[2] ) * XMMatrixTranslation( pos[0], pos[1], pos[2] );
-	m_mProjection = XMMatrixPerspectiveFovLH( symClip[0], symClip[1], symClip[2], symClip[3] );
-*/
-	VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, float aspect )
+VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, float aspect )
 {
 	if( NULL != pEye && NULL != pRot )
 	{
@@ -808,6 +796,17 @@ VWB_ERROR VWB_destroyWarpBlendMesh( VWB_Warper* pWarper, VWB_WarpBlendMesh& mesh
 		return VWB_ERROR_NONE;
 	}
 	return VWB_ERROR_PARAMETER;
+}
+
+VWB_ERROR VWB_getVersion( VWB_int* major, VWB_int* minor, VWB_int* maintenance, VWB_int* build )
+{
+	if( !major || !minor || !maintenance || !build )
+		return VWB_ERROR_PARAMETER;
+	*major = VWB_Version_MAJ;
+	*minor = VWB_Version_MIN;
+	*maintenance = VWB_Version_MAI;
+	*build = VWB_Version_REV;
+	return VWB_ERROR_NONE;
 }
 
 #include "mmath.h"
@@ -925,7 +924,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 	VWB_MAT44f B( trans );
 	m_mBaseI = B.Inverted();
-    VWB_VECTOR3<float>(B.X()) * VWB_VECTOR3<float>(B.Y());
+
 	m_bRH = 0 < VWB_VEC3f(B.Z()).dot( VWB_VEC3f(B.X()) * VWB_VEC3f(B.Y()) );
 	logStr( 2, "%s-handedness detected.\n", m_bRH ? "right" : "left" );
 
@@ -1490,7 +1489,7 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 							it->second.file;
 							// TODO ovrewrite current ini file
 						}
-						it = req->postData.find( "jasonrpc" );
+						it = req->postData.find( "jsonrpc" );
 						if( it != req->postData.end() && !it->second.value.empty() )
 						{
 							it->second.value;

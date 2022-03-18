@@ -97,6 +97,9 @@ public:
     XMMATRIX const& getMView() const { return m_mView; }
     XMMATRIX& getMView() { return m_mView; }
 
+    ID3D11Device* getDevice() { return m_dev; }
+    ID3D11DeviceContext* getContext() { return m_ic; }
+
     void setMProjection( XMMATRIX const& m ) { m_mProjection = m; }
     XMMATRIX const& getMProjection() const { return m_mProjection; }
     XMMATRIX& getMProjection() { return m_mProjection; }
@@ -124,10 +127,6 @@ protected:
 
 public:
     OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags = 0, bool withDepth = true );
-
-    ID3D11Device* getDevice() { return m_dev; }
-
-    ID3D11DeviceContext* getContext() { return m_ic; }
 
     virtual void postRender();
 };

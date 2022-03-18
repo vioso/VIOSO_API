@@ -10,6 +10,8 @@
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "../../VIOSOWarpBlend/GL/GLext.h"
 
+int i = LANG_ENGLISH;
+
 #define USE_VIOSO_API
 const int c_numTri = 30;
 const GLfloat c_rad = 3;
@@ -541,7 +543,7 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 
 	if( pWarper )
 	{
-		static int c = 2;
+		static int c = 0;
 		if( 0 == c )
 		{
 			// either use this
@@ -562,13 +564,13 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 			GLfloat clip[6];
 			GLfloat pos[3];
 			GLfloat dir[3];
-			pWarper->GetPosDirClip( eye, rot, pos, dir, clip, true );
+			pWarper->GetPosDirClip( eye, rot, pos, dir, clip );
 			GLRotRPY( view, dir[0], dir[1], dir[2] );
 			view[3] = pos[0];
 			view[7] = pos[1];
 			view[11] = pos[2];
 			GLFrustumRH( proj, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			c = 1;
+			c = 0;
 		}
 	}
 	//< end VIOSO API code
