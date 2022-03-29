@@ -835,7 +835,7 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 				os.write( (const char*)&setIt->header, setIt->header.szHdr );
 				size_t sz = sizeof( VWB_WarpRecord ) * size_t( setIt->header.width ) * setIt->header.height;
 				
-				if( setIt->header.flags |= FLAG_WARPFILE_HEADER_ENCRYPTED )
+				if( setIt->header.flags & FLAG_WARPFILE_HEADER_ENCRYPTED )
 				{
 					AES_ctx ctx;
 					AES_init_ctx( &ctx, (uint8_t*)aesKey );
