@@ -102,6 +102,12 @@
     <ClInclude Include="GL\GLWarpBlendXPL.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="3rdparty\aes\aes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\aes\aes.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DX\DX9WarpBlend.cpp">
@@ -153,6 +159,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="GL\GLWarpBlendXPL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdparty\aes\aes.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

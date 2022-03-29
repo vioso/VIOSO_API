@@ -3,6 +3,7 @@
 #include "VWF.h"
 #include "logging.h"
 #include "PathHelper.h"
+#include "3rdparty/aes/aes.hpp"
 
 #include <stdlib.h>
 #include <fstream>
@@ -292,7 +293,7 @@ VWB_ERROR LoadWarp( VWB_WarpRecord*& wr, std::istream& is, size_t nRecords )
 	return is.read( (char*)wr, nRecords * sizeof( VWB_WarpRecord ) ).eof() ? VWB_ERROR_VWF_LOAD : VWB_ERROR_NONE;
 }
 
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int iScanIndex )
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int iScanIndex, const char* aesKey )
 {
 	if( NULL == path || 0 == *path )
 	{
@@ -374,8 +375,25 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 											set.push_back( pWB );
 											iExtMap = 0;
 											logStr( 2, "Warp map successfully loaded, new dataset (%d) %dx%d created.\n", VWB_uint( set.size() ), pWB->header.width, pWB->header.height );
-											nSets--;
-											break;
+											if( pWB->header.flags & FLAG_WARPFILE_HEADER_ENCRYPTED )
+											{
+												if( aesKey && aesKey[0] )
+												{
+													AES_ctx ctx;
+													AES_init_ctx( &ctx, (uint8_t*)aesKey );
+													AES_CBC_decrypt_buffer( &ctx, (uint8_t*)pWB->pWarp, nRecords * sizeof( VWB_WarpRecord ) );
+
+													nSets--;
+													break;
+												}
+												else
+													logStr( 0, "ERROR: Passkey missing. The file has been encrypted.\n" );
+											}
+											else
+											{
+												nSets--;
+												break;
+											}
 										}
 										else
 											logStr( 0, "ERROR: Unexpected end of file.\n" );
@@ -688,6 +706,41 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, st
 	return VWB_ERROR_NONE;
 }
 
+VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, std::ostream& os )
+{
+	if( nullptr == map || os.bad() )
+		return VWB_ERROR_PARAMETER;
+
+	const VWB_uint pitchBM = ( ( ( ( h.width * 96 ) + 31 ) & ~31 ) >> 3 );
+	const VWB_uint paddingBM = pitchBM - h.width * 3;
+	BITMAPINFOHEADER bmih = {
+		sizeof( BITMAPINFOHEADER ),
+		h.width,
+		-h.height,
+		1, 96, 0,
+		h.height * pitchBM,
+		5512, 5512, 0, 0
+	};
+	BITMAPFILEHEADER bmfh = {
+		'MB',
+		sizeof( BITMAPFILEHEADER ) + sizeof( bmih ) + bmih.biSizeImage,
+		0, 0,
+		sizeof( BITMAPFILEHEADER ) + sizeof( bmih )
+	};
+	os.write( (const char*)&bmfh, sizeof( bmfh ) );
+	os.write( (const char*)&bmih, sizeof( bmih ) );
+	for( VWB_BlendRecord3 const* p = map, *pE = map + (ptrdiff_t)h.width * (ptrdiff_t)h.height; p != pE; )
+	{
+		for( VWB_BlendRecord3 const* pLE = p + h.width; p != pLE; p++ )
+		{
+			VWB_float c[3] = { p->b, p->g, p->r };
+			os.write( (const char*)c, 3 * sizeof( p->r ) );
+		}
+		os.write( "\0\0\0", paddingBM );
+	}
+	return VWB_ERROR_NONE;
+}
+
 VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path )
 {
 	char pp[MAX_PATH];
@@ -733,7 +786,22 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, ch
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, char const* path )
+{
+	char pp[MAX_PATH];
+	strcpy_s( pp, path );
+	MkPath( pp, MAX_PATH, ".bmp" );
+	std::ofstream os( pp, std::ios_base::binary );
+	if( os.fail() )
+	{
+		logStr( 0, "ERROR: SaveVWF: Error opening \"%s\"\n", pp );
+		return VWB_ERROR_VWF_FILE_NOT_FOUND;
+	}
+
+	return SaveBMP( h, map, os );
+}
+
+VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* aesKey )
 {
 	if (os.bad())
 		return VWB_ERROR_PARAMETER;
@@ -760,13 +828,30 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os )
 		{
 			if( setIt->pWarp )
 			{
+				if( aesKey && aesKey[0] )
+					setIt->header.flags |= FLAG_WARPFILE_HEADER_ENCRYPTED;
+
 				setIt->header.szHdr = sizeof( setIt->header );
 				os.write( (const char*)&setIt->header, setIt->header.szHdr );
-				os.write( (const char*)setIt->pWarp, sizeof( VWB_WarpRecord ) * size_t( setIt->header.width ) * setIt->header.height );
+				size_t sz = sizeof( VWB_WarpRecord ) * size_t( setIt->header.width ) * setIt->header.height;
+				
+				if( setIt->header.flags |= FLAG_WARPFILE_HEADER_ENCRYPTED )
+				{
+					AES_ctx ctx;
+					AES_init_ctx( &ctx, (uint8_t*)aesKey );
+					AES_CBC_encrypt_buffer( &ctx, (uint8_t*)setIt->pWarp, sz );
+				}
+
+				os.write( (const char*)setIt->pWarp, sz );
 			}
 			if( setIt->pBlend )
 			{
-				SaveBMP( setIt->header, setIt->pBlend, os );
+				if( setIt->header.flags & FLAG_WARPFILE_HEADER_BLENDV3 )
+					SaveBMP( setIt->header, setIt->pBlend3, os );
+				else if( setIt->header.flags & FLAG_WARPFILE_HEADER_BLENDV2 )
+					SaveBMP( setIt->header, setIt->pBlend2, os );
+				else
+					SaveBMP( setIt->header, setIt->pBlend, os );
 			}
 			if( setIt->pBlack )
 			{
@@ -793,7 +878,7 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os )
 	return VWB_ERROR_GENERIC;
 }
 
-VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path)
+VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path, const char* aesKey )
 {
 	char pp[MAX_PATH];
 	strcpy_s(pp, path);
@@ -805,7 +890,7 @@ VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path)
 		return VWB_ERROR_VWF_FILE_NOT_FOUND;
 	}
 
-	return SaveVWF(set, os);
+	return SaveVWF(set, os, aesKey );
 }
 
 VWB_rect& operator+=(VWB_rect& me, VWB_rect const& other )

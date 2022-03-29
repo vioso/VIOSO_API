@@ -13,18 +13,24 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
 /// @param bScanOnly [OPT|IN] scan only, if set to true, the actual loading is skipped; all data pointers are NULL. This is used to analyze the mappings and assign them to a specific channel by names and ident information in header
 /// @param [OPT|IN] a single index to load data. Do this after scanning, to save memory and loading time. The set headers are all filled, but mappings only loaded for that particular index. Set to -1 to load all.
 /// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if path null or empty string, VWB_ERROR_VWF_FILE_NOT_FOUND, if path can't be found or opened, VWB_ERROR_VWF_LOAD, if malformed, VWB_ERROR_GENERIC otherwise
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1 );
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );
-///< @remark use SaveBMP   VWB_WarpRecord only for debug reasons, it will save 8 bit RGB only!
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std::ostream& os ); 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char const* path );
+/// @param aesKey [OPT|IN] if set, encryption indication flag is set; must be char[16] array
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1, const char* aesKey = nullptr );
+
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, char const* path );
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, std::ostream& os );
-VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os );
-VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, std::ostream& os );
+VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* aesKey = nullptr );
+VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, char const* path, const char* aesKey = nullptr );
+
+///< @remark use SaveBMP   VWB_WarpRecord only for debug reasons, it will save 8 bit RGB only!
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char const* path );
+
 bool VerifySet( VWB_WarpBlendSet& set, int iScanIndex = -1 );
 
 VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set );

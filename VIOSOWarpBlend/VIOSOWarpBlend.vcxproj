@@ -792,6 +792,8 @@
     <ClInclude Include="..\Include\VIOSOWarpBlend.hpp" />
     <ClInclude Include="..\Include\VWBDef.h" />
     <ClInclude Include="..\Include\VWBTypes.h" />
+    <ClInclude Include="3rdparty\aes\aes.h" />
+    <ClInclude Include="3rdparty\aes\aes.hpp" />
     <ClInclude Include="3rdparty\delauney\DelaunayTriangles.h" />
     <ClInclude Include="3rdparty\tinyxml2\tinyxml2.h" />
     <ClInclude Include="common.h" />
@@ -818,6 +820,7 @@
     <ClInclude Include="VWF.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="3rdparty\aes\aes.c" />
     <ClCompile Include="3rdparty\delauney\DelaunayTriangles.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Mantis|Win32'">false</ExcludedFromBuild>
