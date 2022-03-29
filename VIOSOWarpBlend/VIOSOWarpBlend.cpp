@@ -1569,7 +1569,7 @@ VWB_ERROR Dummywarper::Init( VWB_WarpBlendSet& wbs )
 }
 
 
-inline VWB_MAT44f Dummywarper::UpdateView( VWB_VEC3f& e )
+inline VWB_MAT44f Dummywarper::UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e )
 {
 	VWB_MAT44f V; // return value
 
@@ -1588,15 +1588,15 @@ inline VWB_MAT44f Dummywarper::UpdateView( VWB_VEC3f& e )
 		e -= R * VWB_VEC3f::ptr( this->eye );
 
 	// translate to local coordinates
-	e = m_mViewIG * e;
+	e = igView * e;
 
 	VWB_MAT44f T = VWB_MAT44f::T( e );
-	m_mVP = T * m_mViewIG * m_mBaseI;
+	m_mVP = T * igView * m_mBaseI;
 
 	if( bTurnWithView )
-		V = m_mViewIG * R;
+		V = igView * R;
 	else
-		V = T * m_mViewIG;
+		V = T * igView;
 
 	return V;
 }
@@ -1612,7 +1612,7 @@ VWB_ERROR Dummywarper::GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_fl
 		VWB_MAT44f P; // the projection matrix to return 
 
 		VWB_VEC3f e;
-		VWB_MAT44f V = UpdateView( e );
+		VWB_MAT44f V = UpdateView( m_mViewIG, e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
@@ -1646,7 +1646,7 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 	{
 		VWB_MAT44f P;
 		VWB_VEC3f e;
-		VWB_MAT44f V = UpdateView( e );
+		VWB_MAT44f V = UpdateView( m_mViewIG, e );
 
 		VWB_float clip[6];
 		getClip( e, clip );
@@ -1668,6 +1668,78 @@ VWB_ERROR Dummywarper::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* p
 			memcpy( pClip, clip, sizeof( clip ) );
 		}
 	}
+	return ret;
+}
+
+VWB_ERROR Dummywarper::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect )
+{
+	VWB_ERROR ret = UpdateEye( eye, rot );
+	if( VWB_ERROR_NONE == ret )
+	{
+
+		VWB_MAT44f P;
+		VWB_VEC3f e;
+
+		VWB_MAT44f V = UpdateView( m_mViewIG, e );
+
+		VWB_float clip[6];
+		getClip( e, clip );
+
+		if( symmetric )
+		{
+			VWB_MAT44f ig = m_mViewIG;
+			if( m_bRH )
+				MakeSymmetricRH( ig, clip );
+			else
+				MakeSymmetricLH( ig, clip );
+			V = UpdateView( ig, e );
+		}
+
+		if( pDir )
+		{
+			// extract rotation angles from upper View matrix
+			VWB_VEC3f::ptr( pDir ) = V.Upper().GetR();
+			if( !m_bRH )
+				VWB_VEC3f::ptr( pDir ) *= -1;
+		}
+
+		if( pPos )
+		{
+			pPos[0] = V._14;
+			pPos[1] = V._24;
+			pPos[2] = V._34;
+		}
+
+		if( 0 != aspect )
+		{
+			VWB_float a = ( clip[0] + clip[2] ) / ( clip[1] + clip[3] );
+			if( aspect > a ) // we need to make frustum wider
+			{
+				a = aspect / a;
+				clip[0] *= a;
+				clip[2] *= a;
+			}
+			else // we need to make frustum higher
+			{
+				a /= aspect;
+				clip[1] *= a;
+				clip[3] *= a;
+			}
+		}
+
+		if( m_bRH )
+			P = VWB_MAT44f::GLFrustumRH( clip );
+		else
+			P = VWB_MAT44f::GLFrustumLH( clip );
+
+		m_mVP = P * m_mVP;
+
+		if( pClip )
+		{
+			memcpy( pClip, clip, sizeof( clip ) );
+		}
+	}
+
 	return ret;
 }
 
