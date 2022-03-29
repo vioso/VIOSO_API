@@ -18,18 +18,50 @@ or create your own by using VIOSO Integrate plus as trial, download here:
 https://vioso.com/download/vioso-integrate-plus
 
 
-## Usage on Windows: 
+## Usage 
 
-1 Static binding
+### 1 Static binding
 having VIOSOWarpBlend next to your executable or in added to %path%:
 link against VIOSOWarpBlend.lib and, in your [precompiled] header.
 #include "VIOSOWarpBlend.h"
 
-2 Dynamic binding  
+### 2 Dynamic binding  
 giving a path to load dynamic library from:
 #define VIOSOWARPBLEND_FILE with a path (relative to main executable), this defaults to VIOSOWarpBlend / VIOSOWarpBlend64
 
-2a via [precompiled] header:  
+### 2a use wrapper from VIOSOWarpBlend
+declaration:
+
+#include "../../Include/VIOSOWarpBlend.hpp"
+const char* s_configFile = "VIOSOWarpBlendGL.ini";
+std::shared_ptr<VWB> pWarper;
+
+initialization: (where channel is a string containing the channel name)
+	try {
+		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
+	}
+	catch( VWB_ERROR )
+	{
+		return FALSE;
+	}
+	if( VWB_ERROR_NONE != pWarper->Init() )
+		return FALSE;
+
+pre-render:
+	float view[16], proj[16];
+	float eye[3] = { 0,0,0 };
+	float rot[3] = { 0,0,0 };
+
+	pWarper->GetViewProj( eye, rot, view, proj ); // call some of the get frustum functions there are others serving clip coordinates or angles
+
+render:
+    render your scene into FBO / Offscreen RT, attached to texUnwarped
+    
+post-render:
+	pWarper->Render( texUnwarped, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
+
+
+### 2b via [precompiled] header:  
 in header declare functions and types:
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE
 #include "VIOSOWarpBlend.h"
@@ -42,7 +74,7 @@ in module initialization, this loads function pointers from library
 #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
 #include "VIOSOWarpBlend.h"
 
-2b Single file  
+### 2c Single file  
 in file on top, to declare and implement functions/objects,
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
 #include "VIOSOWarpBlend.h"
