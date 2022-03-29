@@ -32,36 +32,37 @@ giving a path to load dynamic library from:
 ### 2a use wrapper from VIOSOWarpBlend
 declaration:
 
-#include "../../Include/VIOSOWarpBlend.hpp"
-const char* s_configFile = "VIOSOWarpBlendGL.ini";
-std::shared_ptr<VWB> pWarper;
+```#include "../../Include/VIOSOWarpBlend.hpp"```
+```const char* s_configFile = "VIOSOWarpBlendGL.ini";```
+```std::shared_ptr<VWB> pWarper;```
 
 initialization: (where channel is a string containing the channel name)
-	try {
-		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
-	}
-	catch( VWB_ERROR )
-	{
-		return FALSE;
-	}
-	if( VWB_ERROR_NONE != pWarper->Init() )
-		return FALSE;
+```	try {```
+```		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );```
+```	}```
+```	catch( VWB_ERROR )```
+```	{```
+```		return FALSE;```
+```	}```
+```	if( VWB_ERROR_NONE != pWarper->Init() )```
+```		return FALSE;```
 
 pre-render:
-	float view[16], proj[16];
-	float eye[3] = { 0,0,0 };
-	float rot[3] = { 0,0,0 };
-
-	pWarper->GetViewProj( eye, rot, view, proj ); // call some of the get frustum functions there are others serving clip coordinates or angles
+```	float view[16], proj[16];```
+```	float eye[3] = { 0,0,0 };```
+```	float rot[3] = { 0,0,0 };```
+``` ```
+```	pWarper->GetViewProj( eye, rot, view, proj ); // call some of the get frustum functions there are others serving clip coordinates or angles```
 
 render:
     render your scene into FBO / Offscreen RT, attached to texUnwarped
     
 post-render:
-	pWarper->Render( texUnwarped, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
+```	pWarper->Render( texUnwarped, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );```
 
 
-### 2b via [precompiled] header:  
+### 2b via [precompiled] header:
+
 in header declare functions and types:
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE
 #include "VIOSOWarpBlend.h"
@@ -74,7 +75,8 @@ in module initialization, this loads function pointers from library
 #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
 #include "VIOSOWarpBlend.h"
 
-### 2c Single file  
+### 2c Single file:
+
 in file on top, to declare and implement functions/objects,
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
 #include "VIOSOWarpBlend.h"
@@ -85,9 +87,14 @@ in module initialization, this loads function pointers from library
 
 Always make sure to have your platform headers loaded before!
 
-## Usage on Linux:
-There is a separate linux branch which is work in progress. 
-Check it out via the command ```git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git```
+## Build on Windows
+Clone the repositiory, use MS Visual Studio(R) and include VIOSOWarpBlend/VIOSOWarpBlend.vcxproj project file to your solution. Compile along with your projects.
+
+## Build on Linux:
+There is a separate linux branch which is work in progress. Master branch is constantly converging, worth a try.
+Check it out via the command 
+ ```git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git```
+ ```git clone -b master https://bitbucket.org/VIOSO/VIOSO_api.git```
 (be sure to have installed git lfs or do ```sudo apt-get install git-lfs```  if you get an error related to extracting vioso2d.zip or vioso3D.zip you may have force a git lfs checkout: ```git lfs pull```)
 
 Build it (as a shared library) using cmake: in the root folder execute the follwing command (having cmake installed - sudo apt-get install cmake):
@@ -109,10 +116,6 @@ You might edit all settings in warper struct. Then call VWB_Init.
 There is no logical maximum on the number of allocated warpers.
 Call VWB_getViewProj to obtain view and projection matrices relative to some eye point.
 Call VWB_render to warp scene to screen. There is no multi-threading inside VIOSOWarpBlend module, make sure to use same thread or make your GL-context current before calling VWB_render.
-
-You need VIOSO Calibrator to export a warp map as Vioso Warp File.
-OR you can download mapings here:
-https://vioso.sharepoint.com/:f:/s/intern/EnmNHs_Y7r1Lno7zCl2y1CsB8vIpWHsQdV9ZMK2OQNjXOQ?e=jRzHTk
 
 This API can use all mappings. In case you export 3D, you have to specify view parameter.
 The eye point correction algorithm works implicitly. Imagine a rectangular "window" placed virtually near next to the screen.
