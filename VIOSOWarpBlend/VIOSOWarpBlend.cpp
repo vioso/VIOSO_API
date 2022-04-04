@@ -33,6 +33,8 @@
 
 VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
+char const* g_cryptoKey = nullptr;
+
 #ifdef WIN32
 Server g_server;
 typedef std::vector<SPtr<VWBTCPListener>> ListenerList;
@@ -584,7 +586,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 	else
 	{
 		VWB_WarpBlendSet set;
-		err = LoadVWF( set, ( (VWB_Warper_base*)pWarper )->calibFile, false, pWarper->calibIndex );
+		err = LoadVWF( set, ( (VWB_Warper_base*)pWarper )->calibFile, false, pWarper->calibIndex, g_cryptoKey );
 		//if( ( VWB_ERROR_VWF_LOAD == err ) ||
 		//	( VWB_ERROR_VWF_FILE_NOT_FOUND == err && VWB_ERROR_NONE != CreateDummyVWF( set, ((VWB_Warper_base*)pWarper)->calibFile ) ) ||
 		//    ( VWB_ERROR_NONE == err  && !VerifySet( set ) ) )
@@ -809,6 +811,13 @@ VWB_ERROR VWB_getVersion( VWB_int* major, VWB_int* minor, VWB_int* maintenance, 
 	return VWB_ERROR_NONE;
 }
 
+VWB_ERROR VWB_setCryptoKey( char const* key )
+{
+	g_cryptoKey = key;
+	return VWB_ERROR_NONE;
+}
+
+///////////////////////////////////////////////////////////////
 #include "mmath.h"
 
 VWB_Warper_base::VWB_Warper_base()
@@ -3213,6 +3222,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,DWORD  ul_reason_for_call,LPVOID lpReserv
 	}
     return TRUE;
 }
+
 #elif defined __GNU__
   void __attribute__ ((constructor)) my_init(void)
   {

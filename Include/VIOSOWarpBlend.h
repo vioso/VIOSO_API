@@ -255,4 +255,10 @@ calibIndex=0
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getVersion, ( VWB_int* major, VWB_int* minor, VWB_int* maintenance, VWB_int* build ) );
 
+	/* get the version of the API
+	* @param[IN]			key	    a key of 16 chars (128 bit) provided for encryption/decryption of AES128 algorythm loading and saving vwf files, set to nullptr to disable encryption/decryption
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range 
+	* @remark Internally we keep only the pointer to your buffer. Make sure to keep the key there as long as it is needed. It will be used during VWB_init VWB_initExt */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_setCryptoKey, ( char const* key ) );
+
 	#undef VIOSOWARPBLEND_API

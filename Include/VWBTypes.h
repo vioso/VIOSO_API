@@ -452,6 +452,70 @@ public:
 	char								hostname[256];	///<   network name or IP in dotted decimal
 }VWB_WarpFileHeader4;
 
+
+typedef struct VWB_WarpFileHeader5
+{
+public:
+
+	// ----------------------------------------------------------------------------------
+	//                               public attributes
+	// ----------------------------------------------------------------------------------
+
+	char                                magicNumber[4];							///<   "vwf0"
+	VWB_uint                            szHdr;									///<   used to communicate the size of this header struct
+	VWB_uint                            flags;									///<   additional informations
+	///<  @see FLAG_WARPFILE_HEADER for details
+	VWB_uint                            hMonitor;								///<   set to the HMONITOR of the treated display
+	VWB_uint                            size;									///<   actual size of the following data block; the size of the raw data can be calculated from dimensions
+	VWB_int                             width;									///<   count of warp records per row
+	VWB_int                             height;									///<   count of rows of warp records
+	VWB_float                           white[4];								///<   white point of that projector; set to { 1.0f, 1.0f, 1.0f, 1.0f }
+	VWB_float                           black[4];								///<   black point of that projector; set to { 0.0f, 0.0f, 0.0f, 1.0f }
+	VWB_float                           splitRowIndex;							///<   [ 0] => row index
+	VWB_float                           splitColumnIndex;						///<   [ 1] => column index
+	VWB_float							splitRows;								///<   [ 2] => number of rows
+	VWB_float							splitColumns;							///<   [ 3] => number of columns
+	VWB_float							splitTotalWidth;						///<   [ 4] => original display width
+	VWB_float							splitTotalHeight;						///<   [ 5] => original display height
+	VWB_float							typeCalib;								///<   [ 6] => type to define the calibration type the information based on
+	VWB_float							offsetX;								///<   [ 7] => original desktop display offset x
+	VWB_float							offsetY;								///<   [ 8] => original desktop display offset y
+	VWB_float							blackScale;								///<   [ 9] => blacklevel correction texture scale factor
+	VWB_float							blackDark;								///<   [10] => blacklevel dark value maintain factor; 
+	VWB_float							blackBright;							///<   [11] => blacklevel bright value maintain factor
+	VWB_float							compoundID;								///<   [12] => ///<   identifier for a compound display, static cast to int, set if greater than 0, all screend/displays with same compound id should use same content space alas source rect
+	VWB_float							vReserved[3];							///<	reserved for future use
+	char                                name[256];								///<   optional, human readable name for that mapping
+	char								ident[4096];							///<   optional, xml identification for that mapping derived from pdi code from pictureall, only filled if nvapi is appliable
+	VWB_ull			                    tmIdent;								///<   used to communicate a time stamp to identify the warp information
+	VWB_float                           vCntDispPx[7];							///<   optional, used to store informations about the content position on handled display
+	///<   [0] => minimum covered display pixel column  (l)
+	///<   [1] => minimum covered display pixel row     (t)
+	///<   [2] => maximum covered display pixel column  (r)
+	///<   [3] => maximum covered display pixel row     (b)
+	///<   [4] => content to display pixel ratio in x direction
+	///<   [5] => content to display pixel ratio in y direction
+	///<   [6] => quantum of used display pixel
+	VWB_float                           vPartialCnt[9];
+	///<   [0] => minimum relative content position in x direction (l)
+	///<   [1] => minimum relative content position in y direction (t)
+	///<   [2] => maximum relative content position in x direction (r)
+	///<   [3] => maximum relative content position in y direction (b)
+	///<   [4] => optional aspect ratio of the content space
+	///<   [5] => optional relative content position transform offset in x direction
+	///<   [6] => optional relative content position transform offset in y direction
+	///<   [7] => optional relative content position transform scale in x direction
+	///<   [8] => optional relative content position transform scale in y direction
+	char                                primName[256];		///<   optional, human readable name for high level calibration the display is assigned to
+	VWB_float                           vReserved2[16];							///<   used to define additional informations in further versions
+	VWB_wchar							displayID[256];	///<   Windows display identifier, use EnumDisplayDevices using EDD_GET_DEVICE_INTERFACE_NAME flag to find it
+	char								hostname[256];	///<   network name or IP in dotted decimal
+	VWB_uint							szKey;									///<   the key size, 0 if not used
+	VWB_byte							key[128];								///<   some PGP encrypted key
+	char								keyIdent[16];							///<   describes the used encryption method
+	char								keyDesc[256];							///<   human readable description of used encryption method
+} VWB_WarpFileHeader5;
+
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //                                                              VWB_WarpRecord
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -558,7 +622,7 @@ typedef  enum
 #pragma pack(pop)
 
 typedef struct VWB_WarpBlendHeader{
-	VWB_WarpFileHeader4 header;
+	VWB_WarpFileHeader5 header;
 	char path[MAX_PATH];
 } VWB_WarpBlendHeader;
 

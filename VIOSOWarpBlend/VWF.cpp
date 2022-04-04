@@ -269,7 +269,7 @@ VWB_ERROR convertFromBitmapData( VWB_BlendRecord*& pB, char* pBMData, int w, int
 	return VWB_ERROR_PARAMETER;
 }
 
-VWB_ERROR LoadHeader( VWB_WarpFileHeader4& header, std::istream& is, size_t sz )
+VWB_ERROR LoadHeader( VWB_WarpFileHeader5& header, std::istream& is, size_t sz )
 {
 	if( is.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -278,7 +278,7 @@ VWB_ERROR LoadHeader( VWB_WarpFileHeader4& header, std::istream& is, size_t sz )
 	if( !is.eof() )
 	{
 		// correct header size, as we are now VWB_WarpFileHeader4
-		header.szHdr = sizeof( VWB_WarpFileHeader4 );
+		header.szHdr = sizeof( VWB_WarpFileHeader5 );
 
 		return VWB_ERROR_NONE;
 	}
@@ -434,7 +434,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 								pWB->header.magicNumber[1] = 'w';
 								pWB->header.magicNumber[2] = 'f';
 								pWB->header.magicNumber[3] = '0';
-								pWB->header.szHdr = sizeof( VWB_WarpFileHeader4 );
+								pWB->header.szHdr = sizeof( VWB_WarpFileHeader5 );
 								set.push_back( pWB );
 							}
 							if( 0 != set.size() )
@@ -549,7 +549,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 }
 
 
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os )
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os )
 {
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -579,7 +579,7 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std::ostream& os )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, std::ostream& os )
 {
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -621,7 +621,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std:
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, char const* path )
 {
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
@@ -636,7 +636,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os )
 {
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -671,7 +671,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, std::ostream& os )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, std::ostream& os )
 {
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -706,7 +706,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, st
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, std::ostream& os )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, std::ostream& os )
 {
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -741,7 +741,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, st
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path )
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path )
 {
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
@@ -756,7 +756,7 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map
 	return SaveBMP_RGBA( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path )
 {
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
@@ -771,7 +771,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, cha
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, char const* path )
 {
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
@@ -786,7 +786,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, ch
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, char const* path )
 {
 	char pp[MAX_PATH];
 	strcpy_s( pp, path );
@@ -840,6 +840,10 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 					AES_ctx ctx;
 					AES_init_ctx( &ctx, (uint8_t*)aesKey );
 					AES_CBC_encrypt_buffer( &ctx, (uint8_t*)setIt->pWarp, sz );
+					setIt->header.szKey = 16;
+					strcpy( setIt->header.keyIdent, "AES128" );
+					memcpy( setIt->header.key, aesKey, sizeof( setIt->header.key ) ); // TODO just for testing !! remove writing plain key here!!
+					strcpy( setIt->header.keyDesc, "encrypted with AES128" );
 				}
 
 				os.write( (const char*)setIt->pWarp, sz );
@@ -1266,9 +1270,9 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 	// create basic set, no warping no blending
 	VWB_uint nRecords = (VWB_uint)width * (VWB_uint)height;
 	set.push_back( new VWB_WarpBlend() );
-	set.back()->header = VWB_WarpFileHeader4{
+	set.back()->header = VWB_WarpFileHeader5{
 		{'v','w','f','0'},
-		sizeof( VWB_WarpFileHeader4 ),
+		sizeof( VWB_WarpFileHeader5 ),
 		FLAG_WARPFILE_HEADER_CALIBRATION_BASE_TYP|FLAG_WARPFILE_HEADER_OFFSET|FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR,
 		0x10001,
 		nRecords * (VWB_uint)sizeof( VWB_WarpRecord ),
@@ -1289,8 +1293,13 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 		{0},
 		{0},
 		{0},
-		"localhost"
+		"localhost",
+		0,
+		{0},
+		"",
+		"not encrypted"
 	};
+
 	// set.back()->header = wfh;
 	strcpy_s( set.back()->path, pp );
 
