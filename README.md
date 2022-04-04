@@ -1,6 +1,6 @@
 ﻿# VIOSO WarpBlend API
 
-This library is meant to use in image generators, to do warping and blending. It takes a .vwf export and a texture buffer 
+This library is meant to be used in image generators, to do warping and blending. It takes a VIOSO Warp File (.vwf) export and a texture buffer 
 to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
 It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamc eye warping.
 
