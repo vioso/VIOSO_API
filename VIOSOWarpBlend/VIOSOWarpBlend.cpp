@@ -1454,6 +1454,18 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 	optimalRes.cx = abs( VWB_int( ( maxER - maxEL ) * screenDist / minDx ) );
 	optimalRes.cy = abs( VWB_int( ( maxEB - maxET ) * screenDist / minDy ) );
+
+	if( optimalRes.cx > wb.header.width * 2)
+	{
+		logStr( 1, "WARNING: AutoView optimal width calculation too high (%i), capping.", optimalRes.cx );
+		optimalRes.cx = wb.header.width * 2;
+	}
+	if( optimalRes.cy > wb.header.height * 2 )
+	{
+		logStr( 1, "WARNING: AutoView optimal height calculation too high (%i), capping.", optimalRes.cy );
+		optimalRes.cy = wb.header.height * 2;
+	}
+
 	optimalRect.left = 0;
 	optimalRect.top = 0;
 	optimalRect.right = optimalRes.cx;
