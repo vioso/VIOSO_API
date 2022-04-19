@@ -288,13 +288,13 @@ VWB_ERROR GLWarpBlend::CreatePixelShader()
 
 		//The maxLength includes the NULL character
 		std::vector<GLchar> infoLog( maxLength );
-		glGetProgramInfoLog( m_ProgramBypass, maxLength, &maxLength, &infoLog[0] );
+		glGetProgramInfoLog( m_ProgramBypass, maxLength, &maxLength, infoLog.data() );
 
 		//The program is useless now. So delete it.
 		glDeleteProgram( m_ProgramBypass );
 		m_ProgramBypass = -1;
 
-		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog );
+		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog.data() );
 		return VWB_ERROR_SHADER;
 	}
 	m_locContentBypass = glGetUniformLocation( m_ProgramBypass, "samContent" );
@@ -369,7 +369,7 @@ VWB_ERROR GLWarpBlend::CreatePixelShader()
 		glDeleteProgram( m_Program );
 		m_ProgramBypass = -1;
 
-		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog );
+		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog.data() );
 		return VWB_ERROR_SHADER;
 	}
 
