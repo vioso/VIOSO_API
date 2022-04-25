@@ -3,9 +3,7 @@
 
 #include "Platform.h"
 //#include "../Include/VWBTypes.h"
-#define DONT_IMPLEMENT_SHND
-#include "SPtr.h"
-#undef DONT_IMPLEMENT_SHND
+#include <memory>
 #include <list>
 #include <queue>
 #include <map>
@@ -374,7 +372,7 @@ private:
 class TCPListener : public SockIn
 {
 public:
-	typedef struct Peer { void* pData; SocketAddress sa; SPtr<TCPConnection> s; } Peer;
+	typedef struct Peer { void* pData; SocketAddress sa; std::shared_ptr<TCPConnection> s; } Peer;
 	typedef std::vector< Peer > PeerList;
 protected:
 	PeerList m_peers;
@@ -526,7 +524,7 @@ public:
 class Server
 {
 public:
-	typedef std::vector< SPtr<SockIn> > Listeners;
+	typedef std::vector< std::shared_ptr<SockIn> > Listeners;
 	typedef enum MODALSTATE { 
 		MODALSTATE_RUN = -1025,
  		MODALSTATE_ERR = -2049,
@@ -542,11 +540,11 @@ protected:
 public:
 	timeval m_sto;
 	Server();
-	Server( SPtr<SockIn> const& s, bool bRunModal );
+	Server(std::shared_ptr<SockIn> const& s, bool bRunModal );
 	virtual ~Server();
 
-	int addReceiver( SPtr<SockIn> s );
-	int removeReceiver( SPtr<SockIn> s );
+	int addReceiver(std::shared_ptr<SockIn> s );
+	int removeReceiver(std::shared_ptr<SockIn> s );
 
 	// s needs to be in listeners already!!
 	int addResponder( Socket& s );

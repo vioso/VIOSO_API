@@ -4,7 +4,7 @@
 #include "DX/DX11WarpBlend.h"
 #include "DX/DX10WarpBlend.h"
 #include "GL/GLWarpBlendXPL.h"
-#include "Net.h"
+
 #ifndef VWB_WIN7_COMPAT
 #include "DX/DX12WarpBlend.h"
 #endif //ndef VWB_WIN7COMPAT
@@ -31,15 +31,18 @@
 #include "logging.h"
 #include "3rdparty/delauney/DelaunayTriangles.h"
 
+using namespace std;
+
 VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
 char const* g_cryptoKey = nullptr;
 
-#ifdef WIN32
+#ifdef _SOCKTEST_DEV
+#include "Net.h"
 Server g_server;
-typedef std::vector<SPtr<VWBTCPListener>> ListenerList;
+typedef std::vector< shared_ptr<VWBTCPListener>> ListenerList;
 ListenerList g_listeners;
-#endif
+#endif //def _SOCKTEST_DEV
 
 #ifdef WIN32
 HMODULE g_hModDll = 0;
@@ -57,6 +60,7 @@ DWORD VWB_GetError()
 	return g_error;
 }
 #endif
+
 VWB_ERROR invertWB( VWB_WarpBlend const& in, VWB_WarpBlend& out );
 
 VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* szChannelName )

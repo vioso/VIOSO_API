@@ -1,7 +1,8 @@
 #include "Net.h"
 #include <sstream>
 
-std::queue< VWBRemoteCommand > g_commandQueue;
+using namespace std;
+queue< VWBRemoteCommand > g_commandQueue;
 
 VWBTCPListener::VWBTCPListener( SocketAddress& s )
 : TCPListener( s )
@@ -69,11 +70,11 @@ VWB_ERROR VWBTCPListener::sendInfoTo( SocketAddress sa, SocketAddress* local )
 	SocketAddress my;
 	if( NULL == local )
 	{
-		std::vector<in_addr> list = Socket::getLocalIPList();
+		vector<in_addr> list = Socket::getLocalIPList();
 		my = SocketAddress( list[0].s_addr, sa.getPort() );
 		local = &my;
 	}
-	std::ostringstream buf;
+	ostringstream buf;
 	char buff[20];
 	try {
 		buf << "VIOSOWarpBlend API " << VWB_Version_MAJ << "." << VWB_Version_MIN << "." << VWB_Version_MAI << "." << VWB_Version_REV << m_warpers.size() << " display(s) on " << local->getDottedDecimal(buff) <<":" << local->getPort() << "\015\012";
@@ -104,8 +105,7 @@ int VWBTCPListener::cbRead( Server* pServer )
 {
 	// a new connection has been established
 	// we need to promote the new connection to own type to process data to make it call our virtuals
-	SPtr<VWBTCPConnection> s = new VWBTCPConnection( m_peers.back().s->detach(), m_peers.back().sa, this, pServer );
-	m_peers.back().s = s;
+	m_peers.back().s = make_shared<VWBTCPConnection>(m_peers.back().s->detach(), m_peers.back().sa, this, pServer);
 	return 0;
 }
 
@@ -147,7 +147,7 @@ int VWBTCPConnection::cbRead( Server* pServer )
 		logStr( 2, "INFO: No http request, parse as command string...\n" );
 		if( 2 < getNumRead() )
 		{
-			std::string s( getNumRead() + 1, 0 );
+			string s( getNumRead() + 1, 0 );
 			read( &s[0], getNumRead()+1, getNumRead() ); 
 
 			m_req.front().type = HttpRequest::TYPE_GET;

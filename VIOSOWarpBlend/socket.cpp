@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 
+using namespace std;
 // ----------------------------------------------------------------------------------
 //                               SocketAddress
 // ----------------------------------------------------------------------------------
@@ -567,7 +568,7 @@ int TCPListener::processRead( Server* pServer )
 {
 	Peer peer;
 	peer.pData = NULL;
-	peer.s = new TCPConnection( Socket::accept(peer.sa), peer.sa, this, pServer );
+	peer.s = make_shared<TCPConnection>( Socket::accept(peer.sa), peer.sa, this, pServer );
 	if( 0 < *peer.s )
 	{
 		m_peers.push_back( peer );
@@ -584,7 +585,7 @@ int TCPListener::getPeerIndex( TCPConnection const* pC ) const
 {
 	for( PeerList::const_iterator it = m_peers.begin(); it != m_peers.end(); it++ )
 	{
-		if( pC == it->s.ptr )
+		if( pC == it->s.get() )
 			return (int)(it - m_peers.begin());
 	}
 	return -1;
@@ -1401,7 +1402,7 @@ Server::Server()
 	}
 };
 
-Server::Server( SPtr<SockIn> const& s, bool bRunModal )
+Server::Server( shared_ptr<SockIn> const& s, bool bRunModal )
 : m_modalState(0)
 {
 	ifStartSockets()
@@ -1429,7 +1430,7 @@ Server::~Server()
 	closeSockets();
 }
 
-int Server::addReceiver( SPtr<SockIn> s )
+int Server::addReceiver( shared_ptr<SockIn> s )
 {
 	if( s )
 	{
@@ -1445,7 +1446,7 @@ int Server::addReceiver( SPtr<SockIn> s )
 	return SOCKET_ERROR;
 }
 
-int Server::removeReceiver( SPtr<SockIn> s )
+int Server::removeReceiver( shared_ptr<SockIn> s )
 {
 	if( s )
 	{
