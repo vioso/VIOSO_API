@@ -816,7 +816,6 @@
     <ClInclude Include="Platform.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="socket.h" />
-    <ClInclude Include="SPtr.h" />
     <ClInclude Include="VWF.h" />
   </ItemGroup>
   <ItemGroup>

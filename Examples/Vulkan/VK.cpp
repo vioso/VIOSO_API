@@ -149,16 +149,15 @@ namespace VK
     //--------------------------------------------------------------------------------------
     // BackBuffer
     //--------------------------------------------------------------------------------------
-    BackBuffer::BackBuffer( GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat )
-        : RenderTarget( gfx.getDevice() )
-        , m_sc( sc )
+    BackBuffer::BackBuffer(GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat)
+    : RenderTarget(gfx.getDevice(), vectorize<VkImage, VkDevice, VkSwapchainKHR>(vkGetSwapchainImagesKHR, gfx.getDevice(), sc))
+    , m_sc( sc )
     {
         m_extent = VkExtent3D{ extent.width, extent.height, 1 };
         m_format = format;
         m_depthFormat = depthFormat;
 
-        auto images = vectorize<VkImage, VkDevice, VkSwapchainKHR>( vkGetSwapchainImagesKHR, gfx.getDevice(), sc );
-
+        auto images = vectorize<VkImage, VkDevice, VkSwapchainKHR>(vkGetSwapchainImagesKHR, gfx.getDevice(), sc);
         RTC( !images.empty(), "could not get images from swapchain." );
 
         m_images.clear();
@@ -990,7 +989,7 @@ namespace VK
 
         }
 
-        m_rt = make_unique<BackBuffer>( *this, m_sc, format, VkExtent2D{ uint32_t(width), uint32_t(height) } );
+        m_rt = make_unique<BackBuffer>(*this, m_sc, format, VkExtent2D{ uint32_t(width), uint32_t(height) });
 
         mat4x4_frustum( m_mProjection, -0.5f, 0.5f, -0.5f * float(height) / float(width), 0.5f * float(height) / float(width), 0.25f, 1024.25f );
    }

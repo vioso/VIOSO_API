@@ -266,7 +266,7 @@ namespace VK
 		std::atomic<uint32_t> m_currentBuffer;
 	public:
 
-		RenderTarget( DeviceH const& dev, VkExtent3D const& extent = { 0 }, VkFormat format = VK_FORMAT_UNDEFINED, VkFormat depthFormat = VK_FORMAT_UNDEFINED, uint32_t mipLevels = 1 )
+		RenderTarget(DeviceH const& dev, std::vector<VkImage> const& images, VkExtent3D const& extent = { 0 }, VkFormat format = VK_FORMAT_UNDEFINED, VkFormat depthFormat = VK_FORMAT_UNDEFINED, uint32_t mipLevels = 1)
 			: m_currentBuffer( 0 )
 			, m_extent( extent )
 			, m_mipLevels( mipLevels )
@@ -347,7 +347,7 @@ namespace VK
 		/// <param name="gfx"></param>
 		/// <param name="sc"></param>
 		/// <param name="hDepth"></param>
-		BackBuffer( GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat = VK_FORMAT_D16_UNORM );
+		BackBuffer(GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat = VK_FORMAT_D16_UNORM);
 		virtual Image const& getNextBuffer();
 		virtual VkAttachmentDescription getAttachmentDescription() const {
 			return AttachmentDescription( m_format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR );
@@ -361,7 +361,7 @@ namespace VK
 	class RenderTexture : public RenderTarget
 	{
 	public:
-		RenderTexture( DeviceH const& dev ) : RenderTarget( dev ) {}
+		RenderTexture(DeviceH const& dev, std::vector<VkImage> const& images) : RenderTarget(dev, images) {}
 		virtual VkAttachmentDescription getkAttachmentDescription() const {
 			return AttachmentDescription( m_format );
 		};
