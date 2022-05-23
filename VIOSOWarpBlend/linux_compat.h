@@ -30,9 +30,11 @@ typedef int LONG;
 
  errno_t localtime_s( struct tm* const tmDest, time_t const* const sourceTime );
  errno_t strcat_s( char* dest, size_t n, const char* src );
- constexpr errno_t strcat_s( char* dest, const char* src ) { strcat( dest, src ); return 0; }
+ // Body of a constexpr must be a return stament in c++11
+ inline errno_t strcat_s( char* dest, const char* src ) { strcat( dest, src ); return 0; }
  errno_t strcpy_s( char* dest, size_t n, const char* src );
- constexpr errno_t strcpy_s( char* dest, const char* src ) { strcpy( dest, src ); return 0; }
+ // Body of a constexpr must be a return stament in c++11
+ inline errno_t strcpy_s( char* dest, const char* src ) { strcpy( dest, src ); return 0; }
  errno_t strncpy_s( char* dest, size_t n, const char* src, size_t count );
  errno_t strncpy_s( char* dest, const char* src, size_t count );
  int fopen_s( FILE** f, const char* __restrict __filename, const char* __restrict __mode );

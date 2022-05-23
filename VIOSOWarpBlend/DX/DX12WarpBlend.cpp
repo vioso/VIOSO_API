@@ -25,6 +25,7 @@ DX12WarpBlend::DX12WarpBlend( ID3D12CommandQueue* pCQ )
 , m_texBB( NULL )
 , m_cb( NULL )
 , m_cbMap( NULL )
+, m_vp{0,0,1,1,0,1}
 {
 	if( NULL == pCQ )
 		throw( VWB_ERROR_PARAMETER );
@@ -57,8 +58,9 @@ DX12WarpBlend::~DX12WarpBlend(void)
 
 HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, D3D12_RESOURCE_DESC const& desc, D3D12_SUBRESOURCE_DATA& data, ID3D12Resource*& tex, std::vector< CComPtr< ID3D12Resource > >& sts, LPCWSTR name = L"" )
 {
+	CD3DX12_HEAP_PROPERTIES hp( D3D12_HEAP_TYPE_DEFAULT );
 	HRESULT hr = dev->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+		&hp,
 		//&D3D12_HEAP_PROPERTIES( { D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1 } ),
 		D3D12_HEAP_FLAG_NONE,
 		&desc,
@@ -71,11 +73,13 @@ HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, 
 
 	CComPtr<ID3D12Resource> uploadHeapTex;
 	// Create the GPU upload buffer.
+	hp.Type = D3D12_HEAP_TYPE_UPLOAD;
+	CD3DX12_RESOURCE_DESC rd = CD3DX12_RESOURCE_DESC::Buffer( uploadBufferSize );
 	hr = dev->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
+		&hp,
 		//&D3D12_HEAP_PROPERTIES( { D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1 } ),
 		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer( uploadBufferSize ),
+		&rd,
 		//&D3D12_RESOURCE_DESC( { D3D12_RESOURCE_DIMENSION_BUFFER, 0, uploadBufferSize, 1, 1, 1, DXGI_FORMAT_UNKNOWN, {1,0}, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE } ),
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
@@ -297,10 +301,12 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				{ { -1.0f - dx,  1.0f + dy, 0.5f }, { 0.0f, 0.0f } },
 			};
 
+			CD3DX12_HEAP_PROPERTIES hp( D3D12_HEAP_TYPE_UPLOAD );
+			CD3DX12_RESOURCE_DESC rd = CD3DX12_RESOURCE_DESC::Buffer( sizeof( quad ) );
 			hr = m_device->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
+				&hp,
 				D3D12_HEAP_FLAG_NONE,
-				&CD3DX12_RESOURCE_DESC::Buffer( sizeof( quad ) ),
+				&rd,
 				D3D12_RESOURCE_STATE_GENERIC_READ,
 				nullptr,
 				IID_PPV_ARGS( &m_vertexBuffer )	);
@@ -325,10 +331,12 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		{
 			UINT szA = sizeof( ConstantBuffer );
 			UINT sz = ( ( szA + 255 ) / 256 ) * 256;
+			CD3DX12_HEAP_PROPERTIES hp( D3D12_HEAP_TYPE_UPLOAD );
+			CD3DX12_RESOURCE_DESC rd = CD3DX12_RESOURCE_DESC::Buffer( sz );
 			hr = m_device->CreateCommittedResource(
-					&CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
+					&hp,
 					D3D12_HEAP_FLAG_NONE,
-					&CD3DX12_RESOURCE_DESC::Buffer( sz ),
+					&rd,
 					D3D12_RESOURCE_STATE_GENERIC_READ,
 					nullptr,
 					IID_PPV_ARGS( &m_cb )
@@ -601,8 +609,9 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if( nullptr == m_texBB || descRT.Width != m_texBB->GetDesc().Width )
 		{
 			// create tex#
+			CD3DX12_HEAP_PROPERTIES hd( D3D12_HEAP_TYPE_DEFAULT );
 			hr = m_device->CreateCommittedResource(
-				&D3D12_HEAP_PROPERTIES( { D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 1, 1 } ),
+				&hd,
 				D3D12_HEAP_FLAG_NONE,
 				&descRT,
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,

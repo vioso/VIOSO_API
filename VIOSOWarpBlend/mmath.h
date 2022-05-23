@@ -545,7 +545,7 @@ struct VWB_MATRIX
 
 			( pClip[0] - pClip[2] ) * ReciprocalWidth,
 			( pClip[3] - pClip[1] ) * ReciprocalHeight,
-			-fRange * NearZ;
+			-fRange * pClip[4],
 			(_T)1 );
 	}
 
@@ -579,7 +579,7 @@ struct VWB_MATRIX
 			(_T)0,
 			(_T)0,
 			(_T)-2 * fRange,
-			( pClip[4] + pClip[5] ) * fRange;
+			( pClip[4] + pClip[5] ) * fRange,
 		
 			(_T)0,
 			(_T)0,
@@ -739,35 +739,35 @@ struct VWB_MATRIX
 
 	_T Det() const
 	{
-		inv[0] = p[5] * p[10] * p[15] -
+		_T inv0 = p[5] * p[10] * p[15] -
 			p[5] * p[11] * p[14] -
 			p[9] * p[6] * p[15] +
 			p[9] * p[7] * p[14] +
 			p[13] * p[6] * p[11] -
 			p[13] * p[7] * p[10];
 
-		inv[4] = -p[4] * p[10] * p[15] +
+		_T inv4 = -p[4] * p[10] * p[15] +
 			p[4] * p[11] * p[14] +
 			p[8] * p[6] * p[15] -
 			p[8] * p[7] * p[14] -
 			p[12] * p[6] * p[11] +
 			p[12] * p[7] * p[10];
 
-		inv[8] = p[4] * p[9] * p[15] -
+		_T inv8 = p[4] * p[9] * p[15] -
 			p[4] * p[11] * p[13] -
 			p[8] * p[5] * p[15] +
 			p[8] * p[7] * p[13] +
 			p[12] * p[5] * p[11] -
 			p[12] * p[7] * p[9];
 
-		inv[12] = -p[4] * p[9] * p[14] +
+		_T inv12 = -p[4] * p[9] * p[14] +
 			p[4] * p[10] * p[13] +
 			p[8] * p[5] * p[14] -
 			p[8] * p[6] * p[13] -
 			p[12] * p[5] * p[10] +
 			p[12] * p[6] * p[9];
 
-		_T det = p[0] * inv[0] + p[1] * inv[4] + p[2] * inv[8] + p[3] * inv[12];
+		_T det = p[0] * inv0 + p[1] * inv4 + p[2] * inv8 + p[3] * inv12;
 
 		return det;
 	}
@@ -1266,17 +1266,20 @@ struct VWB_MATRIX33
 		return true;
 	}
 
+	// checks if a matrix is really close to identity matrix.
+    // it often happens after a series of transformations, it comes clost but not really 1.0
+    // for testing
 	_inline_ bool IsIdentity()
 	{
 		for( int i = 0; i != 8; )
 		{
-			if( T( 1 ) - std::numeric_limits<_T>::epsilon() > p[i] || p[i] > T( 1 ) + std::numeric_limits<_T>::epsilon() )
+			if( _T( 1 ) - std::numeric_limits<_T>::epsilon() > p[i] || p[i] > _T( 1 ) + std::numeric_limits<_T>::epsilon() )
 				return false;
 			for( int iE = ++i + 3; i != iE; i++ )
 				if( -std::numeric_limits<_T>::epsilon() > p[i] || p[i] > std::numeric_limits<_T>::epsilon() )
 					return false;
 		}
-		if( T( 1 ) - std::numeric_limits<_T>::epsilon() > p[8] || p[8] > T( 1 ) + std::numeric_limits<_T>::epsilon() )
+		if( _T( 1 ) - std::numeric_limits<_T>::epsilon() > p[8] || p[8] > _T( 1 ) + std::numeric_limits<_T>::epsilon() )
 			return false;
 		return true;
 	}

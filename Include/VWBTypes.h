@@ -656,6 +656,8 @@ typedef struct VWB_WarpBlendMesh // a triangle list mesh
 	VWB_size dim;  // the dimension of the calibrated display in pixels
 }VWB_WarpBlendMesh;
 
+#pragma pack(pop)
+
 #ifdef WIN32
 #include <Unknwn.h>
 typedef struct VWB_D3D12_RENDERINPUT
@@ -678,25 +680,7 @@ public:
 	virtual void __stdcall BindTexture2d( int inTextureNum, int inTextureUnit ) = 0;
 	virtual void __stdcall GenerateTextureNumbers( int* outTextureIDs, int  inCount ) = 0;
 };
-
-//typedef struct VWB_D3D12Helper
-//{
-//	typedef UINT64( __stdcall *pfn_getfenceValue )( );
-//
-//	VWB_uint sig;
-//	VWB_uint reserved;
-//	void* pDxDevice;
-//	void* pDxCommandQueue;
-//	const static VWB_uint _sig = 'DX12';
-//	VWB_D3D12Helper( void* _pDxDevice, void* _pDxCommandQueue )
-//		: sig( _sig )
-//		, reserved( 0 )
-//		, pDxDevice( _pDxDevice )
-//		, pDxCommandQueue( _pDxCommandQueue )
-//	{}
-//} VWB_D3D12Helper;
 #endif //def WIN32
-#pragma pack(pop)
 
 
 #endif//__VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__

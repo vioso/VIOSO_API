@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.9)
 
-project(VIOSOWarpBlend VERSION 1.2.4 DESCRIPTION "VIOSOWarpBlend library")
+project(VIOSOWarpBlend VERSION 1.6.6 DESCRIPTION "VIOSOWarpBlend library")
 
 set(THIRD_PARTY ${CMAKE_CURRENT_SOURCE_DIR}/VIOSOWarpBlend/3rdparty)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4302")
-set(DEFAULT_FLAGS -std=c++11 -Wall -Werror -Wno-unused-result -Wno-unknown-pragmas)
+set(DEFAULT_FLAGS -std=c++17 -Wall -Werror -Wno-unused-result -Wno-unknown-pragmas)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if (NOT DEFINED VIOSO_API_SKIP_EXAMPLES)
@@ -30,7 +30,10 @@ add_compile_definitions(VIOSOWARPBLEND_EXPORTS)
 
 file(GLOB_RECURSE SOURCES "VIOSOWarpBlend/*.cpp")
 
-if (NOT UNIX)
+if (UNIX)
+	list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/VIOSOWarpBlend/Net.cpp)
+	list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/VIOSOWarpBlend/socket.cpp)
+else()
 	list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/VIOSOWarpBlend/linux_compat.cpp)
 endif()
 

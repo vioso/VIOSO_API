@@ -41,7 +41,8 @@ public:
 				NULL == VWB_InitExt ||
 				NULL == VWB_getViewProj ||
 				NULL == VWB_getViewClip ||
-				NULL == VWB_getPosDirClip
+				NULL == VWB_getPosDirClip ||
+				NULL == VWB_getScreenplane
 				)
 			{
 				instanceCounter = 0;
@@ -73,6 +74,7 @@ public:
 	VWB_ERROR GetViewProj( VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) { return VWB_getViewProj( m_warper, pEye, pRot, pView, pProj ); }
 	VWB_ERROR GetViewClip( VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) { return VWB_getViewClip( m_warper, pEye, pRot, pView, pClip ); }
 	VWB_ERROR GetPosDirClip( VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric = false, VWB_float aspect = 0 ) { return VWB_getPosDirClip( m_warper, pEye, pRot, pPos, pDir, pClip, symmetric, aspect );	}
+	VWB_ERROR GetScreenplane( VWB_float* pTL, VWB_float* pTR, VWB_float* pBL, VWB_float* pBR ) { return VWB_getScreenplane( m_warper, pTL, pTR, pBL, pBR );	}
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
 
 };

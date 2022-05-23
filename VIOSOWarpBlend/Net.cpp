@@ -1,7 +1,8 @@
 #include "Net.h"
 #include <sstream>
 
-std::queue< VWBRemoteCommand > g_commandQueue;
+using namespace std;
+queue< VWBRemoteCommand > g_commandQueue;
 
 VWBTCPListener::VWBTCPListener( SocketAddress& s )
 : TCPListener( s )
@@ -62,27 +63,28 @@ VWB_ERROR VWBTCPListener::remove( VWB_Warper* pWarper )
 
 VWB_ERROR VWBTCPListener::sendInfoTo( SocketAddress sa, SocketAddress* local )
 {
-	if( 0 == sa.sin_addr.S_un.S_addr )
+	if( 0 == sa.sin_addr.s_addr )
 		return VWB_ERROR_PARAMETER;
-	if( 0xFFFFFFFF == sa.sin_addr.S_un.S_addr )
+	if( 0xFFFFFFFF == sa.sin_addr.s_addr )
 		return VWB_ERROR_PARAMETER;
 	SocketAddress my;
 	if( NULL == local )
 	{
-		std::vector<in_addr> list = Socket::getLocalIPList();
+		vector<in_addr> list = Socket::getLocalIPList();
 		my = SocketAddress( list[0].s_addr, sa.getPort() );
 		local = &my;
 	}
-	char buf[SO_RCVBUF] = {0};
+	ostringstream buf;
 	char buff[20];
 	try {
-		int pos = sprintf_s( buf, "VIOSOWarpBlend API %d.%d.%d.%d %Iu display(s) on %s:%hu.\015\012", VWB_Version_MAJ,VWB_Version_MIN,VWB_Version_MAI,VWB_Version_REV, m_warpers.size(), local->getDottedDecimal(buff), local->getPort() );
+		buf << "VIOSOWarpBlend API " << VWB_Version_MAJ << "." << VWB_Version_MIN << "." << VWB_Version_MAI << "." << VWB_Version_REV << m_warpers.size() << " display(s) on " << local->getDottedDecimal(buff) <<":" << local->getPort() << "\015\012";
 		for( WarperList::iterator it = m_warpers.begin(); it != m_warpers.end(); it++ )
 		{
 			VWB_Warper_base* p = (VWB_Warper_base*)*it;
-			pos+= sprintf_s( &buf[pos], SO_RCVBUF-pos, "\"%s\" %dx%d.\015\012", p->channel, p->getMappingSize().cx, p->getMappingSize().cy );
+			buf << "\"" << p->channel << "\"" << p->getMappingSize().cx << "x" << p->getMappingSize().cy << ".\015\012";
 		}
-		if( pos != Socket::sendDatagram( buf, pos, sa, true ) ) // sendto will always send all if smaller than SO_RECVBUF
+		
+		if( int(buf.tellp()) != Socket::sendDatagram( buf.str().c_str(), int(buf.tellp()), sa, true ) ) // sendto will always send all if smaller than SO_RECVBUF
 			return VWB_ERROR_NETWORK;
 	}catch( ... )
 	{
@@ -103,8 +105,7 @@ int VWBTCPListener::cbRead( Server* pServer )
 {
 	// a new connection has been established
 	// we need to promote the new connection to own type to process data to make it call our virtuals
-	SPtr<VWBTCPConnection> s = new VWBTCPConnection( m_peers.back().s->detach(), m_peers.back().sa, this, pServer );
-	m_peers.back().s = s;
+	m_peers.back().s = make_shared<VWBTCPConnection>(m_peers.back().s->detach(), m_peers.back().sa, this, pServer);
 	return 0;
 }
 
@@ -146,7 +147,7 @@ int VWBTCPConnection::cbRead( Server* pServer )
 		logStr( 2, "INFO: No http request, parse as command string...\n" );
 		if( 2 < getNumRead() )
 		{
-			std::string s( getNumRead() + 1, 0 );
+			string s( size_t(getNumRead()) + 1, 0 );
 			read( &s[0], getNumRead()+1, getNumRead() ); 
 
 			m_req.front().type = HttpRequest::TYPE_GET;

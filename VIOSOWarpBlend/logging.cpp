@@ -87,7 +87,7 @@ void logClear()
 	strcpy_s( szBakFile, g_logFilePath );
 	strcat_s( szBakFile, ".bak" );
 	remove( szBakFile );
-	rename( g_logFilePath, szBakFile );
+	int i = rename( g_logFilePath, szBakFile ); // removes warinig C6031
 
 	if( 0 == fopen_s( &f, g_logFilePath, "w+" ) )
 		fclose(f);

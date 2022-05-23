@@ -144,6 +144,7 @@ typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum 
 #define GL_FRAMEBUFFER							0x8D40
 #define GL_BGR									0x80E0
 #define GL_ACTIVE_TEXTURE						0x84E0
+#define GL_VERTEX_ARRAY_BINDING					0x85B5
 #define GL_FRAMEBUFFER_COMPLETE					0x8CD5
 #define GL_RENDERBUFFER							0x8D41
 #define GL_DEPTH24_STENCIL8						0x88F0

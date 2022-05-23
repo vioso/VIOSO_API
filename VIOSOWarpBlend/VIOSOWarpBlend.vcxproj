@@ -816,7 +816,6 @@
     <ClInclude Include="Platform.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="socket.h" />
-    <ClInclude Include="SPtr.h" />
     <ClInclude Include="VWF.h" />
   </ItemGroup>
   <ItemGroup>
@@ -871,9 +870,15 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug X-Plane|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="logging.cpp" />
-    <ClCompile Include="Net.cpp" />
+    <ClCompile Include="Net.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="PathHelper.cpp" />
-    <ClCompile Include="socket.cpp" />
+    <ClCompile Include="socket.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="VIOSOWarpBlend.cpp" />
     <ClCompile Include="VWF.cpp" />
   </ItemGroup>

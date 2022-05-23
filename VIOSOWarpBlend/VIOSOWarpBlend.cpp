@@ -4,7 +4,7 @@
 #include "DX/DX11WarpBlend.h"
 #include "DX/DX10WarpBlend.h"
 #include "GL/GLWarpBlendXPL.h"
-#include "Net.h"
+
 #ifndef VWB_WIN7_COMPAT
 #include "DX/DX12WarpBlend.h"
 #endif //ndef VWB_WIN7COMPAT
@@ -31,15 +31,18 @@
 #include "logging.h"
 #include "3rdparty/delauney/DelaunayTriangles.h"
 
+using namespace std;
+
 VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
 char const* g_cryptoKey = nullptr;
 
-#ifdef WIN32
+#ifdef _SOCKTEST_DEV
+#include "Net.h"
 Server g_server;
-typedef std::vector<SPtr<VWBTCPListener>> ListenerList;
+typedef std::vector< shared_ptr<VWBTCPListener>> ListenerList;
 ListenerList g_listeners;
-#endif
+#endif //def _SOCKTEST_DEV
 
 #ifdef WIN32
 HMODULE g_hModDll = 0;
@@ -47,7 +50,7 @@ VWB_int g_error = 0;
 HCURSOR g_hCur = 0;
 SIZE	g_dimCur = { 0 };
 POINT   g_hotCur = { 0 };
-bool g_bCurEnabled = true;
+bool    g_bCurEnabled = true;
 FPtrInt_BOOL ShowSystemCursor = NULL;
 #endif
 
@@ -57,6 +60,7 @@ DWORD VWB_GetError()
 	return g_error;
 }
 #endif
+
 VWB_ERROR invertWB( VWB_WarpBlend const& in, VWB_WarpBlend& out );
 
 VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* szChannelName )
@@ -406,9 +410,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		szModPath = modPath;
 		if( ::GetModuleFileNameA( g_hModDll, modPath, MAX_PATH ) )
 #else
-		Dl_info dl_info;
+		Dl_info dl_info{};
 		szModPath = (char*) dl_info.dli_fname;
-		if( dladdr((void *)MkPath, &dl_info) )
+		if( dladdr((void *)VWB_CreateA, &dl_info) && szModPath )
 #endif //def WIN32
 		logStr( 1, "%s.\n", szModPath );
 	}
@@ -736,6 +740,13 @@ VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pR
 	return VWB_ERROR_PARAMETER;
 }
 
+VWB_ERROR VWB_getScreenplane( VWB_Warper* pWarper, VWB_float* pTL, VWB_float* pTR, VWB_float* pBL, VWB_float* pBR )
+{
+	if( pWarper )
+		return ( (VWB_Warper_base*)pWarper )->GetScreenplane( pTL, pTR, pBL, pBR );
+	return VWB_ERROR_PARAMETER;
+}
+
 VWB_ERROR VWB_setViewProj( VWB_Warper* pWarper, VWB_float* pView,  VWB_float* pProj )
 {
 	if( pWarper )
@@ -952,7 +963,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		wb.header.vPartialCnt[2] = 0; // right
 		wb.header.vPartialCnt[3] = 0; // bottom
 		VWB_BlendRecord2* pB = wb.pBlend2;
-		for( VWB_WarpRecord* pW = wb.pWarp, *pWE = wb.pWarp + m_sizeMap.cx * m_sizeMap.cy; pW != pWE; pW++, pB++ )
+		for( VWB_WarpRecord* pW = wb.pWarp, *pWE = wb.pWarp + ptrdiff_t( m_sizeMap.cx ) * m_sizeMap.cy; pW != pWE; pW++, pB++ )
 		{
 			if(0.5f <= pW->z && ( 0 < pB->r || 0 < pB->g || 0 < pB->b))
 			{
@@ -1037,7 +1048,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		// collect dimensions
 		VWB_BOXf b = VWB_BOXf::M();
 		VWB_WarpRecord* pW = wb.pWarp;
-		for( VWB_BlendRecord2* p = wb.pBlend2, *pE = wb.pBlend2 + m_sizeMap.cx * m_sizeMap.cy; p != pE; p++, pW++ )
+		for( VWB_BlendRecord2* p = wb.pBlend2, *pE = wb.pBlend2 + ptrdiff_t( m_sizeMap.cx ) * m_sizeMap.cy; p != pE; p++, pW++ )
 		{
 			if( 0.5 <= pW->w )
 			{
@@ -1175,6 +1186,24 @@ VWB_ERROR VWB_Warper_base::GetViewClip( VWB_float* eye, VWB_float* rot, VWB_floa
 VWB_ERROR VWB_Warper_base::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect )
 {
 	return VWB_ERROR_NOT_IMPLEMENTED;
+}
+
+VWB_ERROR VWB_Warper_base::GetScreenplane( VWB_float* pTL, VWB_float* pTR, VWB_float* pBL, VWB_float* pBR )
+{
+	if( !(pTL && pTR && pBL && pBR ) )
+		return VWB_ERROR_PARAMETER;
+
+	pBL[0] = pTL[0] = -m_viewSizes[0];
+	pTR[1] = pTL[1] = m_viewSizes[1];
+	pBR[0] = pTR[0] = m_viewSizes[2];
+	pBR[1] = pBL[1] = -m_viewSizes[3];
+	pTL[2] = pTR[2] = pBL[2] = pBR[2] = m_bRH ? -screenDist : screenDist;
+	VWB_MAT44f V = m_mViewIG.Inverted();
+	VWB_VEC3f::ptr( pTL ) = V * VWB_VEC3f::ptr( pTL );
+	VWB_VEC3f::ptr( pTR ) = V * VWB_VEC3f::ptr( pTR );
+	VWB_VEC3f::ptr( pBL ) = V * VWB_VEC3f::ptr( pBL );
+	VWB_VEC3f::ptr( pBR ) = V * VWB_VEC3f::ptr( pBR );
+	return VWB_ERROR_NONE;
 }
 
 void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float * pClip )
@@ -1356,14 +1385,14 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 	pW = wb.pWarp;
 	pB = wb.pBlend2;
-	size_t sz = wb.header.width * wb.header.height;
+	size_t sz = ptrdiff_t( wb.header.width ) * wb.header.height;
 	double cnt = 0;
 	const double minX = 0.25 / abs( screenDist ) / wb.header.width;
 	const double minY = 0.25 / abs( screenDist ) / wb.header.height;
 	double l = autoViewC * abs(screenDist) / 4;
 
-	VWB_VEC4d* pTLB = new VWB_VEC4d[wb.header.width+1]; // transformed of previous value and prevoius line, to calculate projected distance
-	VWB_VEC4d* pTL = pTLB, *pTLE = pTLB + (wb.header.width + 1);
+	VWB_VEC4d* pTLB = new VWB_VEC4d[ptrdiff_t( wb.header.width ) + 1]; // transformed of previous value and prevoius line, to calculate projected distance
+	VWB_VEC4d* pTL = pTLB, *pTLE = pTLB + ( ptrdiff_t( wb.header.width ) + 1);
 	for( pTL = pTLB; pTL != pTLE; pTL++ )
 		pTL->w = 0; // mark all entries invalid
 	for( VWB_WarpRecord const* pWE = pW + sz; pW != pWE; )
@@ -1473,7 +1502,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	logStr( 1, "INFO: AutoView for channel [%s] yields:\n"
 		"dir=[%.6f, %.6f, %.6f]\n"
 		"fov=[%.6f, %.6f, %.6f, %.6f]\n"
-		"screenDist=%.6f\n"
+		"screen=%.6f\n"
 		"optimalRes=[%d, %d]\n"
 		"optimalRect=[%d, %d, %d, %d]\n"
 		"handedness=%s\n"
@@ -2056,7 +2085,7 @@ VWB_ERROR invertWB( VWB_WarpBlend const& in, VWB_WarpBlend& out )
 	VWB_BlendRecord2 *pOutB  = out.pBlend2 + w + 1;
 	VWB_BlendRecord  *pOutBl = out.pBlack  + w + 1;
 	VWB_BlendRecord  *pOutWh = out.pWhite  + w + 1;
-	for( VWB_WarpRecord const* pOutWE = pOutW + nRecords - 2 * w; pOutWE != pOutW; pOutW+= 2, pOutB+= 2, pOutBl+= 2, pOutWh+= 2 )
+	for( VWB_WarpRecord const* pOutWE = pOutW + ptrdiff_t( nRecords ) - 2 * w; pOutWE != pOutW; pOutW+= 2, pOutB+= 2, pOutBl+= 2, pOutWh+= 2 )
 	{
 		for( VWB_WarpRecord const* pOutWLE = pOutW + w - 2; pOutWLE != pOutW; pOutW++, pOutB++, pOutBl++, pOutWh++ )
 		{
@@ -2748,7 +2777,7 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 				VWB_WarpRecord const* pW = pSrcD + i;
 				VWB_BlendRecord2 const* pB = pSrcDB + i;
 
-				lPoints.push_back( SPPair3f{ 
+				lPoints.emplace_back( SPPair3f{ 
 					0, 0, 
 					{ float(x), float(y), 0 },
 					{ pW->x, pW->y, pW->z },
@@ -2937,6 +2966,197 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 		return 1;
 	}
 
+	// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
+	int ComputeTriangluation2_3D( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
+	{
+		lTriangleIdx.clear();
+		lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
+
+		//std::vector< ptrdiff_t > lGrid;
+		//lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
+
+		lPoints.clear();
+		lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
+
+		for( long yG = 0; yG != hGrid; yG++ )
+		{
+			long y = yG * ( height - 1 ) / ( hGrid - 1 );
+			for( long xG = 0; xG != wGrid; xG++ )
+			{
+				long x = xG * ( width - 1 ) / ( wGrid - 1 );
+
+				ptrdiff_t i = ptrdiff_t( y ) * width + x;
+				//lGrid.push_back( i );
+
+				VWB_WarpRecord const* pW = pSrcD + i;
+				VWB_BlendRecord2 const* pB = pSrcDB + i;
+
+				lPoints.emplace_back( SPPair3f{ 
+					0, 0, 
+					{ pW->x, pW->y, pW->z },
+					{ float(x), float(y), pW->w },
+					{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
+					{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f } 
+					} );
+			}
+		}
+
+		// find pseudo gridpoints close to actual gridpoints to get better border aproximation
+		enum POS_REL {
+			POS_REL_T, // top
+			POS_REL_TR,  // top-right
+			POS_REL_R, // right
+			POS_REL_BR, // bottom-right
+			POS_REL_B,  // bottom
+			POS_REL_BL, // bottom-left
+			POS_REL_L, // left
+			POS_REL_TL, // top-left
+			POS_REL_SIZE
+		};
+
+		SIZE const delta[POS_REL_SIZE] = {
+			{  0, -1 }, // top
+			{  1, -1 }, // top-right
+			{  1,  0 }, // right
+			{  1,  1 }, // bottom-right
+			{  0,  1 }, // bottom
+			{ -1,  1 }, // bottom-left
+			{ -1,  0 }, // left
+			{ -1, -1 } // top-left
+		};
+
+		struct RepairItem
+		{
+			DynSPPointPairList3f::iterator where; // the grid position 
+			DynSPPointPairList3f::value_type v;
+		};
+		std::vector<RepairItem> repairs;
+
+		auto pt = lPoints.begin();
+		for(long yG = 0; yG != hGrid; yG++)
+		{
+			for(long xG = 0; xG != wGrid; xG++, pt++)
+			{
+				if(0.5f > pt->lPt2[2]) // me is invalid, so try to find a pseudo grid point next to me
+				{
+					for(int i = POS_REL_T; i != POS_REL_SIZE; i++)
+					{
+						long oxG = xG + delta[i].cx;
+						long oyG = yG + delta[i].cy;
+
+						if(
+							oxG < wGrid && // not over right border
+							oxG >= 0 && // not over left border
+							oyG < hGrid && // not over bottom border
+							oyG >= 0
+							)
+						{
+							auto const& opt = pt + (ptrdiff_t(delta[i].cy) * wGrid + ptrdiff_t(delta[i].cx));
+							if(0.5f <= opt->lPt2[2])
+							{
+								// got a valid point in some direction
+								// so we go from me (pt) towards other (opt) until we find a valid point in the map
+
+								ptrdiff_t incS = ptrdiff_t(delta[i].cy) * width + ptrdiff_t(delta[i].cx); // the increment in source mappings to step
+								ptrdiff_t sOffs = ptrdiff_t(pt->lPt2[0]) + width * ptrdiff_t(pt->lPt2[1]); // the offset in source mapping of me
+
+								VWB_WarpRecord const* pW = pSrcD + sOffs + incS; // my address in warp mapping: offset plus one step towards other, as we know myself is invalid at the beginning
+								VWB_WarpRecord const* pWE = pSrcD + ptrdiff_t(opt->lPt2[0]) + width * ptrdiff_t(opt->lPt2[1]); // the other points address
+								VWB_BlendRecord2 const* pB = pSrcDB + sOffs + incS; // my address in blend mapping
+								long x = long(pt->lPt2[0]) + delta[i].cx;
+								long y = long(pt->lPt2[1]) + delta[i].cy;
+								for(; pW != pWE; pW+= incS, pB+= incS, x+= delta[i].cx, y+= delta[i].cy)
+								{
+									if(0.5f <= pW->w) // hit!
+									{
+										repairs.emplace_back(RepairItem{pt, SPPair3f{
+											0, 0,
+											{pW->x, pW->y, pW->z},
+											{float(x), float(y), pW->w},
+											{float(pB->r) / 65535.0f, float(pB->g) / 65535.0f},
+											{float(pB->b) / 65535.0f, float(pB->a) / 65535.0f}
+											}});
+										goto nextPt;
+									}
+								}
+							}
+						}
+					}
+				}
+			nextPt:;
+			}
+		}
+
+		// consolidate; transfer points to grid
+		for(auto& r : repairs)
+		{
+			*r.where = r.v;
+		}
+
+		// triangulate
+		//	
+		//			x1  x2
+		//		y1	p1--p2
+		//			| \ A|
+		//			| B\ |
+		//		y2  p4--p3
+		//	
+		//			x1  x2
+		//		y1	p1--p2
+		//			| C/ |
+		//			| / D|
+		//		y2  p4--p3
+		// we assume CCW culling
+		for( long y = 1; y != hGrid; y++ )
+		{
+			for( long x = 1; x != wGrid; x++ )
+			{
+				long pt1 = ( y - 1 ) * wGrid + ( x - 1 );
+				long pt2 = ( y - 1 ) * wGrid + x;
+				long pt3 = y * wGrid + x;
+				long pt4 = y * wGrid + ( x - 1 );
+
+				if( 0.5f <= lPoints[pt1].lPt2[2] )
+				{ // pt1 valid
+					if( 0.5f <= lPoints[pt3].lPt2[2] )
+					{
+						if( 0.5f <= lPoints[pt4].lPt2[2] )
+						{
+							// triangle B valid, add it
+							lTriangleIdx.push_back( pt1 );
+							lTriangleIdx.push_back( pt4 );
+							lTriangleIdx.push_back( pt3 );
+						}
+						if( 0.5f <= lPoints[pt2].lPt2[2] )
+						{
+							// triangle A valid, add it
+							lTriangleIdx.push_back( pt1 );
+							lTriangleIdx.push_back( pt3 );
+							lTriangleIdx.push_back( pt2 );
+						}
+					}
+					else if( 0.5f <= lPoints[pt2].lPt2[2] &&
+						0.5f <= lPoints[pt4].lPt2[2] )
+					{ 
+						// tiangle C valid
+						lTriangleIdx.push_back( pt1 );
+						lTriangleIdx.push_back( pt4 );
+						lTriangleIdx.push_back( pt2 );
+					}
+				}
+				else if( 0.5f <= lPoints[pt2].lPt2[2] &&
+					0.5f <= lPoints[pt3].lPt2[2] &&
+					0.5f <= lPoints[pt4].lPt2[2] )
+				{
+					// tiangle D valid
+					lTriangleIdx.push_back( pt2 );
+					lTriangleIdx.push_back( pt3 );
+					lTriangleIdx.push_back( pt4 );
+				}
+			}
+		}
+		return 1;
+	}
 
 VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
 {
@@ -2954,118 +3174,139 @@ VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
 
 VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
 {
-	if( 3 > cols || 3 > rows )
+	if(3 > cols || 3 > rows)
 	{
-		logStr( 0, "ERROR: getWarpMesh needs >3 rows and columns.\n" );
+		logStr(0, "ERROR: getWarpMesh needs >3 rows and columns.\n");
 		return VWB_ERROR_PARAMETER;
 	}
 
-	if( m_bDynamicEye )
-	{
-		logStr( 0, "ERROR: getWarpMesh cannot deal with dynamic eye yet.\n" );
-		return VWB_ERROR_NOT_IMPLEMENTED;
-	}
+	/*
+	if( cols < 129 )
+		{
+			logStr( 1, "WARNING: getWarpMesh too few cols specified set to 129.\n" );
+			cols = 129;
+		}
 
-/*
-if( cols < 129 )
-	{
-		logStr( 1, "WARNING: getWarpMesh too few cols specified set to 129.\n" );
-		cols = 129;
-	}
-
-	if( rows < 129 )
-	{
-		logStr( 1, "WARNING: getWarpMesh too few rows specified set to 129.\n" );
-		rows = 129;
-	}
-*/
+		if( rows < 129 )
+		{
+			logStr( 1, "WARNING: getWarpMesh too few rows specified set to 129.\n" );
+			rows = 129;
+		}
+	*/
 	VWB_int& w = m_wb.header.width;
 	VWB_int& h = m_wb.header.height;
 	int nRecords = w * h;
 
-	if( 1024 > nRecords || NULL == m_wb.pWarp || NULL == m_wb.pBlend )
+	if(1024 > nRecords || NULL == m_wb.pWarp || NULL == m_wb.pBlend)
 	{
-		logStr( 0, "ERROR: getWarpMesh: warp map too small.\n" );
+		logStr(0, "ERROR: getWarpMesh: warp map too small.\n");
 		return VWB_ERROR_GENERIC;
 	}
-	logStr( 2, "INFO: getWarpMesh( %i, %i, * ): params OK.\n", cols, rows );
+	logStr(2, "INFO: getWarpMesh( %i, %i, * ): params OK.\n", cols, rows);
 
-	//VWB_WarpBlend wbInv;
-	//VWB_ERROR err = invertWB( m_wb, wbInv );
-	//if( VWB_ERROR_NONE == err )
+	DynSPPointPairList3f points;
+	DynLongList	indices;
+	if(m_bDynamicEye)
 	{
-		//logStr( 2, "INFO: getWarpMesh: inverted.\n" );
-
-		DynSPPointPairList3f points;
-		DynLongList	indices;
-		if( ComputeTriangluation2( points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows ) )
+		if(ComputeTriangluation2_3D(points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows))
 		{
-			logStr( 2, "INFO: getWarpMesh: triangulation.\n" );
+			logStr(2, "INFO: getWarpMesh: triangulation.\n");
 			mesh.nIdx = (VWB_uint)indices.size();
-			mesh.idx = new VWB_uint[ mesh.nIdx ];
-	
+			mesh.idx = new VWB_uint[mesh.nIdx];
+
 			mesh.nVtx = 0;
 
 			mesh.dim.cx = w;
 			mesh.dim.cy = h;
-
-			#if 0
-			VWB_uint nRes = mesh.nIdx / 2;
-			mesh.vtx = new VWB_WarpBlendVertex[nRes];
-			DynLongList indTrans; indTrans.resize( points.size(), -1 );
-			DynLongList::iterator iSrc = indices.begin();
-			logStr( 2, "INFO: getWarpMesh: resize.\n" );
-			for( VWB_uint* iDst = mesh.idx, *iDstE = iDst+mesh.nIdx; iDst != iDstE; iDst++, iSrc++ )
-			{
-				long const& i = *iSrc;
-				long& j = indTrans[i];
-				if( -1 == j )
-				{
-					if( mesh.nVtx >= nRes )
-					{
-						VWB_uint n = nRes;
-						nRes*= 2;
-						VWB_WarpBlendVertex* t = mesh.vtx;
-						mesh.vtx = new VWB_WarpBlendVertex[nRes];
-						memcpy( mesh.vtx, t, n * sizeof( VWB_WarpBlendVertex ) );
-						delete[] t;
-					}
-					j = mesh.nVtx;
-					VWB_WarpBlendVertex const v = {
-						{points[i].lPt1[0] / w, points[i].lPt1[1] / h ,0},
-						{points[i].lPt2[0],points[i].lPt2[1]},
-						{points[i].lTangDescX[0],points[i].lTangDescX[1],points[i].lTangDescY[0]}
-					};
-					mesh.vtx[mesh.nVtx] = v;
-					mesh.nVtx++;
-				}
-				*iDst = (VWB_uint)j;
-			}
-			#else
 			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
 			mesh.nVtx = (VWB_uint)points.size();
-			for( VWB_uint i = 0; i != points.size(); i++ )
+			for(VWB_uint i = 0; i != points.size(); i++)
 			{
 				mesh.vtx[i] = VWB_WarpBlendVertex{
-					{points[i].lPt1[0] / w, points[i].lPt1[1] / h ,0},
-					{points[i].lPt2[0],points[i].lPt2[1]},
-					{	points[i].lTangDescX[0] * points[i].lTangDescY[1],
-						points[i].lTangDescX[1] * points[i].lTangDescY[1],
-						points[i].lTangDescY[0] * points[i].lTangDescY[1]
-				    } };
+					{points[i].lPt1[0], points[i].lPt1[1], points[i].lPt1[2]},
+					{points[i].lPt2[0]/w, points[i].lPt2[1]/h},
+					{points[i].lTangDescX[0] * points[i].lTangDescY[1],
+					points[i].lTangDescX[1] * points[i].lTangDescY[1],
+					points[i].lTangDescY[0] * points[i].lTangDescY[1]
+				}};
 			}
-			for( VWB_uint i = 0; i != indices.size(); i++ )
+			for(VWB_uint i = 0; i != indices.size(); i++)
 			{
 				mesh.idx[i] = indices[i];
 			}
-			#endif
-			logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
-
+			logStr(2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3);
 		}
 		else
 		{
-			logStr( 0, "ERROR: getWarpMesh: Triangulation (CT) failed.\n" );
-			return VWB_ERROR_GENERIC;
+			if(ComputeTriangluation2(points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows))
+			{
+				logStr(2, "INFO: getWarpMesh: triangulation.\n");
+				mesh.nIdx = (VWB_uint)indices.size();
+				mesh.idx = new VWB_uint[mesh.nIdx];
+
+				mesh.nVtx = 0;
+
+				mesh.dim.cx = w;
+				mesh.dim.cy = h;
+
+			#if 0
+				VWB_uint nRes = mesh.nIdx / 2;
+				mesh.vtx = new VWB_WarpBlendVertex[nRes];
+				DynLongList indTrans; indTrans.resize(points.size(), -1);
+				DynLongList::iterator iSrc = indices.begin();
+				logStr(2, "INFO: getWarpMesh: resize.\n");
+				for(VWB_uint* iDst = mesh.idx, *iDstE = iDst+mesh.nIdx; iDst != iDstE; iDst++, iSrc++)
+				{
+					long const& i = *iSrc;
+					long& j = indTrans[i];
+					if(-1 == j)
+					{
+						if(mesh.nVtx >= nRes)
+						{
+							VWB_uint n = nRes;
+							nRes*= 2;
+							VWB_WarpBlendVertex* t = mesh.vtx;
+							mesh.vtx = new VWB_WarpBlendVertex[nRes];
+							memcpy(mesh.vtx, t, n * sizeof(VWB_WarpBlendVertex));
+							delete[] t;
+						}
+						j = mesh.nVtx;
+						VWB_WarpBlendVertex const v ={
+							{points[i].lPt1[0] / w, points[i].lPt1[1] / h, 0},
+							{points[i].lPt2[0], points[i].lPt2[1]},
+							{points[i].lTangDescX[0], points[i].lTangDescX[1], points[i].lTangDescY[0]}
+						};
+						mesh.vtx[mesh.nVtx] = v;
+						mesh.nVtx++;
+					}
+					*iDst = (VWB_uint)j;
+				}
+			#else
+				mesh.vtx = new VWB_WarpBlendVertex[points.size()];
+				mesh.nVtx = (VWB_uint)points.size();
+				for(VWB_uint i = 0; i != points.size(); i++)
+				{
+					mesh.vtx[i] = VWB_WarpBlendVertex{
+						{points[i].lPt1[0] / w, points[i].lPt1[1] / h, 0},
+						{points[i].lPt2[0], points[i].lPt2[1]},
+						{points[i].lTangDescX[0] * points[i].lTangDescY[1],
+						points[i].lTangDescX[1] * points[i].lTangDescY[1],
+						points[i].lTangDescY[0] * points[i].lTangDescY[1]
+					}};
+				}
+				for(VWB_uint i = 0; i != indices.size(); i++)
+				{
+					mesh.idx[i] = indices[i];
+				}
+			#endif
+				logStr(2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3);
+
+			}
+			else
+			{
+				logStr(0, "ERROR: getWarpMesh: Triangulation (CT) failed.\n");
+				return VWB_ERROR_GENERIC;
+			}
 		}
 		return VWB_ERROR_NONE;
 	}
@@ -3111,13 +3352,16 @@ size_t copyCursorBitmapToMappedTexture( HBITMAP hbmMask, HBITMAP hbmColor, BITMA
 {
 	size_t r = 0;
 
-	LONG szMask = bmMask.bmWidthBytes * abs( bmMask.bmHeight );
+	size_t szMask = ptrdiff_t( bmMask.bmWidthBytes ) * abs( bmMask.bmHeight );
 
 	bmMask.bmBits = malloc( szMask );
-	BYTE* pData = reinterpret_cast<BYTE*>(malloc( abs( bmMask.bmHeight ) * pitch ));
+	BYTE* pData = reinterpret_cast<BYTE*>(malloc( ptrdiff_t( abs( bmMask.bmHeight ) ) * pitch ));
 	BYTE* pMask = reinterpret_cast<BYTE*>(malloc( szMask ));
 	BYTE* pM = pMask;
-	r = ::GetBitmapBits( hbmMask, szMask, pMask );
+	LONG cb = LONG( szMask );
+	if( cb != szMask )
+		throw exception( "arithmetic overflow in copyCursorBitmapToMappedTexture" );
+	r = ::GetBitmapBits( hbmMask, cb, pMask );
 	if( hbmColor )
 	{
 		LONG szColor = bmColor.bmWidthBytes * abs( bmColor.bmHeight );

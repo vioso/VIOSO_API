@@ -77,6 +77,7 @@ GLWarpBlend::GLWarpBlend():
 	m_locBorder( -1 ),
 	m_locBlend( -1 ),
 	m_locBlack( -1 ),
+	m_locSize( -1 ),
 	m_locDoNotBlend( -1 ),
 	m_locDoNoBlack( -1 ),
 	m_locContent( -1 ),
@@ -288,13 +289,13 @@ VWB_ERROR GLWarpBlend::CreatePixelShader()
 
 		//The maxLength includes the NULL character
 		std::vector<GLchar> infoLog( maxLength );
-		glGetProgramInfoLog( m_ProgramBypass, maxLength, &maxLength, &infoLog[0] );
+		glGetProgramInfoLog( m_ProgramBypass, maxLength, &maxLength, infoLog.data() );
 
 		//The program is useless now. So delete it.
 		glDeleteProgram( m_ProgramBypass );
 		m_ProgramBypass = -1;
 
-		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog );
+		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog.data() );
 		return VWB_ERROR_SHADER;
 	}
 	m_locContentBypass = glGetUniformLocation( m_ProgramBypass, "samContent" );
@@ -369,7 +370,7 @@ VWB_ERROR GLWarpBlend::CreatePixelShader()
 		glDeleteProgram( m_Program );
 		m_ProgramBypass = -1;
 
-		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog );
+		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog.data() );
 		return VWB_ERROR_SHADER;
 	}
 
@@ -740,7 +741,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if(bUseGL110)
 			glGetIntegerv(GL_CLIENT_ACTIVE_TEXTURE,&active_client_texture_unit);
 		else
-			glGetIntegerv( GL_VERTEX_ARRAY, &oldVA );
+			glGetIntegerv( GL_VERTEX_ARRAY_BINDING, &oldVA );
 
 
 	    glGetIntegerv( GL_ACTIVE_TEXTURE, &( active_texture_unit ) );

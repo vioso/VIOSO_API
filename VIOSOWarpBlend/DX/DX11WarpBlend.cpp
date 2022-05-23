@@ -511,13 +511,14 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 		HRESULT hr;
 		ID3D11Texture2D* pTexWarp = NULL, *pTexBlend = NULL, *pTexBlack = NULL;
-		hr = m_device->CreateTexture2D( &descTexW, &dataWarp, &pTexWarp );
-		hr = m_device->CreateTexture2D( &descTexB, &dataBlend, &pTexBlend );
-		hr = m_device->CreateTexture2D( &descTexBl, dataBlack.pSysMem ? &dataBlack : nullptr, &pTexBlack );
-		hr = m_device->CreateShaderResourceView( pTexWarp, &descSRVW, &m_texWarp );
-		hr = m_device->CreateShaderResourceView( pTexBlend, &descSRVB, &m_texBlend );
-		hr = m_device->CreateShaderResourceView( pTexBlack, &descSRVBl, &m_texBlack );
-		if(	FAILED( hr ) )
+		if(	 
+			FAILED( m_device->CreateTexture2D( &descTexW, &dataWarp, &pTexWarp )) ||
+			FAILED( m_device->CreateTexture2D( &descTexB, &dataBlend, &pTexBlend )) ||
+			FAILED( m_device->CreateTexture2D( &descTexBl, dataBlack.pSysMem ? &dataBlack : nullptr, &pTexBlack )) ||
+			FAILED( m_device->CreateShaderResourceView( pTexWarp, &descSRVW, &m_texWarp )) ||
+			FAILED( m_device->CreateShaderResourceView( pTexBlend, &descSRVB, &m_texBlend )) ||
+			FAILED( m_device->CreateShaderResourceView( pTexBlack, &descSRVBl, &m_texBlack )) 
+			)
 		{
 			logStr( 0, "ERROR: Failed to create lookup textures.\n" );
 			SAFERELEASE( pTexWarp );

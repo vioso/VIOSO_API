@@ -866,6 +866,16 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		return FALSE;
 	#endif //def USE_VIOSO_API
 
+	float tl[3];
+	float tr[3];
+	float bl[3];
+	float br[3];
+	if( VWB_ERROR_NONE == pWarper->GetScreenplane( tl, tr, bl, br ) )
+	{
+		// review screen corners
+		tl;
+	}
+
 	while( !done )									// Loop That Runs While done=FALSE
 	{
 		if( !PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ) // we are active, Is There A Message Waiting?

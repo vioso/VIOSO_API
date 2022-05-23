@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 
+using namespace std;
 // ----------------------------------------------------------------------------------
 //                               SocketAddress
 // ----------------------------------------------------------------------------------
@@ -42,6 +43,7 @@ SocketAddress::SocketAddress(char const* url, unsigned short port)
 	{
 		addrinfo* pai = NULL;
 		char portStr[6]; _itoa_s( port, portStr, 10 );
+		portStr[5] = 0;
 		addrinfo hints = { 0 };
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -386,6 +388,7 @@ SocketAddress	Socket::gethostbyname(const std::string& name, const unsigned shor
 { 
 	addrinfo* pai = NULL;
 	char portStr[6]; _itoa_s( port, portStr, 10 );
+	portStr[5] = 0;
 	addrinfo hints = { 0 };
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
@@ -412,7 +415,7 @@ std::string Socket::gethostname()
 	int len = ::gethostname( NULL, 0 );
 	if( 0 < len )
 	{
-		s.resize( len + 1, 0 );
+		s.resize( size_t(len) + 1, 0 );
 		::gethostname( &s[0], len + 1 );
 	}
 	return s;
@@ -429,6 +432,7 @@ std::vector<in_addr> Socket::getLocalIPList()
 	{
 		addrinfo* pai = NULL;
 		char portStr[6]; _itoa_s( 80, portStr, 10 );
+		portStr[5] = 0;
 		addrinfo hints = { 0 };
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -567,7 +571,7 @@ int TCPListener::processRead( Server* pServer )
 {
 	Peer peer;
 	peer.pData = NULL;
-	peer.s = new TCPConnection( Socket::accept(peer.sa), peer.sa, this, pServer );
+	peer.s = make_shared<TCPConnection>( Socket::accept(peer.sa), peer.sa, this, pServer );
 	if( 0 < *peer.s )
 	{
 		m_peers.push_back( peer );
@@ -584,7 +588,7 @@ int TCPListener::getPeerIndex( TCPConnection const* pC ) const
 {
 	for( PeerList::const_iterator it = m_peers.begin(); it != m_peers.end(); it++ )
 	{
-		if( pC == it->s.ptr )
+		if( pC == it->s.get() )
 			return (int)(it - m_peers.begin());
 	}
 	return -1;
@@ -1032,6 +1036,8 @@ HttpRequest::STATE HttpRequest::parseRequest( TCPConnection& conn )
 				break;
 			}
 		}
+		[[fallthrough]];
+		/* fall through */
 	case STATE_INIT:
 		{
 			nB = conn.getNumRead();
@@ -1055,6 +1061,8 @@ HttpRequest::STATE HttpRequest::parseRequest( TCPConnection& conn )
 			else
 				break;
 		}
+		[[fallthrough]];
+		/* fall through */
 	case STATE_HEADER:
 		{
 			parseURL( request, request, getData );
@@ -1108,6 +1116,8 @@ HttpRequest::STATE HttpRequest::parseRequest( TCPConnection& conn )
 				break;
 			}
 		}
+		[[fallthrough]];
+		/* fall through */
 	case STATE_CONTENTLENGTH:
 		{
 			if( contentLength > conn.getNumRead() )
@@ -1120,6 +1130,8 @@ HttpRequest::STATE HttpRequest::parseRequest( TCPConnection& conn )
 			else
 				state = STATE_ERROR;
 		}
+		[[fallthrough]];
+		/* fall through */
 	case STATE_BODY:
 		{
 			int i;
@@ -1137,6 +1149,8 @@ HttpRequest::STATE HttpRequest::parseRequest( TCPConnection& conn )
 				break;
 			}
 		}
+		[[fallthrough]];
+		/* fall through */
 	case STATE_PARSED:
 		break;
 	}
@@ -1391,25 +1405,23 @@ int HttpRequest::parseMultipartBody( std::string const& body, std::string bound,
 
 Server::Server() 
 : m_modalState(0)
+, m_sto{0,16000 }
 {
-	ifStartSockets() 
+	FD_ZERO( &m_readers );
+	FD_ZERO( &m_writers );
+	ifStartSockets()
 	{
-		m_sto.tv_sec = 0;
-		m_sto.tv_usec = 16000;
-		FD_ZERO( &m_readers );
-		FD_ZERO( &m_writers );
 	}
 };
 
-Server::Server( SPtr<SockIn> const& s, bool bRunModal )
+Server::Server( shared_ptr<SockIn> const& s, bool bRunModal )
 : m_modalState(0)
+, m_sto{ 0,16000 }
 {
+	FD_ZERO( &m_readers );
+	FD_ZERO( &m_writers );
 	ifStartSockets()
 	{
-		m_sto.tv_sec = 0;
-		m_sto.tv_usec = 16000;
-		FD_ZERO( &m_readers );
-		FD_ZERO( &m_writers );
 		addReceiver( s );
 		if( bRunModal )
 			doModal();
@@ -1429,7 +1441,7 @@ Server::~Server()
 	closeSockets();
 }
 
-int Server::addReceiver( SPtr<SockIn> s )
+int Server::addReceiver( shared_ptr<SockIn> s )
 {
 	if( s )
 	{
@@ -1445,7 +1457,7 @@ int Server::addReceiver( SPtr<SockIn> s )
 	return SOCKET_ERROR;
 }
 
-int Server::removeReceiver( SPtr<SockIn> s )
+int Server::removeReceiver( shared_ptr<SockIn> s )
 {
 	if( s )
 	{
