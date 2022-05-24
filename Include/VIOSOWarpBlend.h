@@ -2,8 +2,6 @@
 // ## VIOSO Warp and Blend dll  ## //
 // ## for DirectX + OpenGL      ## //
 // ## author:  Juergen Krahmann ## //
-// ## version: 1.6.8            ## //
-// ## date:    2022/05/17       ## //
 // ## Use with Calibrator >=4.3 ## //
 // ## Copyright VIOSO GmbH 2015 ## //
 // ############################### //
