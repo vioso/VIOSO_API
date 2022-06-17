@@ -14,7 +14,7 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
 /// @param [OPT|IN] a single index to load data. Do this after scanning, to save memory and loading time. The set headers are all filled, but mappings only loaded for that particular index. Set to -1 to load all.
 /// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if path null or empty string, VWB_ERROR_VWF_FILE_NOT_FOUND, if path can't be found or opened, VWB_ERROR_VWF_LOAD, if malformed, VWB_ERROR_GENERIC otherwise
 /// @param aesKey [OPT|IN] if set, encryption indication flag is set; must be char[16] array
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1, const char* aesKey = nullptr );
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1, const uint8_t* aesKey = nullptr );
 
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );

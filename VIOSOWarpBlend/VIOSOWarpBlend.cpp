@@ -35,7 +35,7 @@ using namespace std;
 
 VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
-char const* g_cryptoKey = nullptr;
+uint8_t const* g_cryptoKey = nullptr;
 
 #ifdef _SOCKTEST_DEV
 #include "Net.h"
@@ -768,6 +768,31 @@ VWB_ERROR VWB_vwfInfo( char const* path, VWB_WarpBlendHeaderSet* set )
 	return ScanVWF( path, set );
 }
 
+VWB_ERROR VWB_vwfInfoC( char const* path, VWB_WarpBlendHeader* headers, VWB_uint* count )
+{
+	if( nullptr == count )
+		return VWB_ERROR_PARAMETER;
+	VWB_WarpBlendHeaderSet set;
+	VWB_ERROR res = ScanVWF( path, &set );
+	if( VWB_ERROR_NONE == res )
+	{
+		VWB_uint c = (VWB_uint)set.size();
+		if( nullptr == headers )
+			*count = c;
+		else
+		{
+			if( *count < c )
+				res = VWB_ERROR_FALSE;
+			else
+			{
+				for( VWB_uint i = 0; i != c; i++ )
+					headers[i] = *set[i];
+			}
+		}
+	}
+	return res;
+}
+
 VWB_ERROR VWB__logString( VWB_int level, char const* str )
 {
 	if( NULL == str || 0 == str[0] )
@@ -783,6 +808,15 @@ VWB_ERROR VWB_getWarpBlend( VWB_Warper* pWarper, VWB_WarpBlend const*& wb )
 	return VWB_ERROR_PARAMETER;
 }
 
+VWB_ERROR VWB_getWarpBlendC( VWB_Warper* pWarper, VWB_WarpBlend const** wb )
+{
+	if( nullptr == wb )
+		return VWB_ERROR_PARAMETER;
+	if( pWarper )
+		return ( (VWB_Warper_base*)pWarper )->getWarpBlend( *wb );
+	return VWB_ERROR_PARAMETER;
+}
+
 VWB_ERROR VWB_getShaderVPMatrix( VWB_Warper* pWarper, VWB_float* pMPV )
 {
 	if( pWarper )
@@ -793,7 +827,14 @@ VWB_ERROR VWB_getShaderVPMatrix( VWB_Warper* pWarper, VWB_float* pMPV )
 VWB_ERROR VWB_getWarpBlendMesh( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
 {
 	if( pWarper )
-		return ((VWB_Warper_base*)pWarper)->getWarpMesh( cols, rows, mesh );
+		return ( (VWB_Warper_base*)pWarper )->getWarpMesh( cols, rows, mesh );
+	return VWB_ERROR_PARAMETER;
+}
+
+VWB_ERROR VWB_getWarpBlendMeshC( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh* mesh )
+{
+	if( mesh && pWarper )
+		return ( (VWB_Warper_base*)pWarper )->getWarpMesh( cols, rows, *mesh );
 	return VWB_ERROR_PARAMETER;
 }
 
@@ -811,6 +852,13 @@ VWB_ERROR VWB_destroyWarpBlendMesh( VWB_Warper* pWarper, VWB_WarpBlendMesh& mesh
 	return VWB_ERROR_PARAMETER;
 }
 
+VWB_ERROR VWB_destroyWarpBlendMeshC( VWB_Warper* pWarper, VWB_WarpBlendMesh* mesh )
+{
+	if( mesh )
+		return VWB_destroyWarpBlendMesh( pWarper, *mesh );
+	return VWB_ERROR_PARAMETER;
+}
+
 VWB_ERROR VWB_getVersion( VWB_int* major, VWB_int* minor, VWB_int* maintenance, VWB_int* build )
 {
 	if( !major || !minor || !maintenance || !build )
@@ -822,7 +870,7 @@ VWB_ERROR VWB_getVersion( VWB_int* major, VWB_int* minor, VWB_int* maintenance, 
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR VWB_setCryptoKey( char const* key )
+VWB_ERROR VWB_setCryptoKey( uint8_t const* key )
 {
 	g_cryptoKey = key;
 	return VWB_ERROR_NONE;
@@ -1139,7 +1187,7 @@ VWB_ERROR VWB_Warper_base::UpdateEye( VWB_float* eye, VWB_float* rot )
 			rot[2] = (float)m_ep.roll;
 		}
 
-		logStr( 3, "INFO: EyePointReceiver %s input for channel [%s]: pos=[%01.3f,%01.3f,%01.3f] dir=[%01.3f,%01.3f,%01.3f].\n",
+		logStr( 4, "INFO: EyePointReceiver %s input for channel [%s]: pos=[%01.3f,%01.3f,%01.3f] dir=[%01.3f,%01.3f,%01.3f].\n",
 				eyeProviderParam, channel,
 				m_ep.x, m_ep.y, m_ep.z,
 				m_ep.pitch, m_ep.yaw, m_ep.roll );
@@ -1165,7 +1213,7 @@ VWB_ERROR VWB_Warper_base::UpdateEye( VWB_float* eye, VWB_float* rot )
 		}
 
 		if( NULL != eye && NULL != rot )
-			logStr( 3, "INFO: Eyepoint from call for channel [%s]: pos=[%01.3f,%01.3f,%01.3f] dir=[%01.3f,%01.3f,%01.3f].\n",
+			logStr( 4, "INFO: Eyepoint from call for channel [%s]: pos=[%01.3f,%01.3f,%01.3f] dir=[%01.3f,%01.3f,%01.3f].\n",
 					channel,
 					eye[0], eye[1], eye[2],
 					rot[0], rot[1], rot[2] );
@@ -1371,7 +1419,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		screenDist = VWB_float( cL.z ); // eye to plane distance
 	}
 
-	logStr( 3, "View: [%.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f; %.6f, %.6f, %.6f, %.6f]\n",
+	logStr( 3, "View:\n[%.6f, %.6f, %.6f, %.6f ]\n[%.6f, %.6f, %.6f, %.6f]\n[%.6f, %.6f, %.6f, %.6f]\n[%.6f, %.6f, %.6f, %.6f]\n",
 			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
 
 	VWB_VEC3f::ptr( dir ) = VWB_VEC3f( ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI ) );
@@ -3030,60 +3078,118 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 			DynSPPointPairList3f::iterator where; // the grid position 
 			DynSPPointPairList3f::value_type v;
 		};
-		std::vector<RepairItem> repairs;
+		std::list<RepairItem> repairs;
 
-		auto pt = lPoints.begin();
-		for(long yG = 0; yG != hGrid; yG++)
+		long xs = width / wGrid; 
+		long ys = height / hGrid;
+
+		if( xs && ys )
 		{
-			for(long xG = 0; xG != wGrid; xG++, pt++)
+			auto pt = lPoints.begin();
+			for( long yG = 0; yG != hGrid; yG++ )
 			{
-				if(0.5f > pt->lPt2[2]) // me is invalid, so try to find a pseudo grid point next to me
+				for( long xG = 0; xG != wGrid; xG++, pt++ )
 				{
-					for(int i = POS_REL_T; i != POS_REL_SIZE; i++)
+					if( 0.5f > pt->lPt2[2] ) // me is invalid, so try to find a pseudo grid point next to me
 					{
-						long oxG = xG + delta[i].cx;
-						long oyG = yG + delta[i].cy;
-
-						if(
-							oxG < wGrid && // not over right border
-							oxG >= 0 && // not over left border
-							oyG < hGrid && // not over bottom border
-							oyG >= 0
-							)
+						for( int i = POS_REL_T; i != POS_REL_SIZE; i++ )
 						{
-							auto const& opt = pt + (ptrdiff_t(delta[i].cy) * wGrid + ptrdiff_t(delta[i].cx));
-							if(0.5f <= opt->lPt2[2])
+							long oxG = xG + delta[i].cx;
+							long oyG = yG + delta[i].cy;
+
+							if(
+								oxG < wGrid && // not over right border
+								oxG >= 0 && // not over left border
+								oyG < hGrid && // not over bottom border
+								oyG >= 0
+								)
 							{
-								// got a valid point in some direction
-								// so we go from me (pt) towards other (opt) until we find a valid point in the map
-
-								ptrdiff_t incS = ptrdiff_t(delta[i].cy) * width + ptrdiff_t(delta[i].cx); // the increment in source mappings to step
-								ptrdiff_t sOffs = ptrdiff_t(pt->lPt2[0]) + width * ptrdiff_t(pt->lPt2[1]); // the offset in source mapping of me
-
-								VWB_WarpRecord const* pW = pSrcD + sOffs + incS; // my address in warp mapping: offset plus one step towards other, as we know myself is invalid at the beginning
-								VWB_WarpRecord const* pWE = pSrcD + ptrdiff_t(opt->lPt2[0]) + width * ptrdiff_t(opt->lPt2[1]); // the other points address
-								VWB_BlendRecord2 const* pB = pSrcDB + sOffs + incS; // my address in blend mapping
-								long x = long(pt->lPt2[0]) + delta[i].cx;
-								long y = long(pt->lPt2[1]) + delta[i].cy;
-								for(; pW != pWE; pW+= incS, pB+= incS, x+= delta[i].cx, y+= delta[i].cy)
+								auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) );
+								if( 0.5f <= opt->lPt2[2] )
 								{
-									if(0.5f <= pW->w) // hit!
+									// got a valid point in some direction
+									// so we go from me (pt) towards other (opt) until we find a valid point in the map
+
+
+									long bx = long( pt->lPt2[0] );
+									long by = long( pt->lPt2[1] );
+									long ex = long( opt->lPt2[0] );
+									long ey = long( opt->lPt2[1] );
+									long x = bx + delta[i].cx;
+									long y = by + delta[i].cy;
+									while( x != ex || y != ey )
 									{
-										repairs.emplace_back(RepairItem{pt, SPPair3f{
-											0, 0,
-											{pW->x, pW->y, pW->z},
-											{float(x), float(y), pW->w},
-											{float(pB->r) / 65535.0f, float(pB->g) / 65535.0f},
-											{float(pB->b) / 65535.0f, float(pB->a) / 65535.0f}
-											}});
-										goto nextPt;
+										
+										ptrdiff_t off = ptrdiff_t( x ) + y * width;
+										VWB_WarpRecord const* pW = pSrcD + off;
+										if( 0.5f <= pW->w ) // hit!
+										{
+											VWB_BlendRecord2* pB = pSrcDB + off;
+											repairs.emplace_back( RepairItem{ pt, SPPair3f{
+												0, 0,
+												{pW->x, pW->y, pW->z},
+												{float( x ), float( y ), pW->w},
+												{float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f},
+												{float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f}
+												} } );
+											break;
+										}
+
+										if( delta[i].cx && delta[i].cy ) // diagonal
+										{
+											long d = ( x - bx ) * delta[i].cy * ys / delta[i].cx / ( y - by );
+											//long d = delta[i].cx * xs * ys * ( y - by );
+											if( xs > d )
+												x += delta[i].cx;
+											else
+												y += delta[i].cy;
+										}
+										else
+										{
+											x += delta[i].cx;
+											y += delta[i].cy;
+										}
 									}
 								}
 							}
 						}
 					}
 				}
-			nextPt:;
+			}
+		}
+
+		// find best match for each point, which is the closest to the original grid point
+		auto minC = repairs.end();
+		auto minS = float( 0 );
+		for( auto r = repairs.begin(); r != repairs.end(); )
+		{
+			if( minC == repairs.end() || minC->where != r->where )
+			{
+				minC = r;
+				long dx = r->where->lPt2[0] - r->v.lPt2[0];
+				long dy = r->where->lPt2[1] - r->v.lPt2[1];
+				minS = float(dx) * dx + float(dy) * dy; // we count in float to avoid int overflow
+				r++;
+			}
+			else
+			{
+				long dx = r->where->lPt2[0] - r->v.lPt2[0];
+				long dy = r->where->lPt2[1] - r->v.lPt2[1];
+				float s = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+				if( s < minS ) // I am closer
+				{
+					minS = s;
+					// delete other
+					repairs.erase( minC );
+					minC = r;
+					r++;
+				}
+				else // other was closer
+				{
+					// delete me
+					r = repairs.erase( r );
+				}
+
 			}
 		}
 
@@ -3092,6 +3198,7 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 		{
 			*r.where = r.v;
 		}
+		repairs.clear();
 
 		// triangulate
 		//	
@@ -3447,7 +3554,7 @@ size_t copyCursorBitmapToMappedTexture( HBITMAP hbmMask, HBITMAP hbmColor, BITMA
 	}
 	free( pMask );
 	free( pData );
-	logStr( 3, "VERBOSE: Cursor image updated.\n" );
+	logStr( 4, "VERBOSE: Cursor image updated.\n" );
 	return r;
 }
 #endif //def WIN32

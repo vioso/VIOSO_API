@@ -293,7 +293,7 @@ VWB_ERROR LoadWarp( VWB_WarpRecord*& wr, std::istream& is, size_t nRecords )
 	return is.read( (char*)wr, nRecords * sizeof( VWB_WarpRecord ) ).eof() ? VWB_ERROR_VWF_LOAD : VWB_ERROR_NONE;
 }
 
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int iScanIndex, const char* aesKey )
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int iScanIndex, const uint8_t* aesKey )
 {
 	if( NULL == path || 0 == *path )
 	{

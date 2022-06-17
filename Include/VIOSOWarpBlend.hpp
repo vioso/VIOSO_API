@@ -5,6 +5,7 @@
 #include <TCHAR.h>
 #include <memory>
 #include <map>
+#include <exception>
 
 class VWB
 {
@@ -31,20 +32,15 @@ public:
 
 			hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibrary( dllPath );
 
-			#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name );
+			#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
 			#include "VIOSOWarpBlend.h"
 
-			if( NULL == VWB_CreateA ||
-				NULL == VWB_CreateW ||
-				NULL == VWB_Destroy ||
-				NULL == VWB_Init ||
-				NULL == VWB_InitExt ||
-				NULL == VWB_getViewProj ||
-				NULL == VWB_getViewClip ||
-				NULL == VWB_getPosDirClip ||
-				NULL == VWB_getScreenplane
-				)
+			#define VIOSOWARPBLEND_API( ret, name, args ) if( NULL == name ) throw std::exception( #name )
+			try {
+				#include "VIOSOWarpBlend.h"
+			} catch( std::exception& e )
 			{
+				UNREFERENCED_PARAMETER( e );
 				instanceCounter = 0;
 				if( hMVIOSOWARPBLEND_DYNAMIC )
 					::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
@@ -76,7 +72,13 @@ public:
 	VWB_ERROR GetPosDirClip( VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric = false, VWB_float aspect = 0 ) { return VWB_getPosDirClip( m_warper, pEye, pRot, pPos, pDir, pClip, symmetric, aspect );	}
 	VWB_ERROR GetScreenplane( VWB_float* pTL, VWB_float* pTR, VWB_float* pBL, VWB_float* pBR ) { return VWB_getScreenplane( m_warper, pTL, pTR, pBL, pBR );	}
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
-
+	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
+	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
+	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }
+	VWB_ERROR GetShaderVPMatrix( VWB_float* pMPV ) { return VWB_getShaderVPMatrix( m_warper, pMPV ); }
+	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
+	VWB_ERROR DestroyWarpBlendMesh( VWB_WarpBlendMesh& mesh ) { return VWB_destroyWarpBlendMesh( m_warper, mesh ); }
+	static VWB_ERROR SetCryptoKey( uint8_t const* key ) { return VWB_setCryptoKey( key ); }
 };
 
 struct VWB_EmptyData {};

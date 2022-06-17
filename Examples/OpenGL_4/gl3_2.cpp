@@ -7,14 +7,17 @@
 #include <string>
 #include <sstream>
 #include <memory>
+#include "glm/mat4x4.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtx/euler_angles.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include <DirectXMath.h>
+
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "../../VIOSOWarpBlend/GL/GLext.h"
 
-int i = LANG_ENGLISH;
-
 #define USE_VIOSO_API
 const int c_numTri = 30;
-const GLfloat c_rad = 3;
 
 #ifdef USE_VIOSO_API
 #include "../../Include/VIOSOWarpBlend.hpp"
@@ -473,73 +476,17 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	return TRUE;										// Initialization Went OK
 }
 
-// resulting matrix is actually transposed, to be used column major in shader
-void GLFrustumRH( GLfloat( &M )[16], GLfloat left, GLfloat right, GLfloat bottom, GLfloat top, GLfloat zNear, GLfloat zFar )
-{
-	GLfloat wr = 1.0f / ( right - left );
-	GLfloat hr = 1.0f / ( top - bottom );
-	GLfloat zn2 = 2.0f * zNear;
-	GLfloat zr = 1.0f / ( zNear - zFar );
-	M[0] = zn2 * wr;
-	M[1] = 0;
-	M[2] = 0;
-	M[3] = 0;
-
-	M[4] = 0;
-	M[5] = zn2 * hr;
-	M[6] = 0;
-	M[7] = 0;
-
-	M[8] = ( right + left ) * wr;
-	M[9] = ( top + bottom ) * hr;
-	M[10] = ( zNear + zFar ) * zr;
-	M[11] = -1;
-
-	M[12] = 0;
-	M[13] = 0;
-	M[14] = zn2 * zFar * zr;
-	M[15] = 0;
-}
-
-void GLRotRPY( GLfloat( &M )[16], GLfloat x, GLfloat y, GLfloat z )  // this is Rz(z) * Rx(x) * Ry(y)
-{
-	const GLfloat sx = std::sin( x );
-	const GLfloat sy = std::sin( y );
-	const GLfloat sz = std::sin( z );
-	const GLfloat cx = std::cos( x );
-	const GLfloat cy = std::cos( y );
-	const GLfloat cz = std::cos( z );
-	M[0] = cy * cz + sx * sy * sz;
-	M[1] = cy * sz - cz * sx * sy;
-	M[2] = -cx * sy;
-	M[3] = 0.0f;
-
-	M[4] = -cx * sz;
-	M[5] = cx * cz;
-	M[6] = -sx;
-	M[7] = 0.0f;
-
-	M[8] = cz * sy - cy * sx * sz;
-	M[9] = cy * cz * sx + sy * sz;
-	M[10] = cx * cy;
-	M[11] = 0.0f;
-
-	M[12] = 0.0f;
-	M[13] = 0.0f;
-	M[14] = 0.0f;
-	M[15] = 1.0f;
-}
-
 bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f )
 {
 	//#ifdef WIN32
 	//OutputDebugStringA( "." );
 	//#endif
+	glm::mat4x4 view, proj;
+
 	#ifdef USE_VIOSO_API
 	//< start VIOSO API code
-	GLfloat view[16], proj[16];
-	GLfloat eye[3] = { 0,0,0 };
-	GLfloat rot[3] = { 0,0,0 };
+	glm::vec3 eye = { 0,0,0 };
+	glm::vec3 rot = { 0,0,0 };
 
 	if( pWarper )
 	{
@@ -547,15 +494,15 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 		if( 0 == c )
 		{
 			// either use this
-			pWarper->GetViewProj( eye, rot, view, proj );
+			pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), glm::value_ptr( proj ) );
 			c = 1;
 		}
 		else if( 1 == c )
 		{
 			// or use this, which yields exact same result
 			GLfloat clip[6];
-			pWarper->GetViewClip( eye, rot, view, clip );
-			GLFrustumRH( proj, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			pWarper->GetViewClip( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), clip );
+			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
 			c = 2;
 		}
 		else
@@ -564,20 +511,22 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 			GLfloat clip[6];
 			GLfloat pos[3];
 			GLfloat dir[3];
-			pWarper->GetPosDirClip( eye, rot, pos, dir, clip );
-			GLRotRPY( view, dir[0], dir[1], dir[2] );
-			view[3] = pos[0];
-			view[7] = pos[1];
-			view[11] = pos[2];
-			GLFrustumRH( proj, -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			c = 0;
+
+			pWarper->GetPosDirClip( &eye.x, &rot.x, pos, dir, clip );
+			view = glm::transpose(
+				glm::yawPitchRoll( -dir[1], dir[0], -dir[2] )
+			);
+			view[0].w = pos[0];
+			view[1].w = pos[1];
+			view[2].w = pos[2];
+			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
 		}
 	}
 	//< end VIOSO API code
 	#else
-	GLfloat view[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 }; // identity
-	GLfloat proj[16] = { 0 };
-	GLFrustumRH( proj, -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
+	view = glm::mat4(1); // identity
+	proj = glm::frustum( -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
+	GLFrustumRH( reinterpret_cast<GLfloat( & )[16]>( proj ), -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
 	#endif //def USE_VIOSO_API
 
 
@@ -587,8 +536,8 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	/* Clear background with BLACK colour */
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-	glUniformMatrix4fv( locMatProj, 1, GL_FALSE, proj );
-	glUniformMatrix4fv( locMatView, 1, GL_FALSE, view );
+	glUniformMatrix4fv( locMatProj, 1, GL_FALSE, glm::value_ptr(proj) );
+	glUniformMatrix4fv( locMatView, 1, GL_FALSE, glm::value_ptr(view) );
 
 	glBindVertexArray( iVAPos );
 	glBindBuffer( GL_ARRAY_BUFFER, iVAData );
@@ -864,7 +813,6 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	}
 	if( VWB_ERROR_NONE != pWarper->Init() )
 		return FALSE;
-	#endif //def USE_VIOSO_API
 
 	float tl[3];
 	float tr[3];
@@ -875,6 +823,8 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		// review screen corners
 		tl;
 	}
+	#endif //def USE_VIOSO_API
+
 
 	while( !done )									// Loop That Runs While done=FALSE
 	{

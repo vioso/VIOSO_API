@@ -13,6 +13,10 @@ using namespace DirectX;
 #include <string>
 #include <atlbase.h>
 
+#ifdef _DEBUG
+#include <dxgidebug.h>
+#endif
+
 //--------------------------------------------------------------------------------------
 // Structures
 //--------------------------------------------------------------------------------------
@@ -20,11 +24,42 @@ struct SimpleVertex
 {
     XMFLOAT3 Pos;
     XMFLOAT4 Color;
+    static const UINT stride;
+    static const D3D11_INPUT_ELEMENT_DESC layout[2];
 };
 
-struct VSConstantBuffer
+struct SimpleVertexTex
+{
+    XMFLOAT3 Pos;
+    XMFLOAT4 Color;
+    XMFLOAT2 Tex;
+    SimpleVertexTex( float x = 0.0f, float y = 0.0f, float z = 0.0f, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f, float u = 0.0f, float v = 0.0f )
+    {
+        Pos.x = x;
+        Pos.y = y;
+        Pos.z = z;
+        Color.x = r;
+        Color.y = g;
+        Color.z = b;
+        Color.w = a;
+        Tex.x = u;
+        Tex.y = v;
+    }
+    static const UINT stride;
+    static const D3D11_INPUT_ELEMENT_DESC layout[3];
+};
+
+struct VSConstantBufferA
 {
     XMMATRIX mWorld;
+    XMMATRIX mView;
+    XMMATRIX mProjection;
+};
+
+struct VSConstantBufferB
+{
+    XMMATRIX mWorld;
+    XMMATRIX mModel;
     XMMATRIX mView;
     XMMATRIX mProjection;
 };
@@ -35,17 +70,21 @@ struct VSConstantBuffer
 
 class RenderTarget
 {
-protected:
-    CComPtr< ID3D11RenderTargetView > m_rtv;
-    CComPtr< ID3D11DepthStencilView > m_dsv;
 public:
     static const FLOAT s_black[4];
     static const FLOAT s_sky[4];
+protected:
+    CComPtr< ID3D11RenderTargetView > m_rtv;
+    CComPtr< ID3D11DepthStencilView > m_dsv;
+    FLOAT m_clearColor[4] = { 0, 0, 0, 1 };
+public:
 
     virtual void setAsRTto( ID3D11DeviceContext* ctx );
-    virtual void clear( ID3D11DeviceContext* ctx, const FLOAT color[4] = s_black );
-    D3D11_VIEWPORT getFullViewport() const;
+    virtual void clear( ID3D11DeviceContext* ctx );
     virtual void resize( ID3D11Device*, IDXGISwapChain* );
+
+    D3D11_VIEWPORT getFullViewport() const;
+    void setClearColor( const FLOAT (& clearColor)[4] ) { memcpy( m_clearColor, clearColor, sizeof( m_clearColor ) ); }
 };
 
 class BackBuffer : public RenderTarget
@@ -83,15 +122,32 @@ public:
 
 class GFXPipeline
 {
+public: 
+    // Turn off culling, so we see the front and back of the triangle
+    static const D3D11_RASTERIZER_DESC s_rasterDescWire;
+    static const D3D11_RASTERIZER_DESC s_rasterDescSolid;
+    static const D3D11_BLEND_DESC s_blendDescStd;
+
 protected:
     CComPtr<ID3D11Device> m_dev;
     CComPtr<ID3D11DeviceContext> m_ic;
-    std::shared_ptr< RenderTarget > m_rt;
+
     std::vector< std::shared_ptr< Renderer > > m_renderers;
-    D3D11_VIEWPORT m_vp = { 0 };
-    XMMATRIX m_mView = XMMatrixIdentity();
-    XMMATRIX m_mProjection = XMMatrixPerspectiveFovLH( XM_PIDIV2, 16.0f / 9, 0.25f, 1024.0f );
+    CComPtr<ID3D11RasterizerState> m_rs;
+    CComPtr<ID3D11BlendState> m_bs;
+    XMMATRIX m_mView;
+    XMMATRIX m_mProjection;
+
+    std::shared_ptr< RenderTarget > m_rt;
+    D3D11_VIEWPORT m_vp;
+
 public:
+    static bool SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR path, ID3D11Texture2D* tex ) ;
+    static ID3D11Device* createDevice( int createDeviceFlags );
+
+    GFXPipeline( ID3D11Device* dev, D3D11_RASTERIZER_DESC const& rd = s_rasterDescSolid, D3D11_BLEND_DESC const& bd = s_blendDescStd );
+    GFXPipeline( int createDeviceFlags, D3D11_RASTERIZER_DESC const& rd = s_rasterDescSolid, D3D11_BLEND_DESC const& bd = s_blendDescStd );
+    ~GFXPipeline();
 
     void setMView( XMMATRIX const& m ) { m_mView = m; }
     XMMATRIX const& getMView() const { return m_mView; }
@@ -106,7 +162,8 @@ public:
 
     std::shared_ptr< RenderTarget >& getRenderTarget() { return m_rt;  }
 
-    virtual void addRenderer( std::shared_ptr< Renderer > renderer );
+    void addRenderer( std::shared_ptr< Renderer > renderer );
+    
     virtual void preRender();
     virtual void render( XMMATRIX const& world );
     virtual void postRender();
@@ -118,15 +175,20 @@ class OutputWindow : public GFXPipeline
 protected:
     static ATOM s_wndclass;
     HWND m_hWnd;
-    D3D_DRIVER_TYPE    m_driverType;
-    D3D_FEATURE_LEVEL  m_featureLevel;
     CComPtr<IDXGISwapChain> m_sc;
 
+    static HWND createWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height );
     static LRESULT CALLBACK  WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
-    virtual LRESULT wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
-
+public:
+    XMMATRIX    m_mWorld;
 public:
     OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags = 0, bool withDepth = true );
+
+    virtual LRESULT wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+
+    virtual void preRender();
+
+    virtual void render() { __super::render(m_mWorld); };
 
     virtual void postRender();
 };
@@ -134,7 +196,7 @@ public:
 class RenderToTexture : public GFXPipeline
 {
 public:
-    RenderToTexture( ID3D11Device* dev, ID3D11DeviceContext* ic, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
+    RenderToTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
 };
 
 

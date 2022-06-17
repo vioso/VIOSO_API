@@ -76,14 +76,20 @@ It provides image based warping, suitable for most cases and, if a 3D map is pro
 	* Else the eye and rot are set to 0-vectors.
 	* The internal view and projection matrices are calculated to render. You should set pView and pProj to get these matrices for rendering, if updated.
 	* positive rotation means turning right, up and clockwise.
-	* Calculate view Matrix from pDir and pPos for lefthanded direct X
+	* Calculate view Matrix from pDir and pPos for left handed direct X
 	XMMATRIX R = XMMatrixRotationRollPitchYaw( -pDir[0], pDir[1], pDir[2] );
 	XMMATRIX T = XMMatrixTranslation( pPos[0], pPos[1], pPos[2] );
 	XMMATRIX V = XMMatrixMultiply( R, T );
+	* for right handed openGL
+	V = glm::transpose( glm::yawPitchRoll( -dir[1],  dir[0], -dir[2] ) );
+	V[0].w = pos[0];
+	V[1].w = pos[1];
+	V[2].w = pos[2];
 
-	Use pClip this way to get the same matrix like from VWB_getViewProjection:
-	P = glm::frustum( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
+	Use pClip this way to get the same matrix like from VWB_getViewProjection in left handed DX:
 	P = XMMatrixPerspectiveOffCenterLH( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
+	* for right handed openGL
+	P = glm::frustum( -pClip[0], pClip[2], -pClip[3], pClip[1], pClip[4], pClip[5] );
 	*/
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewProj, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) );
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getViewClip, ( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pClip ) );
@@ -125,15 +131,23 @@ It provides image based warping, suitable for most cases and, if a 3D map is pro
 	/** get info about .vwf, reads all warp headers
 	* @param [IN]			path	the file name or a comma separated list of filenames, set to NULL to release data from a previous set
 	* @param [OUT]			set		a warp blend header set
-	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAM if fname is not set or empty, VWB_ERROR_VWF_FILE_NOT_FOUND if path did not resolve, VWB_ERROR_GENERIC otherwise
-	* @remarks The list is empied and all found headers are appended. */
-    VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfo, ( char const* path, VWB_WarpBlendHeaderSet* set ) );  
+	* @param [OUT|OPT]		headers	a pointer to an array of VWB_WarpBlendHeader
+	* @param [IN|OUT]		count   the number of array elements provided, if headers is NULL, it is set to the number of headers needed
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAM if fname is not set or empty or count is NULL, VWB_ERROR_FALSE if *count is less than the number of headers needed, VWB_ERROR_VWF_FILE_NOT_FOUND if path did not resolve, VWB_ERROR_GENERIC otherwise
+	* @remarks The list is emptied and all found headers are appended. Calling with a VWB_WarpBlendHeaderSet*,  */
+	#ifdef __cplusplus
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfo, ( char const* path, VWB_WarpBlendHeaderSet* set ) );
+	#endif
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfoC, ( char const* path, VWB_WarpBlendHeader* headers, VWB_uint* count ) );
 
 	/** fills a VWB_WarpBlend from currently loaded data. Warper needs to be initialized as VWB_DUMMYDEVICE.
 	* @param [IN]			pWarper	a valid warper
 	* @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	#ifdef __cplusplus
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlend, ( VWB_Warper* pWarper, VWB_WarpBlend const*& wb ) );
+	#endif
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlendC, ( VWB_Warper* pWarper, VWB_WarpBlend const** wb ) );
 
 	/** fills a float[16] with the currently set internally used matrix for render shader. Warper needs to be initialized as VWB_DUMMYDEVICE.
 	* @param [IN]			pWarper	a valid warper
@@ -147,13 +161,19 @@ It provides image based warping, suitable for most cases and, if a 3D map is pro
 	* @param [IN]			rows	sets the number of rows
 	* @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	#ifdef __cplusplus
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlendMesh, ( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) );
+	#endif
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlendMeshC, ( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh* mesh ) );
 
 	/** destroys a VWB_WarpBlendMesh .
 	 * @param [IN]			pWarper	a valid warper
 	 * @param [INOUT]		mesh	the mesh to be destroyed
 	 * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	#ifdef __cplusplus
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_destroyWarpBlendMesh, ( VWB_Warper* pWarper, VWB_WarpBlendMesh& mesh ) );
+	#endif
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_destroyWarpBlendMeshC, ( VWB_Warper* pWarper, VWB_WarpBlendMesh* mesh ) );
 
 	/* log some string to the API's log file, exposed version; use VWB_logString instead.
 	* @param [IN]			level	a level indicator. The string is only written to log file, if this is lower or equal to currently set global log level
@@ -169,7 +189,7 @@ It provides image based warping, suitable for most cases and, if a 3D map is pro
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getVersion, ( VWB_int* major, VWB_int* minor, VWB_int* maintenance, VWB_int* build ) );
 
-	/* get the version of the API
+	/* get set a 128bit AES key for encryption and decryption of mappings
 	* @param[IN]			key	    a key of 16 bytes (128 bit) provided for encryption/decryption of AES128 algorythm loading and saving vwf files, set to nullptr to disable encryption/decryption
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range 
 	* @remark Internally we keep only the pointer to your buffer. Make sure to keep the key there as long as it is needed. It will be used during VWB_init VWB_initExt */

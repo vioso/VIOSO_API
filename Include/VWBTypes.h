@@ -1,8 +1,9 @@
 #ifndef __VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__
 #define __VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__
 #include <stdint.h>
+#ifdef __cplusplus
 #include <vector>
-
+#endif
 /// Type definitions
 typedef void* VWB_param;	/// A versatile type to transfer an object pointer or integral number
 #ifdef WIN32
@@ -375,7 +376,7 @@ public:
 	///<   [6] => optional relative content position transform offset in y direction
 	///<   [7] => optional relative content position transform scale in x direction
 	///<   [8] => optional relative content position transform scale in y direction
-	char									primName[256];		///<   optional, human readable name for high level calibration the display is assigned to
+	char									primName[256];		///<   optional, human readable name of the compound or super compound
 	VWB_float								vReserved2[16];		///<   used to define additional informations in further versions
 
 	VWB_wchar								displayID[256];		///<   Windows display identifier, use EnumDisplayDevices using EDD_GET_DEVICE_INTERFACE_NAME flag to find it
@@ -384,7 +385,7 @@ public:
 }VWB_WarpFileHeader3;
 
 /** VWB_WarpFileHeader4\n
-*  ( Struct SmartProjector Warp File Header version 3)\n
+*  ( Warp File Header version 4)\n
 *  Container to preface warping information.
 * same as VWB_WarpFileHeader3, but with some reserved(s) unwrapped
 * magicNumber[4]="vwf0"
@@ -446,13 +447,23 @@ public:
 	///<   [6] => optional relative content position transform offset in y direction
 	///<   [7] => optional relative content position transform scale in x direction
 	///<   [8] => optional relative content position transform scale in y direction
-	char                                primName[256];		///<   optional, human readable name for high level calibration the display is assigned to
+	char                                primName[256];		///<   optional, human readable name of the compound or super compound
 	VWB_float                           vReserved2[16];							///<   used to define additional informations in further versions
 	VWB_wchar							displayID[256];	///<   Windows display identifier, use EnumDisplayDevices using EDD_GET_DEVICE_INTERFACE_NAME flag to find it
 	char								hostname[256];	///<   network name or IP in dotted decimal
 }VWB_WarpFileHeader4;
 
 
+/** VWB_WarpFileHeader5\n
+*  ( Warp File Header version 5)\n
+*  Container to preface warping information.
+* same as VWB_WarpFileHeader4, added crypto hint
+* magicNumber[4]="vwf0"
+* @author Juergen Krahmann
+* @date Apr 22
+* @version 1.0
+* @bug No.
+* @todo Nothing. */
 typedef struct VWB_WarpFileHeader5
 {
 public:
@@ -506,7 +517,7 @@ public:
 	///<   [6] => optional relative content position transform offset in y direction
 	///<   [7] => optional relative content position transform scale in x direction
 	///<   [8] => optional relative content position transform scale in y direction
-	char                                primName[256];		///<   optional, human readable name for high level calibration the display is assigned to
+	char                                primName[256];		///<   optional, human readable name of the compound or super compound
 	VWB_float                           vReserved2[16];							///<   used to define additional informations in further versions
 	VWB_wchar							displayID[256];	///<   Windows display identifier, use EnumDisplayDevices using EDD_GET_DEVICE_INTERFACE_NAME flag to find it
 	char								hostname[256];	///<   network name or IP in dotted decimal
@@ -621,11 +632,11 @@ typedef  enum
 #endif
 #pragma pack(pop)
 
-typedef struct VWB_WarpBlendHeader{
+typedef struct VWB_WarpBlendHeader {
 	VWB_WarpFileHeader5 header;
 	char path[MAX_PATH];
 } VWB_WarpBlendHeader;
-
+#ifdef __cplusplus
 typedef struct VWB_WarpBlend : VWB_WarpBlendHeader{
 	VWB_WarpRecord* pWarp;
 	union {
@@ -639,6 +650,20 @@ typedef struct VWB_WarpBlend : VWB_WarpBlendHeader{
 
 typedef std::vector<VWB_WarpBlend*> VWB_WarpBlendSet;
 typedef std::vector<VWB_WarpBlendHeader*> VWB_WarpBlendHeaderSet;
+#else // pure C
+typedef struct VWB_WarpBlend {
+	VWB_WarpFileHeader5 header;
+	char path[MAX_PATH];
+	VWB_WarpRecord* pWarp;
+	union {
+		VWB_BlendRecord* pBlend;
+		VWB_BlendRecord2* pBlend2;
+		VWB_BlendRecord3* pBlend3;
+	};
+	VWB_BlendRecord* pBlack;
+	VWB_BlendRecord* pWhite;
+} VWB_WarpBlend;
+#endif
 
 typedef struct VWB_WarpBlendVertex
 {
