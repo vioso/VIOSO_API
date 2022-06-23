@@ -18,7 +18,7 @@ private:
 	#include "VIOSOWarpBlend.h"
 
 public:
-	VWB( const TCHAR* dllPath, void* pDxDevice, TCHAR const* szConfigFile, TCHAR const* szChannelName, VWB_int logLevel = 2, TCHAR const* szLogFile = NULL )
+	VWB( const TCHAR* dllPath, void* pDxDevice, TCHAR const* szConfigFile, TCHAR const* szChannelName, VWB_int logLevel = 2, TCHAR const* szLogFile = NULL ) 
 		: m_warper( NULL )
 	{
 		if( 1 == ++instanceCounter )

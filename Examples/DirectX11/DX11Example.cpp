@@ -39,15 +39,15 @@ public:
 ////< start VIOSO API code
 
 class VIOSOWarperWindow : public OutputWindow {
-    std::shared_ptr<VWB> m_pWarper;
-    shared_ptr<MyRenderToTexture> m_rtt;
+    unique_ptr<VWB> m_pWarper;
+    unique_ptr<MyRenderToTexture> m_rtt;
 public:
     VIOSOWarperWindow( LPCTSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
     : OutputWindow( hInstance, channelName, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
     {
 
         try {
-            m_pWarper = make_shared<VWB>(nullptr, m_dev, _T("VIOSOWarpBlend.ini"), channelName);
+            m_pWarper = make_unique<VWB>(nullptr, m_dev, _T("VIOSOWarpBlend.ini"), channelName);
         }
         catch (VWB_ERROR& err)
         {
@@ -61,7 +61,7 @@ public:
         )
         	throw exception( "failed to initialize warper" );
 
-        m_rtt = make_shared< MyRenderToTexture >( m_dev, (int)m_vp.Width, (int)m_vp.Height, DXGI_FORMAT_R8G8B8A8_UNORM, true );
+        m_rtt = make_unique< MyRenderToTexture >( m_dev, (int)m_vp.Width, (int)m_vp.Height, DXGI_FORMAT_R8G8B8A8_UNORM, true );
     }
 
     virtual void addRenderer( std::shared_ptr< Renderer > renderer )

@@ -98,7 +98,7 @@ void BackBuffer::initBuffers( ID3D11Device* dev, IDXGISwapChain* sc, bool withDe
         if( FAILED( dev->CreateTexture2D( &desc, NULL, &ds ) ) )
             throw std::exception( "failed to create depth stencil texture" );
         if( FAILED( dev->CreateDepthStencilView( ds, nullptr, &m_dsv ) ) )
-            throw std::exception( "failed to create depth stencil texture" );
+            throw std::exception( "failed to create depth stencil view" );
     }
 }
 
@@ -252,6 +252,7 @@ GFXPipeline::~GFXPipeline()
         if( dbg )
             dbg->ReportLiveObjects( DXGI_DEBUG_D3D11, DXGI_DEBUG_RLO_DETAIL );
         m_dev.Release();
+        OutputDebugStringA( "After release:\n" );
         if( dbg )
             dbg->ReportLiveObjects( DXGI_DEBUG_D3D11, DXGI_DEBUG_RLO_DETAIL );
     }
@@ -581,9 +582,9 @@ void OutputWindow::preRender()
 		if( 0x80 & keys['D'] ) // strave right
 			translate( m_mWorld, XMVectorSet( 1, 0, 0, 1 ), -0.2f );
 		if( 0x80 & keys['R'] ) // fly up
+            translate( m_mWorld, XMVectorSet( 0, 1, 0, 1 ), -0.2f );
+        if( 0x80 & keys['F'] ) // fly down
 			translate( m_mWorld, XMVectorSet( 0, 1, 0, 1 ), 0.2f );
-		if( 0x80 & keys['F'] ) // fly down
-			translate( m_mWorld, XMVectorSet( 0, 1, 0, 1 ), -0.2f );
 		if( 0x80 & keys[VK_LEFT] ) // turn left
             rotOnSpot( m_mWorld, XMVectorSet( 0, 1, 0, 1 ), 0.1f );
         if( 0x80 & keys[VK_RIGHT] ) // turn right

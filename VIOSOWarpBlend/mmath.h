@@ -67,15 +67,15 @@ struct VWB_VECTOR3
 	template< class _T2 >
 	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)( other.x ) ), y( (T)( other.y ) ), z( (T)( other.z ) )
 	{
-		T w = (T)other.w;
+		T w = T(1) / (T)other.w;
 		if( w )
 		{
-			x /= w;
-			y /= w;
-			z /= w;
+			x *= w;
+			y *= w;
+			z *= w;
 		}
 	}
-	_inline_ explicit VWB_VECTOR3( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
+	_inline_ explicit VWB_VECTOR3( T const* p ) : x( p[0] ), y( p[1] ), z( p[2] ) {}
 	_inline_ VWB_VECTOR3( T _x, T _y, T _z ) : x(_x), y(_y), z(_z) {}
 
 	_inline_ static VWB_VECTOR3 const& ptr( T const* p ) { return *(VWB_VECTOR3 const*)p; }
@@ -215,11 +215,11 @@ struct VWB_VECTOR3
 	{
 		T xa = x * M._11 + y * M._21 + z * M._31 + M._41;
 		T ya = x * M._12 + y * M._22 + z * M._32 + M._42;
-		T w  = x * M._14 + y * M._24 + z * M._34 + M._44;
+		T w  = T(1) / ( x * M._14 + y * M._24 + z * M._34 + M._44 );
 		z    = x * M._13 + y * M._23 + z * M._33 + M._43;
-		x = xa / w;
-		y = ya / w;
-		z/= w;	
+		x = xa * w;
+		y = ya * w;
+		z*= w;	
 		return *this;
 	}
 	_inline_ VWB_VECTOR3 operator*( VWB_MATRIX33<T> const& M ) const
@@ -231,36 +231,38 @@ struct VWB_VECTOR3
 	}
 	_inline_ VWB_VECTOR3 operator*( VWB_MATRIX<T> const& M ) const
 	{
-		T w  = x * M._14 + y * M._24 + z * M._34 + M._44;
+		T w  = T(1) / ( x * M._14 + y * M._24 + z * M._34 + M._44 );
 		return VWB_VECTOR3( 
-			( x * M._11 + y * M._21 + z * M._31 + M._41 ) / w,
-			( x * M._12 + y * M._22 + z * M._32 + M._42 ) / w,
-			( x * M._13 + y * M._23 + z * M._33 + M._43 ) / w );
+			( x * M._11 + y * M._21 + z * M._31 + M._41 ) * w,
+			( x * M._12 + y * M._22 + z * M._32 + M._42 ) * w,
+			( x * M._13 + y * M._23 + z * M._33 + M._43 ) * w );
 	}
 
 
 	_inline_ void SetPtr( T* p ) const
 	{
-		memcpy( p, this, sizeof( *this ) );
+		p[0] = x;
+		p[1] = y;
+		p[2] = z;
 	}
 	_inline_ VWB_VECTOR3& Normalize()
 	{
-		T l = len();
+		T l = T(1) / len();
 		if( FLT_MIN < l || -FLT_MIN > l )
 		{
-			x/= l;
-			y/= l;
-			z/= l;
+			x*= l;
+			y*= l;
+			z*= l;
 		}
 		return *this;
 	}
 	_inline_ VWB_VECTOR3 normalized() const
 	{
 		VWB_VECTOR3 r;
-		T l = len();
-		r.x = x / l;
-		r.y = y / l;
-		r.z = z / l;
+		T l = T(1) / len();
+		r.x = x * l;
+		r.y = y * l;
+		r.z = z * l;
 		return r;
 	}
 
@@ -278,8 +280,8 @@ struct VWB_VECTOR4
 	template< class _T2>
 	_inline_ explicit VWB_VECTOR4( VWB_VECTOR4<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)other.w ) {}
 	template< class _T2>
-	_inline_ explicit VWB_VECTOR4( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)1 ) {}
-	_inline_ explicit VWB_VECTOR4( T const* p ) { memcpy( this, p, sizeof( *this ) ); }
+	_inline_ explicit VWB_VECTOR4( VWB_VECTOR3<_T2> const& other, _T2 _w = _T2(1) ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ), w( (T)_w ) {}
+	_inline_ explicit VWB_VECTOR4( T const* p ) : x( p[0] ), y( p[1] ), z( p[2] ), w( p[3] ) {}
 	_inline_ VWB_VECTOR4( T _x, T _y, T _z, T _w ) : x(_x), y(_y), z(_z), w(_w) {}
 	_inline_ static VWB_VECTOR4 const& ptr( T const* p ) { return *(VWB_VECTOR4 const*)p; }
 	_inline_ static VWB_VECTOR4& ptr( T* p ) { return *(VWB_VECTOR4*)p; }
@@ -288,8 +290,8 @@ struct VWB_VECTOR4
 	_inline_ static VWB_VECTOR4 Ex() { return VWB_VECTOR4(1,0,0,1); }
 	_inline_ static VWB_VECTOR4 Ey() { return VWB_VECTOR4(0,1,0,1); }
 	_inline_ static VWB_VECTOR4 Ez() { return VWB_VECTOR4(0,0,1,1); }
-	_inline_ operator VWB_VECTOR3<T>& () { return *(VWB_VECTOR3<T>*)this; }
-	_inline_ operator VWB_VECTOR3<T> const& () const { return *(VWB_VECTOR3<T>*)this; }
+	//_inline_ operator VWB_VECTOR3<T>& () { return *(VWB_VECTOR3<T>*)this; } // dangerous...
+	//_inline_ operator VWB_VECTOR3<T> const& () const { return *(VWB_VECTOR3<T>*)this; }
 	_inline_ operator T const* () const { return &x; }
 	_inline_ operator T* () { return &x; }
 
@@ -392,7 +394,10 @@ struct VWB_VECTOR4
 	}
 	_inline_ void SetPtr( T* p ) const
 	{
-		memcpy( p, this, sizeof( *this ) );
+		p[0] = x;
+		p[1] = y;
+		p[2] = z;
+		p[3] = w;
 	}
 };
 
@@ -660,10 +665,10 @@ struct VWB_MATRIX
 		res.x = _11 * other.x + _12 * other.y + _13 * other.z + _14;
 		res.y = _21 * other.x + _22 * other.y + _23 * other.z + _24;
 		res.z = _31 * other.x + _32 * other.y + _33 * other.z + _34;
-		_T w = _41 * other.x + _42 * other.y + _43 * other.z + _44;
-		res.x/= w;
-		res.y/= w;
-		res.z/= w;
+		_T w = _T(1) / ( _41 * other.x + _42 * other.y + _43 * other.z + _44 );
+		res.x*= w;
+		res.y*= w;
+		res.z*= w;
 		return res;
 	}
 	_inline_ VWB_VECTOR4<_T> operator*( VWB_VECTOR4<_T> const& other ) const

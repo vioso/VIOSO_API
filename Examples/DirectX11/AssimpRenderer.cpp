@@ -469,14 +469,12 @@ HRESULT AssimpRenderer::LoadBase( ID3D11Device* dev )
 	mi.texIndex = UINT_MAX;
 	std::vector<SimpleVertexTex> vertices;
 
-	vertices.emplace_back( 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f );
-	vertices.emplace_back( 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f );
-
-	vertices.emplace_back( 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f );
-	vertices.emplace_back( 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f );
-
-	vertices.emplace_back( 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f );
-	vertices.emplace_back( 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } } );
 
 	// create vertex buffer
 	D3D11_BUFFER_DESC bd;

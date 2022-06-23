@@ -3,26 +3,27 @@
 #include "resource.h"
 #include <string>
 #include <vector>
+#include <array>
 #include <sstream>
+#include <memory>
 using namespace std;
 
 ////< start VIOSO API code
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
-#include "../../Include/VIOSOWarpBlend.h"
+#include "../../Include/VIOSOWarpBlend.hpp"
 LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
 ////< end VIOSO API code
 
 class ViosoMeshRenderer : public Renderer
 {
-    static const char s_szShader[];
+    static const char s_szShaderWarp[];
+    static const char s_szShaderDisplay[];
     CComPtr< ID3D11VertexShader > m_vs;
     CComPtr< ID3D11PixelShader > m_ps;
     CComPtr< ID3D11InputLayout > m_layout;
     CComPtr< ID3D11Buffer > m_vb;
     CComPtr< ID3D11Buffer > m_ib;
     CComPtr< ID3D11Buffer > m_cb;
-    CComPtr< ID3D11RasterizerState > m_rs;
-    VSConstantBuffer m_vsConstants;
+    VSConstantBufferA m_vsConstants;
     UINT m_nIndices;
     UINT m_iIndex;
     UINT m_i;
@@ -33,10 +34,11 @@ public:
     , m_iIndex(0)
     , m_i(0)
     {
+        char const* shaderCode = s_szShaderDisplay;
         // Compile the vertex shader
 		CComPtr< ID3DBlob > codeBlob;
 		CComPtr< ID3DBlob > errBlob;
-		HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "mesh vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
+		HRESULT hr = D3DCompile( shaderCode, strlen( shaderCode ), "mesh vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
             throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
 
@@ -45,23 +47,15 @@ public:
         if( FAILED( hr ) )
             throw exception( "failed to create shader" );
 
-        // Define the input layout
-        D3D11_INPUT_ELEMENT_DESC layout[] =
-        {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        };
-        UINT numElements = ARRAYSIZE( layout );
-
         // Create the input layout
-        hr = dev->CreateInputLayout( layout, numElements, codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), &m_layout );
+        hr = dev->CreateInputLayout( SimpleVertexTex::layout, ARRAYSIZE( SimpleVertexTex::layout ), codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), &m_layout );
         if( FAILED( hr ) )
             throw exception( "failed to create input layout" );
 
         // Compile the pixel shader
         codeBlob.Release();
         errBlob.Release();
-        hr = D3DCompile( s_szShader, strlen( s_szShader ), "mesh pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
+        hr = D3DCompile( shaderCode, strlen( shaderCode ), "mesh pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
             throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
 
@@ -73,93 +67,69 @@ public:
         errBlob.Release();
 
         // Create vertex buffer
-        SimpleVertex* vertices = new SimpleVertex[mesh.nVtx];
-        VWB_WarpBlendVertex const* w = mesh.vtx;
-        for( SimpleVertex* v = vertices, *vE = vertices + mesh.nVtx; v != vE; v++, w++ )
+        std::vector<SimpleVertexTex> vertices;
+
+        vertices.reserve( mesh.nVtx );
+        for( VWB_WarpBlendVertex const* w = mesh.vtx, *wE = w + mesh.nVtx; w != wE; w++ )
         {
-            v->Pos.x = 10.0f * w->pos[0] - 5.0f;
-            v->Pos.y = 10.0f * w->pos[1] - 5.0f;
-            v->Pos.z = 10;
-            v->Color.x = w->uv[0];
-            v->Color.y = w->uv[1];
-            v->Color.z = 0;
-            v->Color.w = 0.3333f*(w->rgb[0] + w->rgb[1] + w->rgb[2]);
-       }
-        m_nIndices = mesh.nIdx;
-        WORD* indices = new WORD[mesh.nIdx];
+            vertices.emplace_back( SimpleVertexTex{
+                { w->pos[0], w->pos[1], w->pos[2] },
+                { w->rgb[0], w->rgb[1], w->rgb[2], 1 },
+                { w->uv[0], w->uv[1] }
+            } );
+        }
+
+        std::vector<WORD> indices;
+        indices.reserve( mesh.nIdx );
         for( UINT i = 0; i != mesh.nIdx; i++ )
-            indices[i] = (WORD)mesh.idx[i];
+            indices.emplace_back( (WORD)mesh.idx[i] );
+
+        m_nIndices = (UINT)indices.size();
 
         D3D11_BUFFER_DESC bd;
         ZeroMemory( &bd, sizeof( bd ) );
         bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.ByteWidth = sizeof( SimpleVertex ) * mesh.nVtx;
+        bd.ByteWidth = SimpleVertexTex::stride * (UINT)vertices.size();
         bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
         bd.CPUAccessFlags = 0;
         D3D11_SUBRESOURCE_DATA InitData;
         ZeroMemory( &InitData, sizeof( InitData ) );
-        InitData.pSysMem = vertices;
+        InitData.pSysMem = vertices.data();
         hr = dev->CreateBuffer( &bd, &InitData, &m_vb );
         if( FAILED( hr ) )
             throw exception( "failed to create vertex buffer" );
-        delete[] vertices;
 
-        bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.ByteWidth = sizeof( WORD ) * mesh.nIdx;        // 36 vertices needed for 12 triangles in a triangle list
+        bd.ByteWidth = sizeof( WORD ) * m_nIndices;
         bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-        bd.CPUAccessFlags = 0;
-        InitData.pSysMem = indices;
+        InitData.pSysMem = indices.data();
         hr = dev->CreateBuffer( &bd, &InitData, &m_ib );
         if( FAILED( hr ) )
             throw exception( "failed to create index buffer" );
-        delete[] indices;
 
         // Create the constant buffer
-        bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.ByteWidth = sizeof( VSConstantBuffer );
+        bd.ByteWidth = sizeof( VSConstantBufferA );
         bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-        bd.CPUAccessFlags = 0;
         hr = dev->CreateBuffer( &bd, NULL, &m_cb );
         if( FAILED( hr ) )
             throw exception( "failed to create constant buffer" );
-
-        // Turn off culling, so we see the front and back of the triangle
-        D3D11_RASTERIZER_DESC rasterDesc;
-        rasterDesc.AntialiasedLineEnable = false;
-        rasterDesc.CullMode = D3D11_CULL_NONE;
-        rasterDesc.DepthBias = 0;
-        rasterDesc.DepthBiasClamp = 0.0f;
-        rasterDesc.DepthClipEnable = true;
-        rasterDesc.FillMode = D3D11_FILL_SOLID;
-        rasterDesc.FrontCounterClockwise = true;
-        rasterDesc.MultisampleEnable = false;
-        rasterDesc.ScissorEnable = false;
-        rasterDesc.SlopeScaledDepthBias = 0.0f;
-        if( FAILED( dev->CreateRasterizerState( &rasterDesc, &m_rs ) ) )
-            throw exception( "failed to create rasterizer state" );
 
         ZeroMemory( &m_vsConstants, sizeof( m_vsConstants ) );
     }
 
     virtual void render( ID3D11DeviceContext* ctx, XMMATRIX const& world, XMMATRIX const& view, XMMATRIX const& projection )
     {
-
         // Set the input layout
         ctx->IASetInputLayout( m_layout );
 
         // Set vertex buffer
-        UINT stride = sizeof( SimpleVertex );
         UINT offset = 0;
-        ctx->IASetVertexBuffers( 0, 1, &m_vb.p, &stride, &offset );
+        ctx->IASetVertexBuffers( 0, 1, &m_vb.p, &SimpleVertexTex::stride, &offset );
 
         // Set index buffer
         ctx->IASetIndexBuffer( m_ib, DXGI_FORMAT_R16_UINT, 0 );
 
         // Set primitive topology
         ctx->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-
-        // set raster state
-        ctx->RSSetState( m_rs );
 
         // update and set constant buffer
         m_vsConstants.mWorld = XMMatrixTranspose( world );
@@ -174,14 +144,10 @@ public:
 
         // draw
         ctx->DrawIndexed( m_nIndices, 0, 0 );
-
-        m_i += 3;
-        if( m_i == m_nIndices )
-            m_i = 0;
     }
 };
 
-const char ViosoMeshRenderer::s_szShader[] = R"END(
+const char ViosoMeshRenderer::s_szShaderWarp[] = R"END(
 cbuffer ConstantBuffer : register( b0 )
 {
 	matrix World;
@@ -192,14 +158,16 @@ cbuffer ConstantBuffer : register( b0 )
 //-------------------------------------------------------------
 struct VS_INPUT
 {
-    float4 Pos : POSITION;
-    float4 Color : COLOR;
+    float3 Pos : POSITION;
+    float4 Col : COLOR;
+    float2 Tex : TEXCOORD0;
 };
 
 struct PS_INPUT
 {
     float4 Pos : SV_POSITION;
-    float4 Color : COLOR;
+    float4 Col : COLOR;
+    float2 Tex : TEXCOORD0;
 };
 
 //-------------------------------------------------------------
@@ -208,11 +176,18 @@ struct PS_INPUT
 PS_INPUT VS( VS_INPUT input )
 {
     PS_INPUT output = (PS_INPUT)0;
-    output.Pos = mul( input.Pos, World );
-    output.Pos = mul( output.Pos, View );
-    output.Pos = mul( output.Pos, Projection );
-    output.Color = input.Color;
-
+    // position calculates from the projector pixel
+    //output.Pos.xy = input.Tex.xy;
+    output.Pos.x = 2 * input.Tex.x - 1;
+    output.Pos.y = -2 * input.Tex.y + 1;
+    output.Pos.z = 1;
+    output.Pos.w = 1;
+    float4 p = mul( float4( input.Pos, 1 ), World );
+    p = mul( p, View );
+    p = mul( p, Projection );
+    output.Tex.x = -0.5 + p.x / p.w /  2;
+    output.Tex.y =  0.5 + p.y / p.w / -2;
+    output.Col = input.Col;
     return output;
 }
 
@@ -221,40 +196,111 @@ PS_INPUT VS( VS_INPUT input )
 //-------------------------------------------------------------
 float4 PS( PS_INPUT input) : SV_Target
 {
-    return float4( input.Color.xyz * input.Color.w, 1 );
+    // use input.Tex to sample from content, generated with the same matrices
+    return float4( input.Col.xy * input.Tex.xy, input.Col.z, 1 );
 }
 )END";
 
+const char ViosoMeshRenderer::s_szShaderDisplay[] = R"END(
+cbuffer ConstantBuffer : register( b0 )
+{
+	matrix World;
+	matrix View;
+	matrix Projection;
+}
+
+//-------------------------------------------------------------
+struct VS_INPUT
+{
+    float3 Pos : POSITION;
+    float4 Col : COLOR;
+    float2 Tex : TEXCOORD0;
+};
+
+struct PS_INPUT
+{
+    float4 Pos : SV_POSITION;
+    float4 Col : COLOR;
+    float2 Tex : TEXCOORD0;
+};
+
+//-------------------------------------------------------------
+// Vertex Shader
+//-------------------------------------------------------------
+PS_INPUT VS( VS_INPUT input )
+{
+    PS_INPUT output = (PS_INPUT)0;
+    output.Pos = mul( float4( input.Pos, 1 ), World );
+    output.Pos = mul( output.Pos, View );
+    output.Pos = mul( output.Pos, Projection );
+    output.Tex = input.Tex;
+    output.Col = input.Col;
+    return output;
+}
+
+//-------------------------------------------------------------
+// Pixel Shader
+//-------------------------------------------------------------
+float4 PS( PS_INPUT input) : SV_Target
+{
+    // use input.Tex to sample from some projector test image
+    return float4( input.Col.xy * input.Tex.xy, input.Col.z, 1 );
+}
+)END";
 
 class VIOSOMeshWindow : public OutputWindow {
+    __declspec( align( 4 ) ) struct Clip {
+        float l, t, r, b, n, f;
+        operator float* ( ) { return &l; }
+        operator float const* ( ) const { return &l; }
+    } m_clip;
 public:
     VIOSOMeshWindow( LPCTSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
         : OutputWindow( hInstance, channelName, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
     {
 
+        if( 1 )
+        {
+            // use wireframe instead of solid
+            m_rs.Release();
+            m_dev->CreateRasterizerState( &s_rasterDescWire, &m_rs );
+        }
+        if( 0 )
+        {
+            // use sky color to clear
+            m_rt->setClearColor( RenderTarget::s_sky );
+        }
+
         ////< start VIOSO API code
-        // this will initialize function pointers from dll
-        #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-        #include "../../Include/VIOSOWarpBlend.h"
-
-        // check all needed functions
-        if( !( VWB_Create && VWB_Init && VWB_render && VWB_getViewProj && VWB_Destroy ) )
-            throw exception( "failed to load VIOSO API dll" );
-
-        VWB_Warper* w;
-        // create and initialize
-        if(
-            VWB_ERROR_NONE != VWB_Create( VWB_DUMMYDEVICE, s_configFile, channelName, &w, 0, NULL ) ||
-            VWB_ERROR_NONE != VWB_Init( w )
-            )
+        unique_ptr<VWB> w;
+        try {
+            // create warper, it's contructor throws
+            w = make_unique<VWB>( nullptr, VWB_DUMMYDEVICE, s_configFile, channelName );
+        }
+        catch( VWB_ERROR const& err )
+        {
+            throw exception( "failed to create warper", int(err) );
+        }
+        // initialize
+        if( VWB_ERROR_NONE != w->Init() )
             throw exception( "failed to initialize warper" );
 
-        VWB_WarpBlendMesh m = { 0 };
-        VWB_getWarpBlendMesh( w, 129, 129, m );
+        VWB_WarpBlendMesh m{};
+        w->GetWarpBlendMesh( 33, 17, m );
         addRenderer( make_shared< ViosoMeshRenderer >( m_dev, m ) );
+        w->DestroyWarpBlendMesh( m );
+        float eye[3]{};
+        w->GetViewClip( eye, eye, (float*)&m_mView.r, m_clip );
         ////< end VIOSO API code
+    }
 
+    virtual void preRender()
+    {
+        m_mProjection = XMMatrixPerspectiveOffCenterLH( -m_clip[0], m_clip[2], -m_clip[3], m_clip[1], m_clip[4], m_clip[5] );
+        __super::preRender();
 
+        //// do not process keys
+        //GFXPipeline::preRender();
     }
 };
 
@@ -263,7 +309,13 @@ public:
 //--------------------------------------------------------------------------------------
 HINSTANCE               g_hInst = NULL;
 vector<shared_ptr<OutputWindow>>    g_windows;
-XMMATRIX g_mWorld;
+
+std::string utf16ToUtf8( const std::wstring& in )
+{
+    std::string out( "\0", WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(), nullptr, 0, nullptr, nullptr) );
+    WideCharToMultiByte( CP_UTF8, 0, in.data(), (int)in.size(), out.data(), (int)out.size(), nullptr, nullptr );
+    return out;
+}
 
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing 
@@ -274,17 +326,22 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     try
     {
         UNREFERENCED_PARAMETER( hPrevInstance );
-        UNREFERENCED_PARAMETER( lpCmdLine );
+
+        // read command line, if any
+        std::wistringstream cmd( lpCmdLine );
+        std::wstring channel = L"IGX";
+        int x = 0;
+        int y = 0;
+        int w = 0;
+        int h = 0;
+        cmd >> channel >> x >> y >> w >> h;
 
         UINT createDeviceFlags = 0;
     #ifdef _DEBUG
         createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
     #endif
 
-        g_windows.push_back( make_shared<VIOSOMeshWindow>( "IGX", hInstance, 0, 0, 0, 0, nCmdShow, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
-
-        // initialize world matrix
-        g_mWorld = XMMatrixIdentity();
+        g_windows.push_back( make_shared<VIOSOMeshWindow>( utf16ToUtf8(channel).c_str(), hInstance, x, y, w, h, nCmdShow, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
 
         // Main message loop
         MSG msg = { 0 };
@@ -300,7 +357,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
                 for( auto& wnd : g_windows )
                 {
                     wnd->preRender();
-                    wnd->render( g_mWorld );
+                    wnd->render();
                     wnd->postRender();
                 }
             }
@@ -310,7 +367,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     }
     catch( exception& e )
     {
-        UNREFERENCED_PARAMETER( e );
+        OutputDebugStringA( e.what() );
+        OutputDebugStringA( "\n" );
         return -1;
     }
 }

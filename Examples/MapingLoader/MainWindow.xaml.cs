@@ -31,22 +31,22 @@ namespace MapingLoader
             try
             {
                 // get info of addressed vwf
-                Warper.WarpBlendHeader[] info;
-                VIOSOWarpBlend.Warper.GetVwfInfo("warp.vwf", out info); // actually it is allowed to specify multiple, comma separated files
+                Warper.WarpBlendHeader[] infos;
+                VIOSOWarpBlend.Warper.GetVwfInfo("warp.vwf", out infos); // actually it is allowed to specify multiple, comma separated files
 
                 // create a warper for each entry
-                for (int iInfo = 0; iInfo != info.Length; iInfo++ )
+                for (int iInfo = 0; iInfo != infos.Length; iInfo++ )
                 {
                     // we should, but must not, address an ini-file, as there might be global a parameters of interest in it
                     // set to String.Empty to go by fixed default values. Be aware, these might change in future, so update ALL values later
-                    _warper = new Warper(Warper.DummyDevice, "VIOSOWarpBlend.ini", info[iInfo].header.name );
+                    _warper = new Warper(Warper.DummyDevice, "VIOSOWarpBlend.ini", infos[iInfo].header.name );
 
                     // if you need to, you might adjust values read from ini
                     // these live in the dll's unmanaged memory, so we need to Get() and Set()
                     Warper.VWB_Warper ini = _warper.Get();
 
                     // change some ini value
-                    ini.calibFile = info[iInfo].path;
+                    ini.calibFile = infos[iInfo].path;
                     ini.calibIndex = iInfo;
                     ini.bAutoView = true;
                     ini.bFlipDXVs = true;
@@ -63,6 +63,9 @@ namespace MapingLoader
                     IntPtr warpmap;
                     _warper.GetWarpMap(out warpmap);
                     bool b3D = 0 != (header.flags & (uint)Warper.FLAGS.IS3D);
+
+                    Warper.Mesh m;
+                    _warper.GetWarpBlendMesh(17, 17, out m);
 
                     // the raw data are a 2D texture RGBA32F, get size from header.width and .height
                     // warpmap must be present, no need to test

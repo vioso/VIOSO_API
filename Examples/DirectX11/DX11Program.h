@@ -33,18 +33,18 @@ struct SimpleVertexTex
     XMFLOAT3 Pos;
     XMFLOAT4 Color;
     XMFLOAT2 Tex;
-    SimpleVertexTex( float x = 0.0f, float y = 0.0f, float z = 0.0f, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f, float u = 0.0f, float v = 0.0f )
-    {
-        Pos.x = x;
-        Pos.y = y;
-        Pos.z = z;
-        Color.x = r;
-        Color.y = g;
-        Color.z = b;
-        Color.w = a;
-        Tex.x = u;
-        Tex.y = v;
-    }
+    //SimpleVertexTex( float x = 0.0f, float y = 0.0f, float z = 0.0f, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f, float u = 0.0f, float v = 0.0f )
+    //{
+    //    Pos.x = x;
+    //    Pos.y = y;
+    //    Pos.z = z;
+    //    Color.x = r;
+    //    Color.y = g;
+    //    Color.z = b;
+    //    Color.w = a;
+    //    Tex.x = u;
+    //    Tex.y = v;
+    //}
     static const UINT stride;
     static const D3D11_INPUT_ELEMENT_DESC layout[3];
 };

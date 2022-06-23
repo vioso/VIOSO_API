@@ -2223,932 +2223,690 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 	return 0;
 }
 */
-	typedef enum ESPUMA_CtrlPointUseFlag
+
+typedef enum ESPUMA_CtrlPointUseFlag
+{
+	FLAG_CTRLPT_USE_UNSPECIFIC				=0x00,							///<   unspecific using
+	FLAG_CTRLPT_USE_SELECTED					=0x01,							///<   point is selected
+	FLAG_CTRLPT_USE_SELECTED_TANGENT			=0x02,							///<   a tangent to point is selected
+	FLAG_CTRLPT_USE_SELECTED_TANGENT_SECOND	=0x04,							///<   second tangent point is selected
+	FLAG_CTRLPT_USE_SELECTED_LINE_RIGHT		=0x08,							///<   line to the right is selected
+	FLAG_CTRLPT_USE_SELECTED_LINE_BOTTOM		=0x10,							///<   line down is selected
+	FLAG_CTRLPT_USE_SELECTED_ALL				=0x1F
+}ESPUMA_CtrlPointUseFlag;
+
+typedef enum ESPUMA_CtrlPointPosFlag
+{
+	FLAG_CTRLPT_POS_NORMAL=0x0,												///<   normal control point
+	FLAG_CTRLPT_POS_UNKNOWN=0x1,												///<   indicates an control point with unknown position
+	FLAG_CTRLPT_POS_BORDER_TOP=0x2,											///<   indicates that the control point is located on the top border of the control point mesh
+	FLAG_CTRLPT_POS_BORDER_LEFT=0x4,											///<   indicates that the control point is located on the left border of the control point mesh
+	FLAG_CTRLPT_POS_BORDER_RIGHT=0x8,										///<   indicates that the control point is located on the right border of the control point mesh
+	FLAG_CTRLPT_POS_BORDER_BOTTOM=0x10,										///<   indicates that the control point is located on the bottom border of the control point mesh
+	FLAG_CTRLPT_POS_BORDER_DIAGONAL=0x20,									///<   indicates that the control point is located on the diagonal border of the control point mesh
+	FLAG_CTRLPT_POS_CLONE=0x40,												///<   indicates that the control point is only a clone of another point
+	FLAG_CTRLPT_POS_BORDER= FLAG_CTRLPT_POS_BORDER_TOP |					///<   all border flags
+								FLAG_CTRLPT_POS_BORDER_LEFT | 
+								FLAG_CTRLPT_POS_BORDER_RIGHT | 
+								FLAG_CTRLPT_POS_BORDER_BOTTOM | 
+								FLAG_CTRLPT_POS_BORDER_DIAGONAL,
+	FLAG_CTRLPT_POS_BORDER_LR= FLAG_CTRLPT_POS_BORDER_LEFT | 				///<   right and left border
+									FLAG_CTRLPT_POS_BORDER_RIGHT,
+	FLAG_CTRLPT_POS_TOPLEFT=		FLAG_CTRLPT_POS_BORDER_TOP |				///<   edge top left, indicates the origin of the mesh
+									FLAG_CTRLPT_POS_BORDER_LEFT,
+	FLAG_CTRLPT_POS_TOPRIGHT=	FLAG_CTRLPT_POS_BORDER_TOP |				///<   edge top right
+									FLAG_CTRLPT_POS_BORDER_RIGHT,
+	FLAG_CTRLPT_POS_BOTTOMLEFT=	FLAG_CTRLPT_POS_BORDER_BOTTOM |			///<   edge bottom left
+									FLAG_CTRLPT_POS_BORDER_LEFT,
+	FLAG_CTRLPT_POS_BOTTOMRIGHT= FLAG_CTRLPT_POS_BORDER_BOTTOM |			///<   edge bottom right
+									FLAG_CTRLPT_POS_BORDER_RIGHT
+}ESPUMA_CtrlPointPosFlag;
+
+typedef struct SPPair3f
+{
+	int                                 fUse;									///<   common flag to indicate special using of the point
+																				///<  @see ESPUMA_CtrlPointUseFlag
+	int                                 fPos;									///<   flag to describe the position of the point in a mesh, if any
+																				///<  @see ESPUMA_CtrlPointPosFlag
+	float                               lPt1[3];								///<   first point pair
+	float                               lPt2[3];								///<   second point pair
+	float                               lTangDescX[2];							///<   parameter list to descibe an optional tangent of the point for extrapolation in x direction ([0] distance, [1] degree)
+	float                               lTangDescY[2];							///<   parameter list to descibe an optional tangent of the point for extrapolation in y direction ([0] distance, [1] degree)
+	static const SPPair3f _empty;
+} SPPair3f;
+const SPPair3f SPPair3f::_empty = SPPair3f{ 0,0,{0,0,0},{0,0,0},{1,0},{1,0} };
+
+typedef std::vector<SPPair3f> DynSPPointPairList3f;
+typedef std::vector<long> DynLongList;
+typedef std::vector<long*> DynLongPtrList;
+typedef std::vector<unsigned int> DynDWORDList;
+
+/// triangulate grid
+/// good points are marked: fUse & 1
+/// 
+///	@note
+///			x1  x2
+///		y1	p1--p2
+///			| \ A|
+///			| B\ |
+///		y2  p4--p3
+///	
+///			x1  x2
+///		y1	p1--p2
+///			| C/ |
+///			| / D|
+///		y2  p4--p3
+/// we assume CW culling
+/// there is no hole detection, holes must be bigger than 
+void triangulateGrid( DynSPPointPairList3f lPoints, long wGrid, long hGrid, DynLongList& lTriangleIdx )
+{
+	for( long y = 1; y != hGrid; y++ )
 	{
-		FLAG_CTRLPT_USE_UNSPECIFIC				=0x00,							///<   unspecific using
-		FLAG_CTRLPT_USE_SELECTED					=0x01,							///<   point is selected
-		FLAG_CTRLPT_USE_SELECTED_TANGENT			=0x02,							///<   a tangent to point is selected
-		FLAG_CTRLPT_USE_SELECTED_TANGENT_SECOND	=0x04,							///<   second tangent point is selected
-		FLAG_CTRLPT_USE_SELECTED_LINE_RIGHT		=0x08,							///<   line to the right is selected
-		FLAG_CTRLPT_USE_SELECTED_LINE_BOTTOM		=0x10,							///<   line down is selected
-		FLAG_CTRLPT_USE_SELECTED_ALL				=0x1F
-	}ESPUMA_CtrlPointUseFlag;
-
-	typedef enum ESPUMA_CtrlPointPosFlag
-	{
-		FLAG_CTRLPT_POS_NORMAL=0x0,												///<   normal control point
-		FLAG_CTRLPT_POS_UNKNOWN=0x1,												///<   indicates an control point with unknown position
-		FLAG_CTRLPT_POS_BORDER_TOP=0x2,											///<   indicates that the control point is located on the top border of the control point mesh
-		FLAG_CTRLPT_POS_BORDER_LEFT=0x4,											///<   indicates that the control point is located on the left border of the control point mesh
-		FLAG_CTRLPT_POS_BORDER_RIGHT=0x8,										///<   indicates that the control point is located on the right border of the control point mesh
-		FLAG_CTRLPT_POS_BORDER_BOTTOM=0x10,										///<   indicates that the control point is located on the bottom border of the control point mesh
-		FLAG_CTRLPT_POS_BORDER_DIAGONAL=0x20,									///<   indicates that the control point is located on the diagonal border of the control point mesh
-		FLAG_CTRLPT_POS_CLONE=0x40,												///<   indicates that the control point is only a clone of another point
-		FLAG_CTRLPT_POS_BORDER= FLAG_CTRLPT_POS_BORDER_TOP |					///<   all border flags
-								   FLAG_CTRLPT_POS_BORDER_LEFT | 
-								   FLAG_CTRLPT_POS_BORDER_RIGHT | 
-								   FLAG_CTRLPT_POS_BORDER_BOTTOM | 
-								   FLAG_CTRLPT_POS_BORDER_DIAGONAL,
-		FLAG_CTRLPT_POS_BORDER_LR= FLAG_CTRLPT_POS_BORDER_LEFT | 				///<   right and left border
-									  FLAG_CTRLPT_POS_BORDER_RIGHT,
-		FLAG_CTRLPT_POS_TOPLEFT=		FLAG_CTRLPT_POS_BORDER_TOP |				///<   edge top left, indicates the origin of the mesh
-										FLAG_CTRLPT_POS_BORDER_LEFT,
-		FLAG_CTRLPT_POS_TOPRIGHT=	FLAG_CTRLPT_POS_BORDER_TOP |				///<   edge top right
-										FLAG_CTRLPT_POS_BORDER_RIGHT,
-		FLAG_CTRLPT_POS_BOTTOMLEFT=	FLAG_CTRLPT_POS_BORDER_BOTTOM |			///<   edge bottom left
-										FLAG_CTRLPT_POS_BORDER_LEFT,
-		FLAG_CTRLPT_POS_BOTTOMRIGHT= FLAG_CTRLPT_POS_BORDER_BOTTOM |			///<   edge bottom right
-										FLAG_CTRLPT_POS_BORDER_RIGHT
-	}ESPUMA_CtrlPointPosFlag;
-
-	typedef struct SPPair3f
-	{
-		int                                 fUse;									///<   common flag to indicate special using of the point
-																					///<  @see ESPUMA_CtrlPointUseFlag
-		int                                 fPos;									///<   flag to describe the position of the point in a mesh, if any
-																					///<  @see ESPUMA_CtrlPointPosFlag
-		float                               lPt1[3];								///<   first point pair
-		float                               lPt2[3];								///<   second point pair
-		float                               lTangDescX[2];							///<   parameter list to descibe an optional tangent of the point for extrapolation in x direction ([0] distance, [1] degree)
-		float                               lTangDescY[2];							///<   parameter list to descibe an optional tangent of the point for extrapolation in y direction ([0] distance, [1] degree)
-		static const SPPair3f _empty;
-	} SPPair3f;
-	const SPPair3f SPPair3f::_empty = SPPair3f{ 0,0,{0,0,0},{0,0,0},{1,0},{1,0} };
-
-	typedef std::vector<SPPair3f> DynSPPointPairList3f;
-	typedef std::vector<long> DynLongList;
-	typedef std::vector<long*> DynLongPtrList;
-	typedef std::vector<unsigned int> DynDWORDList;
-
-	int ComputeTriangluation( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord3* pSrcDB, long width, long height, unsigned int qConsolidateSteps )
-	{
-		lPoints.clear();
-		lTriangleIdx.clear();
-
-		if( !( pSrcD && ( width > 0 ) && ( height > 0 ) ) )
-			return 0;
-		if( ( width == 1 ) || ( height == 1 ) )
-			return 1;
-
-		int f;
-		float yF;
-		SPPair3f* pP;
-		long i, j, k, idx;
-		VWB_WarpRecord* pW, * pW1;
-		VWB_BlendRecord3* pB;
-		std::vector<long> IdxD;
-
-		idx = width * height;
-		IdxD.resize( idx, 0 );
-		size_t q;
-		long* pL, * pL1, * pL2;
-		DynLongPtrList lLnPtr;
-		DynDWORDList lPtsPerLn;
-		unsigned int q1, q2, qH, qV, qHMin, qRgnH, qRgnV, qRgn;
-
-		if( qConsolidateSteps )
+		for( long x = 1; x != wGrid; x++ )
 		{
-			lLnPtr.reserve( (size_t)height );
-			lPtsPerLn.reserve( (size_t)height );
-		}
+			long pt1 = ( y - 1 ) * wGrid + ( x - 1 );
+			long pt2 = ( y - 1 ) * wGrid + x;
+			long pt3 = y * wGrid + x;
+			long pt4 = y * wGrid + ( x - 1 );
 
-		lPoints.reserve( (size_t)idx );
-
-		idx *= 6;
-		lTriangleIdx.reserve( (size_t)idx );
-
-		pL = &IdxD[0];
-		pW = pSrcD;
-		pB = pSrcDB;
-
-		long w = width - 1;
-		long h = height - 1;
-
-		// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
-		for( idx = 0, i = 0; i <= h; i++ )
-		{
-			for( yF = (float)i, j = 0; j <= w; j++, pW++, pL++, pB++ )
-			{
-				if( pW->z > 0.5f ) // test if valid
+			if( lPoints[pt1].fUse )
+			{ // pt1 valid
+				if( lPoints[pt3].fUse )
 				{
-					lPoints.push_back( SPPair3f{
-							0, 0,
-							{ float( j ), yF , 0 },
-							{ pW->x, pW->y, pW->z },
-							{ pB->r, pB->g },
-							{ pB->b, pB->a } } );
-					pP = &lPoints.back();
-					if( i < h ) // look below
+					if( lPoints[pt4].fUse )
 					{
-						pW1 = pW + width;
-						if( pW1->z > 0.5f ) // point is valid
-						{
-							pP->fPos |= FLAG_CTRLPT_POS_BORDER_BOTTOM;
-							pP->fUse++;
-						}
+						// triangle B valid, add it
+						lTriangleIdx.push_back( pt1 );
+						lTriangleIdx.push_back( pt3 );
+						lTriangleIdx.push_back( pt4 );
 					}
-					else
+					if( lPoints[pt2].fUse )
 					{
-						pW1 = NULL;
+						// triangle A valid, add it
+						lTriangleIdx.push_back( pt1 );
+						lTriangleIdx.push_back( pt2 );
+						lTriangleIdx.push_back( pt3 );
 					}
-					if( j < w )
-					{
-						if( pW1 )
-						{
-							pW1++; // look below right
-							if( pW1->z > 0.5f ) // valid
-							{
-								pP->fPos |= FLAG_CTRLPT_POS_BORDER_DIAGONAL;
-								pP->fUse++;
-							}
-						}
-						pW1 = pW + 1; // look right
-						if( pW1->z > 0.5f )
-						{
-							pP->fPos |= FLAG_CTRLPT_POS_BORDER_RIGHT;
-							pP->fUse++;
-						}
-					}
-					*pL = idx; // set index
-					idx++;
 				}
-				else
+				else if(
+					lPoints[pt2].fUse &&
+					lPoints[pt4].fUse )
 				{
-					*pL = -1; // mark index as invalid
+					// tiangle C valid
+					lTriangleIdx.push_back( pt1 );
+					lTriangleIdx.push_back( pt2 );
+					lTriangleIdx.push_back( pt4 );
 				}
 			}
-		}
-
-		pL = &IdxD[0];
-		for( i = 0; i < h; i++, pL++ )
-		{
-			for( j = 0; j < w; j++, pL++ )
+			else if(
+				lPoints[pt2].fUse &&
+				lPoints[pt3].fUse &&
+				lPoints[pt4].fUse )
 			{
-				idx = *pL;
-				if( idx < 0 )
-					continue;
-				pP = &lPoints[idx];
-				k = pP->fUse;
-				if( k <= 1 )
-					continue; // no neighboars
-
-				pL2 = pL + width; // this is the point below
-				if( k == 2 )
-				{
-					// add one triangle
-					q = lTriangleIdx.size();
-					lTriangleIdx.insert( lTriangleIdx.end(), 3, 0 );
-					pL1 = &lTriangleIdx[q];
-					pL1[0] = idx;
-					f = pP->fPos;
-					if( f & FLAG_CTRLPT_POS_BORDER_DIAGONAL )
-					{
-						if( f & FLAG_CTRLPT_POS_BORDER_RIGHT )
-						{
-							pL1[1] = pL[1];
-							pL1[2] = pL2[1];
-						}
-						else
-						{
-							pL1[1] = pL2[1];
-							pL1[2] = pL2[0];
-						}
-					}
-					else
-					{
-						pL1[1] = pL[1];
-						pL1[2] = pL2[0];
-					}
-				}
-				else if( qConsolidateSteps )
-				{
-					lLnPtr.clear();
-					lPtsPerLn.clear();
-
-					// find maximum rect smaller than step x step with all valid points
-
-					// go from current point down
-					qHMin = width; // initialize with maximum
-					for( pL1 = pL, qV = 0; qV <= qConsolidateSteps; qV++, pL1 += width )
-					{
-						// go from current point right
-						for( pL2 = pL1, qH = 0; qH <= qConsolidateSteps; qH++, pL2++ )
-						{
-							if( !( lPoints[*pL2].fPos & FLAG_CTRLPT_POS_BORDER_RIGHT ) )
-							{ // point has no right neighboar
-								qH++;
-								break;
-							}
-						}
-						if( qH == 1 ) // no valid points at right, break outer loop because we reached minimum
-						{
-							qHMin = 1;
-							break;
-						}
-
-						lLnPtr.push_back( pL1 ); // remind position pointer in that line
-						lPtsPerLn.push_back( qH ); // remind number of points gone right in that line
-
-						// assign 
-						if( qH < qHMin )
-							qHMin = qH;
-
-						// break loop if no valid bottom point is there
-						if( !( lPoints[*pL1].fPos & FLAG_CTRLPT_POS_BORDER_BOTTOM ) )
-						{
-							break;
-						}
-					}
-
-					qH = lPtsPerLn[0];
-					qRgnV = (unsigned int)lLnPtr.size();
-					qRgnH = qHMin;
-					qRgn = qRgnH * qRgnV;
-
-					// try make a bigger rect with less lines
-					for( q1 = 1; q1 < qV; q1++ )
-						if( lPtsPerLn[q1] < qH )
-							break;
-
-					if( q1 == 1 )
-					{
-						q2 = 2 * lPtsPerLn[1];
-						if( q2 > qRgn )
-						{
-							qRgnV = 2;
-							qRgnH = lPtsPerLn[1];
-							qRgn = q2;
-						}
-					}
-					else
-					{
-						q2 = q1 * qH;
-						if( q2 > qRgn ) // take other rect
-						{
-							qRgnV = q1;
-							qRgnH = qH;
-							qRgn = q2;
-						}
-					}
-
-					// look for the biggest square
-					qHMin = MIN( lPtsPerLn[0], lPtsPerLn[1] );
-					for( q1 = 2; q1 < qV; q1++ )
-					{
-						q2 = lPtsPerLn[q1];
-						if( q2 < qHMin )
-							qHMin = q2;
-						if( qHMin <= q1 )
-							break;
-					}
-					// look for the biggest square
-					if( qHMin < q1 )
-						q1 = qHMin;
-					q2 = q1 * q1;
-					if( q2 > qRgn )
-					{
-						qRgnV = q1;
-						qRgnH = q1;
-						qRgn = q2;
-					}
-
-					qRgnH--;
-					qRgnV--;
-					pL2 = lLnPtr[qRgnV] + qRgnH;
-
-					// save the triangles' indices
-					q = lTriangleIdx.size();
-					lTriangleIdx.insert( lTriangleIdx.end(), 6, 0 );
-					pL1 = &lTriangleIdx[q];
-					pL1[0] = idx;
-					pL1[1] = pL[qRgnH];
-					pL1[2] = *pL2;
-					pL1[3] = idx;
-					pL1[4] = *pL2;
-					pL1[5] = *( lLnPtr[qRgnV] );
-
-					// mark points as unused
-					for( qV = 0; qV < qRgnV; qV++ )
-						for( pL1 = lLnPtr[qV], qH = 0; qH < qRgnH; qH++, pL1++ )
-							if( 0 <= *pL1 )
-								lPoints[*pL1].fUse = 0;
-				}
-				else
-				{
-					// save the triangles' indices
-					q = lTriangleIdx.size();
-					lTriangleIdx.insert( lTriangleIdx.end(), 6, 0 );
-					pL1 = &lTriangleIdx[q];
-					pL1[0] = idx;
-					pL1[1] = pL[1];
-					pL1[2] = pL2[1];
-					pL1[3] = idx;
-					pL1[4] = pL2[1];
-					pL1[5] = pL2[0];
-				}
+				// tiangle D valid
+				lTriangleIdx.push_back( pt2 );
+				lTriangleIdx.push_back( pt3 );
+				lTriangleIdx.push_back( pt4 );
 			}
 		}
-		return 1;
 	}
+}
+// return
+// see ESPCommonState
+bool RepairUniformGrid( DynSPPointPairList3f& grid, int wGrid, int hGrid, int dist )
+{
+	enum POS_REL {
+		POS_REL_T, // tops
+		POS_REL_TT,
+		POS_REL_TTT,
+		POS_REL_TR,  // top-rights
+		POS_REL_TRTR,
+		POS_REL_TRTRTR,
+		POS_REL_R, // rights
+		POS_REL_RR,
+		POS_REL_RRR,
+		POS_REL_BR, // bottom-rights
+		POS_REL_BRBR,
+		POS_REL_BRBRBR,
+		POS_REL_B,  // bottoms
+		POS_REL_BB,
+		POS_REL_BBB,
+		POS_REL_BL, // bottom-lefts
+		POS_REL_BLBL,
+		POS_REL_BLBLBL,
+		POS_REL_L, // lefts
+		POS_REL_LL,
+		POS_REL_LLL,
+		POS_REL_TL, // top-lefts
+		POS_REL_TLTL,
+		POS_REL_TLTLTL,
+		POS_REL_SIZE
+	};
 
-	// return
-	// see ESPCommonState
-	bool RepairUniformGrid( DynSPPointPairList3f& grid, int wGrid, int hGrid, int dist )
-	{
-		enum POS_REL {
-			POS_REL_T, // tops
-			POS_REL_TT,
-			POS_REL_TTT,
-			POS_REL_TR,  // top-rights
-			POS_REL_TRTR,
-			POS_REL_TRTRTR,
-			POS_REL_R, // rights
-			POS_REL_RR,
-			POS_REL_RRR,
-			POS_REL_BR, // bottom-rights
-			POS_REL_BRBR,
-			POS_REL_BRBRBR,
-			POS_REL_B,  // bottoms
-			POS_REL_BB,
-			POS_REL_BBB,
-			POS_REL_BL, // bottom-lefts
-			POS_REL_BLBL,
-			POS_REL_BLBLBL,
-			POS_REL_L, // lefts
-			POS_REL_LL,
-			POS_REL_LLL,
-			POS_REL_TL, // top-lefts
-			POS_REL_TLTL,
-			POS_REL_TLTLTL,
-			POS_REL_SIZE
-		};
+	SIZE const delta[POS_REL_SIZE] = {
+		{  0, -1 }, {  0, -2 }, {  0, -3 }, // top
+		{  1, -1 }, {  2, -2 }, {  3, -3 }, // top-right
+		{  1,  0 }, {  2,  0 }, {  3,  0 }, // right
+		{  1,  1 }, {  2,  2 }, {  3,  3 }, // bottom-right
+		{  0,  1 }, {  0,  2 }, {  0,  3 }, // bottom
+		{ -1,  1 }, { -2,  2 }, { -3,  3 }, // bottom-left
+		{ -1,  0 }, { -2,  0 }, { -3,  0 }, // left
+		{ -1, -1 }, { -2, -2 }, { -3, -3 }, // top-left
+	};
 
-		SIZE const delta[POS_REL_SIZE] = {
-			{  0, -1 }, {  0, -2 }, {  0, -3 }, // top
-			{  1, -1 }, {  2, -2 }, {  3, -3 }, // top-right
-			{  1,  0 }, {  2,  0 }, {  3,  0 }, // right
-			{  1,  1 }, {  2,  2 }, {  3,  3 }, // bottom-right
-			{  0,  1 }, {  0,  2 }, {  0,  3 }, // bottom
-			{ -1,  1 }, { -2,  2 }, { -3,  3 }, // bottom-left
-			{ -1,  0 }, { -2,  0 }, { -3,  0 }, // left
-			{ -1, -1 }, { -2, -2 }, { -3, -3 }, // top-left
-		};
+	typedef enum EST_TYPE {
+		EST_TYPE_INTER,
+		EST_TYPE_EXTRA,
+	} EST_TYPE;
 
-		typedef enum EST_TYPE {
-			EST_TYPE_INTER,
-			EST_TYPE_EXTRA,
-		} EST_TYPE;
+	struct Match {
+		POS_REL pos[3];
+		EST_TYPE est;
+		float score;
+	};
 
-		struct Match {
-			POS_REL pos[3];
-			EST_TYPE est;
-			float score;
-		};
+	Match const matches[] = { // 1.0 horizintal or vertical interpolation, 0.9 diagonal interpolation, 0.75 extrapolation h/v, 0.675 diagonal extrap.
+		{ { POS_REL_LL, POS_REL_L, POS_REL_R }, EST_TYPE_INTER, 1.0f },
+		{ { POS_REL_RR, POS_REL_R, POS_REL_L }, EST_TYPE_INTER, 1.0f },
+		{ { POS_REL_TT, POS_REL_T, POS_REL_B }, EST_TYPE_INTER, 1.0f },
+		{ { POS_REL_BB, POS_REL_B, POS_REL_T }, EST_TYPE_INTER, 1.0f },
 
-		Match const matches[] = { // 1.0 horizintal or vertical interpolation, 0.9 diagonal interpolation, 0.75 extrapolation h/v, 0.675 diagonal extrap.
-			{ { POS_REL_LL, POS_REL_L, POS_REL_R }, EST_TYPE_INTER, 1.0f },
-			{ { POS_REL_RR, POS_REL_R, POS_REL_L }, EST_TYPE_INTER, 1.0f },
-			{ { POS_REL_TT, POS_REL_T, POS_REL_B }, EST_TYPE_INTER, 1.0f },
-			{ { POS_REL_BB, POS_REL_B, POS_REL_T }, EST_TYPE_INTER, 1.0f },
+		{ { POS_REL_TRTR, POS_REL_TR, POS_REL_BL }, EST_TYPE_INTER, 0.95f },
+		{ { POS_REL_BRBR, POS_REL_BR, POS_REL_TL }, EST_TYPE_INTER, 0.95f },
+		{ { POS_REL_BLBL, POS_REL_BL, POS_REL_TR }, EST_TYPE_INTER, 0.95f },
+		{ { POS_REL_TLTL, POS_REL_TL, POS_REL_BR }, EST_TYPE_INTER, 0.95f },
 
-			{ { POS_REL_TRTR, POS_REL_TR, POS_REL_BL }, EST_TYPE_INTER, 0.95f },
-			{ { POS_REL_BRBR, POS_REL_BR, POS_REL_TL }, EST_TYPE_INTER, 0.95f },
-			{ { POS_REL_BLBL, POS_REL_BL, POS_REL_TR }, EST_TYPE_INTER, 0.95f },
-			{ { POS_REL_TLTL, POS_REL_TL, POS_REL_BR }, EST_TYPE_INTER, 0.95f },
+		{ { POS_REL_TTT, POS_REL_TT, POS_REL_T }, EST_TYPE_EXTRA, 0.875f },
+		{ { POS_REL_BBB, POS_REL_BB, POS_REL_B }, EST_TYPE_EXTRA, 0.875f },
+		{ { POS_REL_LLL, POS_REL_LL, POS_REL_L }, EST_TYPE_EXTRA, 0.875f },
+		{ { POS_REL_RRR, POS_REL_RR, POS_REL_R }, EST_TYPE_EXTRA, 0.875f },
 
-			{ { POS_REL_TTT, POS_REL_TT, POS_REL_T }, EST_TYPE_EXTRA, 0.875f },
-			{ { POS_REL_BBB, POS_REL_BB, POS_REL_B }, EST_TYPE_EXTRA, 0.875f },
-			{ { POS_REL_LLL, POS_REL_LL, POS_REL_L }, EST_TYPE_EXTRA, 0.875f },
-			{ { POS_REL_RRR, POS_REL_RR, POS_REL_R }, EST_TYPE_EXTRA, 0.875f },
+		{ { POS_REL_TRTRTR, POS_REL_TRTR, POS_REL_TR }, EST_TYPE_EXTRA, 0.823f },
+		{ { POS_REL_BRBRBR, POS_REL_BRBR, POS_REL_BR }, EST_TYPE_EXTRA, 0.823f },
+		{ { POS_REL_BLBLBL, POS_REL_BLBL, POS_REL_BL }, EST_TYPE_EXTRA, 0.823f },
+		{ { POS_REL_TLTLTL, POS_REL_TLTL, POS_REL_TL }, EST_TYPE_EXTRA, 0.823f },
+	};
 
-			{ { POS_REL_TRTRTR, POS_REL_TRTR, POS_REL_TR }, EST_TYPE_EXTRA, 0.823f },
-			{ { POS_REL_BRBRBR, POS_REL_BRBR, POS_REL_BR }, EST_TYPE_EXTRA, 0.823f },
-			{ { POS_REL_BLBLBL, POS_REL_BLBL, POS_REL_BL }, EST_TYPE_EXTRA, 0.823f },
-			{ { POS_REL_TLTLTL, POS_REL_TLTL, POS_REL_TL }, EST_TYPE_EXTRA, 0.823f },
-		};
+	DynSPPointPairList3f newGrid;
+	int numOp = 0; // global iteration counter
+	int inValid = 0;
+	int added = 0;
+	int removed = 0;
+	int found = 0;
+	size_t nSz = size_t(wGrid) * hGrid;
 
-		DynSPPointPairList3f newGrid;
-		int numOp = 0; // global iteration counter
-		int inValid = 0;
-		int added = 0;
-		int removed = 0;
-		int found = 0;
-		size_t nSz = size_t(wGrid) * hGrid;
+	newGrid.resize( nSz );
+	do {
+		if( -1 != dist && dist <= numOp )
+			return true;
+		numOp++;
+		added = 0;
+		found = 0;
+		inValid = 0;
+		#ifdef _DEBUG
+		int	good = 0;
+		#endif
 
-		newGrid.resize( nSz );
-		do {
-			if( -1 != dist && dist <= numOp )
-				return true;
-			numOp++;
-			added = 0;
-			found = 0;
-			inValid = 0;
-			#ifdef _DEBUG
-			int	good = 0;
-			#endif
-
-			// do all 
-			DynSPPointPairList3f::iterator pO = grid.begin();
-			DynSPPointPairList3f::iterator pN = newGrid.begin();
-			for( int y = 0; y != hGrid; y++ )
+		// do all 
+		DynSPPointPairList3f::iterator pO = grid.begin();
+		DynSPPointPairList3f::iterator pN = newGrid.begin();
+		for( int y = 0; y != hGrid; y++ )
+		{
+			for( int x = 0; x != wGrid; x++, pO++, pN++ )
 			{
-				for( int x = 0; x != wGrid; x++, pO++, pN++ )
+				*pN = SPPair3f{ 0 };
+
+				if( 0.5f <= pO->lPt2[2] )
+					continue;
+
+				int nMatches = 0;
+				for( int i = 0; i != ARRAYSIZE( matches ); i++ )
 				{
-					*pN = SPPair3f{ 0 };
-
-					if( 0.5f <= pO->lPt2[2] )
-						continue;
-
-					int nMatches = 0;
-					for( int i = 0; i != ARRAYSIZE( matches ); i++ )
+					DynSPPointPairList3f::const_iterator ppOO[3] = { grid.end() };
+					for( int j = 0; j != 3; j++ )
 					{
-						DynSPPointPairList3f::const_iterator ppOO[3] = { grid.end() };
-						for( int j = 0; j != 3; j++ )
+						if( x + delta[matches[i].pos[j]].cx < (LONG)wGrid && // not over right border
+							x + delta[matches[i].pos[j]].cx >= 0 && // not over left border
+							y + delta[matches[i].pos[j]].cy < (LONG)hGrid && // not over bottom border
+							y + delta[matches[i].pos[j]].cy >= 0 ) // not over top border
 						{
-							if( x + delta[matches[i].pos[j]].cx < (LONG)wGrid && // not over right border
-								x + delta[matches[i].pos[j]].cx >= 0 && // not over left border
-								y + delta[matches[i].pos[j]].cy < (LONG)hGrid && // not over bottom border
-								y + delta[matches[i].pos[j]].cy >= 0 ) // not over top border
-							{
-								ppOO[j] = grid.begin() + ( ( ptrdiff_t( y ) + delta[matches[i].pos[j]].cy ) * wGrid + x + delta[matches[i].pos[j]].cx );
-								if( FLT_EPSILON > ppOO[j]->lPt2[2] )
-								{
-									ppOO[0] = grid.end();
-									break;
-								}
-							}
-							else
+							ppOO[j] = grid.begin() + ( ( ptrdiff_t( y ) + delta[matches[i].pos[j]].cy ) * wGrid + x + delta[matches[i].pos[j]].cx );
+							if( FLT_EPSILON > ppOO[j]->lPt2[2] )
 							{
 								ppOO[0] = grid.end();
 								break;
 							}
 						}
-						if( grid.end() == ppOO[0] )
-							continue;
-
-						// we have a match
-						float vE[6] = { 0 };
-						if( EST_TYPE_INTER == matches[i].est )
-						{
-							// get 1/3-point vector between first and last point
-							float vM[2] = { 
-								ppOO[0]->lPt2[0] * 2.0f / 3.0f + ppOO[2]->lPt2[0] / 3.0f,
-								ppOO[0]->lPt2[1] * 2.0f / 3.0f + ppOO[2]->lPt2[1] / 3.0f 
-							};
-							// get distance vector of second point to linear estimation if second point
-							float vD[2] = { 
-								ppOO[1]->lPt2[0] - vM[0],
-								ppOO[1]->lPt2[1] - vM[1] 
-							}; // 
-							// estimate missing point on line from first and last, by adding the distance to mid-point (mirroring) and add correction
-							vE[0] = ppOO[0]->lPt2[0] / 3.0f + ppOO[2]->lPt2[0] * 2.0f / 3.0f + vD[0];
-							vE[1] = ppOO[0]->lPt2[1] / 3.0f + ppOO[2]->lPt2[1] * 2.0f / 3.0f + vD[1];
-							// blend value is just average of next points
-							vE[2] = 0.5f * ( ppOO[1]->lTangDescX[0] + ppOO[2]->lTangDescX[0] );
-							vE[3] = 0.5f * ( ppOO[1]->lTangDescX[1] + ppOO[2]->lTangDescX[1] );
-							vE[4] = 0.5f * ( ppOO[1]->lTangDescY[0] + ppOO[2]->lTangDescY[0] );
-							vE[5] = 0.5f * ( ppOO[1]->lTangDescY[1] + ppOO[2]->lTangDescY[1] );
-						}
 						else
 						{
-							// get mid-point vector between first and last point
-							float vM[2] = { ( ppOO[2]->lPt2[0] + ppOO[0]->lPt2[0] ) / 2, ( ppOO[2]->lPt2[1] + ppOO[0]->lPt2[1] ) / 2 };
-							// get distance vector of second point to linear estimation if second point
-							float vD[2] = { ppOO[1]->lPt2[0] - vM[0], ppOO[1]->lPt2[1] - vM[1] }; // 
-							// estimate missing point on line from first and last, by adding the distance to mid-point (mirroring) and subtract correction
-							vE[0] = ppOO[2]->lPt2[0] * 1.5f - ppOO[0]->lPt2[0] / 2 - vD[0];
-							vE[1] = ppOO[2]->lPt2[1] * 1.5f - ppOO[0]->lPt2[1] / 2 - vD[1];
-
-							// blend value is linear extrapolation
-							vE[2] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescX[0] - ppOO[1]->lTangDescX[0] ) );
-							vE[3] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescX[1] - ppOO[1]->lTangDescX[1] ) );
-							vE[4] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescY[0] - ppOO[1]->lTangDescY[0] ) );
-							vE[5] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescY[1] - ppOO[1]->lTangDescY[1] ) );
+							ppOO[0] = grid.end();
+							break;
 						}
-						float score = matches[i].score * pow( ppOO[0]->lPt2[2] * ppOO[1]->lPt2[2] * ppOO[2]->lPt2[2], 1.0f / 3.0f ); // 0 < score <= 1, use geometric mean
-						nMatches++;
-						for( int i = 0; i != 6; i++ )
-							vE[i] *= score;
-
-						pN->lPt2[0] += vE[0];
-						pN->lPt2[1] += vE[1];
-						pN->lPt2[2] += score;
-						pN->lTangDescX[0] += vE[2];
-						pN->lTangDescX[1] += vE[3];
-						pN->lTangDescY[0] += vE[4];
-						pN->lTangDescY[1] += vE[5];
 					}
+					if( grid.end() == ppOO[0] )
+						continue;
 
-					if( FLT_EPSILON <= pN->lPt2[2] )
+					// we have a match
+					float vE[6] = { 0 };
+					if( EST_TYPE_INTER == matches[i].est )
 					{
-						pN->lPt2[0] /= pN->lPt2[2];
-						pN->lPt2[1] /= pN->lPt2[2];
-						pN->lTangDescX[0] /= pN->lPt2[2];
-						pN->lTangDescX[1] /= pN->lPt2[2];
-						pN->lTangDescY[0] /= pN->lPt2[2];
-						pN->lTangDescY[1] /= pN->lPt2[2];
-
-						pN->lPt2[2] /= nMatches;
-
-						if( FLT_EPSILON > pN->lPt2[2] )
-							pN->lPt2[2] = FLT_EPSILON;
+						// get 1/3-point vector between first and last point
+						float vM[2] = { 
+							ppOO[0]->lPt2[0] * 2.0f / 3.0f + ppOO[2]->lPt2[0] / 3.0f,
+							ppOO[0]->lPt2[1] * 2.0f / 3.0f + ppOO[2]->lPt2[1] / 3.0f 
+						};
+						// get distance vector of second point to linear estimation if second point
+						float vD[2] = { 
+							ppOO[1]->lPt2[0] - vM[0],
+							ppOO[1]->lPt2[1] - vM[1] 
+						}; // 
+						// estimate missing point on line from first and last, by adding the distance to mid-point (mirroring) and add correction
+						vE[0] = ppOO[0]->lPt2[0] / 3.0f + ppOO[2]->lPt2[0] * 2.0f / 3.0f + vD[0];
+						vE[1] = ppOO[0]->lPt2[1] / 3.0f + ppOO[2]->lPt2[1] * 2.0f / 3.0f + vD[1];
+						// blend value is just average of next points
+						vE[2] = 0.5f * ( ppOO[1]->lTangDescX[0] + ppOO[2]->lTangDescX[0] );
+						vE[3] = 0.5f * ( ppOO[1]->lTangDescX[1] + ppOO[2]->lTangDescX[1] );
+						vE[4] = 0.5f * ( ppOO[1]->lTangDescY[0] + ppOO[2]->lTangDescY[0] );
+						vE[5] = 0.5f * ( ppOO[1]->lTangDescY[1] + ppOO[2]->lTangDescY[1] );
 					}
+					else
+					{
+						// get mid-point vector between first and last point
+						float vM[2] = { ( ppOO[2]->lPt2[0] + ppOO[0]->lPt2[0] ) / 2, ( ppOO[2]->lPt2[1] + ppOO[0]->lPt2[1] ) / 2 };
+						// get distance vector of second point to linear estimation if second point
+						float vD[2] = { ppOO[1]->lPt2[0] - vM[0], ppOO[1]->lPt2[1] - vM[1] }; // 
+						// estimate missing point on line from first and last, by adding the distance to mid-point (mirroring) and subtract correction
+						vE[0] = ppOO[2]->lPt2[0] * 1.5f - ppOO[0]->lPt2[0] / 2 - vD[0];
+						vE[1] = ppOO[2]->lPt2[1] * 1.5f - ppOO[0]->lPt2[1] / 2 - vD[1];
 
+						// blend value is linear extrapolation
+						vE[2] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescX[0] - ppOO[1]->lTangDescX[0] ) );
+						vE[3] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescX[1] - ppOO[1]->lTangDescX[1] ) );
+						vE[4] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescY[0] - ppOO[1]->lTangDescY[0] ) );
+						vE[5] = MAX( 0, MIN( 1, 2.0f * ppOO[2]->lTangDescY[1] - ppOO[1]->lTangDescY[1] ) );
+					}
+					float score = matches[i].score * pow( ppOO[0]->lPt2[2] * ppOO[1]->lPt2[2] * ppOO[2]->lPt2[2], 1.0f / 3.0f ); // 0 < score <= 1, use geometric mean
+					nMatches++;
+					for( int i = 0; i != 6; i++ )
+						vE[i] *= score;
+
+					pN->lPt2[0] += vE[0];
+					pN->lPt2[1] += vE[1];
+					pN->lPt2[2] += score;
+					pN->lTangDescX[0] += vE[2];
+					pN->lTangDescX[1] += vE[3];
+					pN->lTangDescY[0] += vE[4];
+					pN->lTangDescY[1] += vE[5];
 				}
+
+				if( FLT_EPSILON <= pN->lPt2[2] )
+				{
+					pN->lPt2[0] /= pN->lPt2[2];
+					pN->lPt2[1] /= pN->lPt2[2];
+					pN->lTangDescX[0] /= pN->lPt2[2];
+					pN->lTangDescX[1] /= pN->lPt2[2];
+					pN->lTangDescY[0] /= pN->lPt2[2];
+					pN->lTangDescY[1] /= pN->lPt2[2];
+
+					pN->lPt2[2] /= nMatches;
+
+					if( FLT_EPSILON > pN->lPt2[2] )
+						pN->lPt2[2] = FLT_EPSILON;
+				}
+
+			}
+		}
+
+		// repair grid
+
+		float scoreMax = 0;
+		for( pN = newGrid.begin(); pN != newGrid.end(); pN++ )
+			if( scoreMax < pN->lPt2[2] )
+				scoreMax = pN->lPt2[2];
+
+		scoreMax *= 0.95f; // need to be in 95%
+
+		// copy back to original
+		for( pO = grid.begin(), pN = newGrid.begin(); pO != grid.end(); pO++, pN++ )
+		{
+			if( 0.5f <= pO->lPt2[2] )
+			{
+				#ifdef _DEBUG
+				good++;
+				#endif
+				continue;
+			}
+			if( scoreMax <= pN->lPt2[2] ) // has maximum score, so guessing is as good as it gets
+			{
+				pO->lPt2[0] = pN->lPt2[0];
+				pO->lPt2[1] = pN->lPt2[1];
+				pO->lPt2[2] = +.5f + MAX( FLT_EPSILON, pN->lPt2[2] * 0.5f ); // fit back to "good value" window
+				pO->lTangDescX[0] = pN->lTangDescX[0];
+				pO->lTangDescX[1] = pN->lTangDescX[1];
+				pO->lTangDescY[0] = pN->lTangDescY[0];
+				pO->lTangDescY[1] = pN->lTangDescY[1];
+				added++;
+			}
+			else
+				inValid++;
+		}
+		logStr( 2, "Info: RepairUniformGrid: run %i added %i, removed %i points. Leaving %i invalid points.", numOp, added, removed, inValid );
+	} while( 0 != added &&
+				0 < inValid );
+
+	if( 0 != inValid )
+		return false;
+
+	return true;
+}
+
+// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
+inline float& getU( SPPair3f& p ) {
+	return p.lPt1[0];
+}
+
+inline float& getV( SPPair3f& p ) {
+	return p.lPt1[1];
+}
+
+template< auto f >
+void splitEdge( SPPair3f& p, SPPair3f& p1, float l, float r, long ip, long ip1, std::vector<SPPair3f>& newVtx, std::map<std::pair<long, long>, std::pair<long, long>>& cache, long& i1, long& i2, long& c )
+{
+	// find weight
+	float w = f( p1 ) / ( 1.0f - f( p ) + f( p1 ) );
+	SPPair3f v; v.fUse = 1;
+	// v1 point close to p
+	v.lPt1[0] = w * p.lPt1[0] + ( 1.0f - w ) * p1.lPt1[0];
+	v.lPt1[1] = w * p.lPt1[1] + ( 1.0f - w ) * p1.lPt1[1];
+	v.lPt1[2] = w * p.lPt1[2] + ( 1.0f - w ) * p1.lPt1[2];
+	v.lPt2[0] = w * p.lPt2[0] + ( 1.0f - w ) * p1.lPt2[0];
+	v.lPt2[1] = w * p.lPt2[1] + ( 1.0f - w ) * p1.lPt2[1];
+	v.lPt2[2] = w * p.lPt2[2] + ( 1.0f - w ) * p1.lPt2[2];
+	f( v ) = r;
+	newVtx.push_back( v );
+	i1 = c++;
+	// v2 point close to p1
+	f( v ) = l;
+	newVtx.push_back( v );
+	i2 = c++;
+	cache.emplace( std::pair( ip, ip1 ), std::pair( i1, i2 ) ); // instert hint to newly created vertices, note: p is always the one with max texture coordinate!
+}
+
+/// @param dim the pixel dimension of the wrap, to make a half-pixel correction
+template< auto f >
+void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim )
+{
+	std::vector<SPPair3f> newVtx;
+	std::vector<long> newIdx;
+	std::map<std::pair<long, long>, std::pair<long, long>> cache; // this map points from a pair of indices defining an edge to the indices of the newly created vertices to avoid creating same vertices twice
+	long c = (long)lPoints.size(); // the index base
+	for( long* idx = lTriangleIdx.data(), *idxE = idx + lTriangleIdx.size(); idx != idxE; idx += 3 )
+	{
+		// check edge if it wraps in U, this is when abs(u1-u2) > 0.5
+		// there must always be 2 edges wrapping, as by design there is a seam in the P2C pixels, where one side u is 1 and other is 0, therefore each point belongs to some side
+		long* idWrap[6]{}; // we still allow for 3 edges in memory to avoid crash
+		long  n = 0;
+		if( 0.5f < abs( f( lPoints[idx[0]] ) - f( lPoints[idx[1]] ) ) ) // check first edge
+		{
+			idWrap[n++] = idx;
+			idWrap[n++] = idx + 1;
+		}
+
+		if( 0.5f < abs( f( lPoints[idx[1]] ) - f( lPoints[idx[2]] ) ) ) // check second edge
+		{
+			idWrap[n++] = idx + 1;
+			idWrap[n++] = idx + 2;
+		}
+
+		if( 0.5f < abs( f( lPoints[idx[2]] ) - f( lPoints[idx[0]] ) ) ) // check third edge
+		{
+			idWrap[n++] = idx + 2;
+			idWrap[n++] = idx;
+		}
+		if( 4 == n ) // this is a triangle with a seam
+		{
+			// in 2 cases id[1] is id[2] and thus solo
+			// if id[0] and id[3] is same, we swap around
+			if( idWrap[0] == idWrap[3] )
+			{
+				idWrap[0] = idx + 2;
+				idWrap[1] = idx;
+				idWrap[2] = idx;
+				idWrap[3] = idx + 1;
 			}
 
-			// repair grid
+			SPPair3f& p = lPoints[*idWrap[1]]; // the solo point
+			SPPair3f& p1 = lPoints[*idWrap[0]];
+			SPPair3f& p2 = lPoints[*idWrap[3]];
+			bool bReverse = f( p1 ) > f( p ); // solo point got smaller texture coordinate, meaning the solo point is on other side
 
-			float scoreMax = 0;
-			for( pN = newGrid.begin(); pN != newGrid.end(); pN++ )
-				if( scoreMax < pN->lPt2[2] )
-					scoreMax = pN->lPt2[2];
+			// calculate half pixel; this is actually not right, as we would need the input texture size. But it looks better not causing a black line by design
+			const float l = 0.5f / dim;
+			const float r = 1.0f - 0.5f / dim;
+			// we need 4 new vertices, 2 on each edge on the same XY but with 1 and 0 as U
+			//           p               p     
+			//          / \        	    /1\    
+			//         /   \       	  v1---v3  
+			//        /     \		 v2-----v4
+			//       /       \		 / 2  \3 \
+			//      p1--------p2    p1--------p2
 
-			scoreMax *= 0.95f; // need to be in 95%
+			long iv[4]; // the assigned indices
 
-			// copy back to original
-			for( pO = grid.begin(), pN = newGrid.begin(); pO != grid.end(); pO++, pN++ )
+			if( bReverse )
 			{
-				if( 0.5f <= pO->lPt2[2] )
+				// first edge p - p1
+				if( auto found = cache.find( std::pair( *idWrap[0], *idWrap[1] ) ); found != cache.end() )
 				{
-					#ifdef _DEBUG
-					good++;
-					#endif
-					continue;
-				}
-				if( scoreMax <= pN->lPt2[2] ) // has maximum score, so guessing is as good as it gets
-				{
-					pO->lPt2[0] = pN->lPt2[0];
-					pO->lPt2[1] = pN->lPt2[1];
-					pO->lPt2[2] = +.5f + MAX( FLT_EPSILON, pN->lPt2[2] * 0.5f ); // fit back to "good value" window
-					pO->lTangDescX[0] = pN->lTangDescX[0];
-					pO->lTangDescX[1] = pN->lTangDescX[1];
-					pO->lTangDescY[0] = pN->lTangDescY[0];
-					pO->lTangDescY[1] = pN->lTangDescY[1];
-					added++;
+					iv[1] = found->second.first;
+					iv[0] = found->second.second;
+					cache.erase( found );
 				}
 				else
-					inValid++;
+					splitEdge<f>( p1, p, l, r, *idWrap[0], *idWrap[1], newVtx, cache, iv[1], iv[0], c );
+
+				// second edge p - p2
+				if( auto found = cache.find( std::pair( *idWrap[3], *idWrap[1] ) ); found != cache.end() )
+				{ // these have already been created previously, we just use them
+					iv[3] = found->second.first;
+					iv[2] = found->second.second;
+					cache.erase( found );
+				}
+				else // we need two new vertices
+					splitEdge<f>( p2, p, l, r, *idWrap[3], *idWrap[1], newVtx, cache, iv[3], iv[2], c );
 			}
-			logStr( 2, "Info: RepairUniformGrid: run %i added %i, removed %i points. Leaving %i invalid points.", numOp, added, removed, inValid );
-		} while( 0 != added &&
-				 0 < inValid );
+			else
+			{
+				// first edge p - p1
+				if( auto found = cache.find( std::pair( *idWrap[1], *idWrap[0] ) ); found != cache.end() )
+				{
+					iv[0] = found->second.first;
+					iv[1] = found->second.second;
+					cache.erase( found );
+				}
+				else
+					splitEdge<f>( p, p1, l, r, *idWrap[1], *idWrap[0], newVtx, cache, iv[0], iv[1], c );
 
-		if( 0 != inValid )
-			return false;
+				// second edge p - p2
+				if( auto found = cache.find( std::pair( *idWrap[1], *idWrap[3] ) ); found != cache.end() )
+				{ // these have already been created previously, we just use them
+					iv[2] = found->second.first;
+					iv[3] = found->second.second;
+					cache.erase( found );
+				}
+				else // we need two new vertices
+					splitEdge<f>( p, p2, l, r, *idWrap[1], *idWrap[3], newVtx, cache, iv[2], iv[3], c );
+			}
 
-		return true;
+			// add two new triangles
+			// triangle 2
+			newIdx.push_back( iv[1] );
+			newIdx.push_back( *idWrap[0] );
+			newIdx.push_back( *idWrap[3] );
+
+			// triangle 3
+			newIdx.push_back( iv[1] );
+			newIdx.push_back( *idWrap[3] );
+			newIdx.push_back( iv[3] );
+
+			// we need to alter the index list, to change into triangle 1
+			*idWrap[0] = iv[0];
+			*idWrap[3] = iv[2];
+		}
+		else if( n ) // this is somthing odd...
+			logStr( 1, "WARNING: Malformed triangle seam detected." );
+
+	}
+	// merge
+	lPoints.insert( lPoints.end(), make_move_iterator( newVtx.begin() ), make_move_iterator( newVtx.end() ) );
+	lTriangleIdx.insert( lTriangleIdx.end(), make_move_iterator( newIdx.begin() ), make_move_iterator( newIdx.end() ) );
+}
+
+// translate mapping to mesh where lPt1 ist the vertex position and lPt2 is the texture coordinate, triangulates as grid
+int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
+{
+
+	if( wGrid > width / 2 ) // half size is OK
+		wGrid = width / 2;
+	if( hGrid > height / 2 ) // half size is OK
+		hGrid = height / 2;
+
+	if( nullptr == pSrcD || nullptr == pSrcDB
+		) return 0;
+
+	lTriangleIdx.clear();
+	lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
+
+	lPoints.clear();
+	lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
+
+	// first we create a P2C pixel aligned grid and fill with the values from P2C
+	for( long yG = 0; yG != hGrid; yG++ )
+	{
+		long y = yG * ( height - 1 ) / ( hGrid - 1 );
+		for( long xG = 0; xG != wGrid; xG++ )
+		{
+			long x = xG * ( width - 1 ) / ( wGrid - 1 );
+
+			ptrdiff_t i = ptrdiff_t( y ) * width + x;
+
+			VWB_WarpRecord const* pW = pSrcD + i;
+			VWB_BlendRecord2 const* pB = pSrcDB + i;
+
+			lPoints.emplace_back( SPPair3f{
+				0.5f <= pW->z ? 1 : 0, 0,
+				{pW->x,pW->y, pW->z},
+				{float( x ), float( y ), 0},
+				{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
+				{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f }
+			} );
+		}
 	}
 
-	// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
-	int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
+	// now we try to refine the grid
+	// find pseudo gridpoints close to valid gridpoints to get better border aproximation
+	// note: this process cannot be repeated, as the algo relies on points that are still aligned as a grid
+	enum POS_REL {
+		POS_REL_T, // top
+		POS_REL_TR,  // top-right
+		POS_REL_R, // right
+		POS_REL_BR, // bottom-right
+		POS_REL_B,  // bottom
+		POS_REL_BL, // bottom-left
+		POS_REL_L, // left
+		POS_REL_TL, // top-left
+		POS_REL_SIZE
+	};
+
+	SIZE const delta[POS_REL_SIZE] = {
+		{  0, -1 }, // top
+		{  1, -1 }, // top-right
+		{  1,  0 }, // right
+		{  1,  1 }, // bottom-right
+		{  0,  1 }, // bottom
+		{ -1,  1 }, // bottom-left
+		{ -1,  0 }, // left
+		{ -1, -1 } // top-left
+	};
+
+	struct RepairItem
 	{
-		lTriangleIdx.clear();
-		lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
+		DynSPPointPairList3f::iterator where; // the grid position 
+		DynSPPointPairList3f::value_type v;
+	};
+	std::list<RepairItem> repairs;
 
-		//std::vector< ptrdiff_t > lGrid;
-		//lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
+	long xs = width / wGrid;
+	long ys = height / hGrid;
 
-		lPoints.clear();
-		lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
 
+	if( xs && ys )
+	{
+		auto pt = lPoints.begin();
 		for( long yG = 0; yG != hGrid; yG++ )
 		{
-			long y = yG * ( height - 1 ) / ( hGrid - 1 );
-			for( long xG = 0; xG != wGrid; xG++ )
+			for( long xG = 0; xG != wGrid; xG++, pt++ )
 			{
-				long x = xG * ( width - 1 ) / ( wGrid - 1 );
-
-				ptrdiff_t i = ptrdiff_t( y ) * width + x;
-				//lGrid.push_back( i );
-
-				VWB_WarpRecord const* pW = pSrcD + i;
-				VWB_BlendRecord2 const* pB = pSrcDB + i;
-
-				lPoints.emplace_back( SPPair3f{ 
-					0, 0, 
-					{ float(x), float(y), 0 },
-					{ pW->x, pW->y, pW->z },
-					{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
-					{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f } } );
-			}
-		}
-
-		// repair locally, try to find a very next couple of points to estimate the gridpoint
-		// we often have a line on border missing
-		enum POS_REL {
-			POS_REL_T, // tops
-			POS_REL_TT,
-			POS_REL_TR,  // top-rights
-			POS_REL_TRTR,
-			POS_REL_R, // rights
-			POS_REL_RR,
-			POS_REL_BR, // bottom-rights
-			POS_REL_BRBR,
-			POS_REL_B,  // bottoms
-			POS_REL_BB,
-			POS_REL_BL, // bottom-lefts
-			POS_REL_BLBL,
-			POS_REL_L, // lefts
-			POS_REL_LL,
-			POS_REL_TL, // top-lefts
-			POS_REL_TLTL,
-			POS_REL_SIZE
-		};
-
-		SIZE const delta[POS_REL_SIZE] = {
-			{  0, -1 }, {  0, -2 }, // top
-			{  1, -1 }, {  2, -2 }, // top-right
-			{  1,  0 }, {  2,  0 }, // right
-			{  1,  1 }, {  2,  2 }, // bottom-right
-			{  0,  1 }, {  0,  2 }, // bottom
-			{ -1,  1 }, { -2,  2 }, // bottom-left
-			{ -1,  0 }, { -2,  0 }, // left
-			{ -1, -1 }, { -2, -2 }, // top-left
-		};
-
-		struct Match {
-			POS_REL pos[3];
-		} const matches[] = { // 1.0 horizintal or vertical interpolation, 0.9 diagonal interpolation, 0.75 extrapolation h/v, 0.675 diagonal extrap.
-			{ { POS_REL_TT, POS_REL_T } },
-			{ { POS_REL_BB, POS_REL_B } },
-			{ { POS_REL_LL, POS_REL_L } },
-			{ { POS_REL_RR, POS_REL_R } },
-
-			{ { POS_REL_TRTR, POS_REL_TR } },
-			{ { POS_REL_BRBR, POS_REL_BR } },
-			{ { POS_REL_BLBL, POS_REL_BL } },
-			{ { POS_REL_TLTL, POS_REL_TL } },
-		};
-
-		for( auto& pt : lPoints )
-		{
-			if( 0.5f > pt.lPt2[2] )
-			{
-				struct Candidate
+				if( !pt->fUse ) // me is invalid, so try to find a pseudo grid point next to me
 				{
-					Match match;
-					ptrdiff_t ind1, ind2;
-				};
-				std::vector<Candidate> candidates;
-				candidates.reserve( ARRAYSIZE( matches ) );
-				for( int i = 0; i != ARRAYSIZE( matches ); i++ )
-				{
-					long x1 = long( pt.lPt1[0] ) + delta[matches[i].pos[0]].cx;
-					long y1 = long( pt.lPt1[1] ) + delta[matches[i].pos[0]].cy;
-					long x2 = long( pt.lPt1[0] ) + delta[matches[i].pos[1]].cx;
-					long y2 = long( pt.lPt1[1] ) + delta[matches[i].pos[1]].cy;
-					ptrdiff_t ind1 = ptrdiff_t( y1 ) * width + ptrdiff_t( x1 );
-					ptrdiff_t ind2 = ptrdiff_t( y2 ) * width + ptrdiff_t( x2 );
-					if(
-						x1 < width && // not over right border
-						x1 >= 0 && // not over left border
-						y1 < height && // not over bottom border
-						y1 >= 0 &&  // not over top border
-						0.5f <= pSrcD[ind1].z && //valid
-						x2 < width && // not over right border
-						x2 >= 0 && // not over left border
-						y2 < height && // not over bottom border
-						y2 >= 0 &&  // not over top border
-						0.5f <= pSrcD[ind2].z ) //valid
+					for( int i = POS_REL_T; i != POS_REL_SIZE; i++ )
 					{
-						candidates.push_back( Candidate{ matches[i], ind1, ind2 } );
-					}
-				}
-				if( !candidates.empty() )
-				{
-					pt.lPt2[0] = 0;
-					pt.lPt2[1] = 0;
-					pt.lPt2[2] = 0;
-					pt.lTangDescX[0] = 0;
-					pt.lTangDescX[1] = 0;
-					pt.lTangDescY[0] = 0;
-					pt.lTangDescY[1] = 0;
-					for( auto const& candidate : candidates )
-					{
-						pt.lPt2[0] += 2.0f * pSrcD[candidate.ind1].x - pSrcD[candidate.ind2].x;
-						pt.lPt2[1] += 2.0f * pSrcD[candidate.ind1].y - pSrcD[candidate.ind2].y;
-						pt.lPt2[2] += 2.0f * pSrcD[candidate.ind1].z - pSrcD[candidate.ind2].z;
-						pt.lTangDescX[0] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].r ) / 65535.0f - float( pSrcDB[candidate.ind2].r ) / 65535.0f ) );
-						pt.lTangDescX[1] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].g ) / 65535.0f - float( pSrcDB[candidate.ind2].g ) / 65535.0f ) );
-						pt.lTangDescY[0] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].b ) / 65535.0f - float( pSrcDB[candidate.ind2].b ) / 65535.0f ) );
-						pt.lTangDescY[1] += MAX( 0, MIN( 1, 2.0f * float( pSrcDB[candidate.ind1].a ) / 65535.0f - float( pSrcDB[candidate.ind2].a ) / 65535.0f ) );
-					}
-					pt.lPt2[0] /= candidates.size();
-					pt.lPt2[1] /= candidates.size();
-					pt.lPt2[2] /= candidates.size();
-					pt.lTangDescX[0] /= candidates.size();
-					pt.lTangDescX[1] /= candidates.size();
-					pt.lTangDescY[0] /= candidates.size();
-					pt.lTangDescY[1] /= candidates.size();
-				}
-			}
-		}
+						long oxG = xG + delta[i].cx;
+						long oyG = yG + delta[i].cy;
 
-
-		// repair grid (a little)
-		RepairUniformGrid( lPoints, wGrid, hGrid, 1 );
-
-		// triangulate
-//	
-//			x1  x2
-//		y1	p1--p2
-//			| \ A|
-//			| B\ |
-//		y2  p4--p3
-//	
-//			x1  x2
-//		y1	p1--p2
-//			| C/ |
-//			| / D|
-//		y2  p4--p3
-		// we assume CCW culling
-		for( long y = 1; y != hGrid; y++ )
-		{
-			for( long x = 1; x != wGrid; x++ )
-			{
-				long pt1 = ( y - 1 ) * wGrid + ( x - 1 );
-				long pt2 = ( y - 1 ) * wGrid + x;
-				long pt3 = y * wGrid + x;
-				long pt4 = y * wGrid + ( x - 1 );
-
-				if( 0.5f <= lPoints[pt1].lPt2[2] )
-				{ // pt1 valid
-					if( 0.5f <= lPoints[pt3].lPt2[2] )
-					{
-						if( 0.5f <= lPoints[pt4].lPt2[2] )
+						if(
+							oxG < wGrid && // not over right border
+							oxG >= 0 && // not over left border
+							oyG < hGrid && // not over bottom border
+							oyG >= 0
+							)
 						{
-							// triangle B valid, add it
-							lTriangleIdx.push_back( pt1 );
-							lTriangleIdx.push_back( pt4 );
-							lTriangleIdx.push_back( pt3 );
-						}
-						if( 0.5f <= lPoints[pt2].lPt2[2] )
-						{
-							// triangle A valid, add it
-							lTriangleIdx.push_back( pt1 );
-							lTriangleIdx.push_back( pt3 );
-							lTriangleIdx.push_back( pt2 );
-						}
-					}
-					else if( 0.5f <= lPoints[pt2].lPt2[2] &&
-							 0.5f <= lPoints[pt4].lPt2[2] )
-					{ 
-						// tiangle C valid
-						lTriangleIdx.push_back( pt1 );
-						lTriangleIdx.push_back( pt4 );
-						lTriangleIdx.push_back( pt2 );
-					}
-				}
-				else if( 0.5f <= lPoints[pt2].lPt2[2] &&
-						 0.5f <= lPoints[pt3].lPt2[2] &&
-						 0.5f <= lPoints[pt4].lPt2[2] )
-				{
-					// tiangle D valid
-					lTriangleIdx.push_back( pt2 );
-					lTriangleIdx.push_back( pt3 );
-					lTriangleIdx.push_back( pt4 );
-				}
-			}
-		}
-		return 1;
-	}
-
-	// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
-	int ComputeTriangluation2_3D( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
-	{
-		lTriangleIdx.clear();
-		lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
-
-		//std::vector< ptrdiff_t > lGrid;
-		//lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
-
-		lPoints.clear();
-		lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
-
-		for( long yG = 0; yG != hGrid; yG++ )
-		{
-			long y = yG * ( height - 1 ) / ( hGrid - 1 );
-			for( long xG = 0; xG != wGrid; xG++ )
-			{
-				long x = xG * ( width - 1 ) / ( wGrid - 1 );
-
-				ptrdiff_t i = ptrdiff_t( y ) * width + x;
-				//lGrid.push_back( i );
-
-				VWB_WarpRecord const* pW = pSrcD + i;
-				VWB_BlendRecord2 const* pB = pSrcDB + i;
-
-				lPoints.emplace_back( SPPair3f{ 
-					0, 0, 
-					{ pW->x, pW->y, pW->z },
-					{ float(x), float(y), pW->w },
-					{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
-					{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f } 
-					} );
-			}
-		}
-
-		// find pseudo gridpoints close to actual gridpoints to get better border aproximation
-		enum POS_REL {
-			POS_REL_T, // top
-			POS_REL_TR,  // top-right
-			POS_REL_R, // right
-			POS_REL_BR, // bottom-right
-			POS_REL_B,  // bottom
-			POS_REL_BL, // bottom-left
-			POS_REL_L, // left
-			POS_REL_TL, // top-left
-			POS_REL_SIZE
-		};
-
-		SIZE const delta[POS_REL_SIZE] = {
-			{  0, -1 }, // top
-			{  1, -1 }, // top-right
-			{  1,  0 }, // right
-			{  1,  1 }, // bottom-right
-			{  0,  1 }, // bottom
-			{ -1,  1 }, // bottom-left
-			{ -1,  0 }, // left
-			{ -1, -1 } // top-left
-		};
-
-		struct RepairItem
-		{
-			DynSPPointPairList3f::iterator where; // the grid position 
-			DynSPPointPairList3f::value_type v;
-		};
-		std::list<RepairItem> repairs;
-
-		long xs = width / wGrid; 
-		long ys = height / hGrid;
-
-		if( xs && ys )
-		{
-			auto pt = lPoints.begin();
-			for( long yG = 0; yG != hGrid; yG++ )
-			{
-				for( long xG = 0; xG != wGrid; xG++, pt++ )
-				{
-					if( 0.5f > pt->lPt2[2] ) // me is invalid, so try to find a pseudo grid point next to me
-					{
-						for( int i = POS_REL_T; i != POS_REL_SIZE; i++ )
-						{
-							long oxG = xG + delta[i].cx;
-							long oyG = yG + delta[i].cy;
-
-							if(
-								oxG < wGrid && // not over right border
-								oxG >= 0 && // not over left border
-								oyG < hGrid && // not over bottom border
-								oyG >= 0
-								)
+							auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) );
+							if( opt->fUse )
 							{
-								auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) );
-								if( 0.5f <= opt->lPt2[2] )
+								// got a valid point in some direction
+								// so we go from me (pt) towards other (opt) until we find a valid point in the map
+								long bx = long(  pt->lPt2[0] );
+								long by = long(  pt->lPt2[1] );
+								long ex = long( opt->lPt2[0] );
+								long ey = long( opt->lPt2[1] );
+								long x = bx + delta[i].cx;
+								long y = by + delta[i].cy;
+
+								while( x != ex || y != ey )
 								{
-									// got a valid point in some direction
-									// so we go from me (pt) towards other (opt) until we find a valid point in the map
 
+									ptrdiff_t off = ptrdiff_t( x ) + y * width;
+									VWB_WarpRecord const* pW = pSrcD + off;
+									VWB_BlendRecord2 const* pB = pSrcDB + off;
 
-									long bx = long( pt->lPt2[0] );
-									long by = long( pt->lPt2[1] );
-									long ex = long( opt->lPt2[0] );
-									long ey = long( opt->lPt2[1] );
-									long x = bx + delta[i].cx;
-									long y = by + delta[i].cy;
-									while( x != ex || y != ey )
+									if( 0.5f <= pW->z ) // hit!
 									{
-										
-										ptrdiff_t off = ptrdiff_t( x ) + y * width;
-										VWB_WarpRecord const* pW = pSrcD + off;
-										if( 0.5f <= pW->w ) // hit!
-										{
-											VWB_BlendRecord2* pB = pSrcDB + off;
-											repairs.emplace_back( RepairItem{ pt, SPPair3f{
-												0, 0,
-												{pW->x, pW->y, pW->z},
-												{float( x ), float( y ), pW->w},
-												{float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f},
-												{float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f}
-												} } );
-											break;
-										}
+										repairs.emplace_back( RepairItem{ pt, 
+											SPPair3f{
+												1, 0,
+												{ pW->x, pW->y, pW->z },
+												{ float( x ), float( y ), 0 },
+												{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
+												{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f }
+											}
+										} );
 
-										if( delta[i].cx && delta[i].cy ) // diagonal
-										{
-											long d = ( x - bx ) * delta[i].cy * ys / delta[i].cx / ( y - by );
-											//long d = delta[i].cx * xs * ys * ( y - by );
-											if( xs > d )
-												x += delta[i].cx;
-											else
-												y += delta[i].cy;
-										}
-										else
-										{
+										break;
+									}
+
+									if( delta[i].cx && delta[i].cy ) // diagonal
+									{
+										long d = ( x - bx ) * delta[i].cy * ys / delta[i].cx / ( y - by );
+										if( xs > d )
 											x += delta[i].cx;
+										else
 											y += delta[i].cy;
-										}
+									}
+									else
+									{
+										x += delta[i].cx;
+										y += delta[i].cy;
 									}
 								}
 							}
@@ -3157,113 +2915,259 @@ VWB_uint subMesh( VWB_WarpBlendMesh::idx_t& idx, VWB_WarpBlendMesh::idx_t& oldRe
 				}
 			}
 		}
+	}
 
-		// find best match for each point, which is the closest to the original grid point
-		auto minC = repairs.end();
-		auto minS = float( 0 );
-		for( auto r = repairs.begin(); r != repairs.end(); )
+	// find best match for each point, which is the closest to the original grid point
+	auto minC = repairs.end();
+	auto minS = float( 0 );
+	for( auto r = repairs.begin(); r != repairs.end(); )
+	{
+		if( minC == repairs.end() || minC->where != r->where )
 		{
-			if( minC == repairs.end() || minC->where != r->where )
+			minC = r;
+			long dy = r->where->lPt2[1] - r->v.lPt2[1];
+			long dx = r->where->lPt2[0] - r->v.lPt2[0];
+			minS = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+			r++;
+		}
+		else
+		{
+			long dx = r->where->lPt2[0] - r->v.lPt2[0];
+			long dy = r->where->lPt2[1] - r->v.lPt2[1];
+			float s = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+			if( s < minS ) // I am closer
 			{
+				minS = s;
+				// delete other
+				repairs.erase( minC );
 				minC = r;
-				long dx = r->where->lPt2[0] - r->v.lPt2[0];
-				long dy = r->where->lPt2[1] - r->v.lPt2[1];
-				minS = float(dx) * dx + float(dy) * dy; // we count in float to avoid int overflow
 				r++;
 			}
-			else
+			else // other was closer
 			{
-				long dx = r->where->lPt2[0] - r->v.lPt2[0];
-				long dy = r->where->lPt2[1] - r->v.lPt2[1];
-				float s = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
-				if( s < minS ) // I am closer
-				{
-					minS = s;
-					// delete other
-					repairs.erase( minC );
-					minC = r;
-					r++;
-				}
-				else // other was closer
-				{
-					// delete me
-					r = repairs.erase( r );
-				}
-
+				// delete me
+				r = repairs.erase( r );
 			}
-		}
 
-		// consolidate; transfer points to grid
-		for(auto& r : repairs)
-		{
-			*r.where = r.v;
 		}
-		repairs.clear();
-
-		// triangulate
-		//	
-		//			x1  x2
-		//		y1	p1--p2
-		//			| \ A|
-		//			| B\ |
-		//		y2  p4--p3
-		//	
-		//			x1  x2
-		//		y1	p1--p2
-		//			| C/ |
-		//			| / D|
-		//		y2  p4--p3
-		// we assume CCW culling
-		for( long y = 1; y != hGrid; y++ )
-		{
-			for( long x = 1; x != wGrid; x++ )
-			{
-				long pt1 = ( y - 1 ) * wGrid + ( x - 1 );
-				long pt2 = ( y - 1 ) * wGrid + x;
-				long pt3 = y * wGrid + x;
-				long pt4 = y * wGrid + ( x - 1 );
-
-				if( 0.5f <= lPoints[pt1].lPt2[2] )
-				{ // pt1 valid
-					if( 0.5f <= lPoints[pt3].lPt2[2] )
-					{
-						if( 0.5f <= lPoints[pt4].lPt2[2] )
-						{
-							// triangle B valid, add it
-							lTriangleIdx.push_back( pt1 );
-							lTriangleIdx.push_back( pt4 );
-							lTriangleIdx.push_back( pt3 );
-						}
-						if( 0.5f <= lPoints[pt2].lPt2[2] )
-						{
-							// triangle A valid, add it
-							lTriangleIdx.push_back( pt1 );
-							lTriangleIdx.push_back( pt3 );
-							lTriangleIdx.push_back( pt2 );
-						}
-					}
-					else if( 0.5f <= lPoints[pt2].lPt2[2] &&
-						0.5f <= lPoints[pt4].lPt2[2] )
-					{ 
-						// tiangle C valid
-						lTriangleIdx.push_back( pt1 );
-						lTriangleIdx.push_back( pt4 );
-						lTriangleIdx.push_back( pt2 );
-					}
-				}
-				else if( 0.5f <= lPoints[pt2].lPt2[2] &&
-					0.5f <= lPoints[pt3].lPt2[2] &&
-					0.5f <= lPoints[pt4].lPt2[2] )
-				{
-					// tiangle D valid
-					lTriangleIdx.push_back( pt2 );
-					lTriangleIdx.push_back( pt3 );
-					lTriangleIdx.push_back( pt4 );
-				}
-			}
-		}
-		return 1;
 	}
+
+	// consolidate; transfer points to grid
+	for( auto& r : repairs )
+	{
+		*r.where = r.v;
+	}
+	repairs.clear();
+
+
+	triangulateGrid( lPoints, wGrid, hGrid, lTriangleIdx );
+
+	// deal with UV-wraps
+	FixSeam<getU>( lPoints, lTriangleIdx, width );
+	FixSeam<getV>( lPoints, lTriangleIdx, height );
+		
+	return 1;
+}
+
+// translate mapping to mesh where lPt1 ist the vertex position and lPt2 is the texture coordinate, triangulates as grid
+int ComputeTriangluation2_3D( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
+{
+
+	if( wGrid > width / 2 ) // half size is OK
+		wGrid = width / 2;
+	if( hGrid > height / 2 ) // half size is OK
+		hGrid = height / 2;
+
+	if( nullptr == pSrcD || nullptr == pSrcDB
+		) return 0;
+
+	lTriangleIdx.clear();
+	lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
+
+	//std::vector< ptrdiff_t > lGrid;
+	//lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
+
+	lPoints.clear();
+	lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
+
+	// first we create a P2C pixel aligned grid and fill with the values from P2C
+	for( long yG = 0; yG != hGrid; yG++ )
+	{
+		long y = yG * ( height - 1 ) / ( hGrid - 1 );
+		for( long xG = 0; xG != wGrid; xG++ )
+		{
+			long x = xG * ( width - 1 ) / ( wGrid - 1 );
+
+			ptrdiff_t i = ptrdiff_t( y ) * width + x;
+
+			VWB_WarpRecord const* pW = pSrcD + i;
+			VWB_BlendRecord2 const* pB = pSrcDB + i;
+
+			lPoints.emplace_back( SPPair3f{
+				0.5f <= pW->w ? 1 : 0, 0,
+				{ pW->x, pW->y, pW->z },
+				{ float( x ), float( y ), pW->w },
+				{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
+				{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f }
+			} );
+		}
+	}
+
+	// now we try to refine the grid
+	// find pseudo gridpoints close to valid gridpoints to get better border aproximation
+	// note: this process cannot be repeated, as the algo relies on points that are still aligned as a grid
+	enum POS_REL {
+		POS_REL_T, // top
+		POS_REL_TR,  // top-right
+		POS_REL_R, // right
+		POS_REL_BR, // bottom-right
+		POS_REL_B,  // bottom
+		POS_REL_BL, // bottom-left
+		POS_REL_L, // left
+		POS_REL_TL, // top-left
+		POS_REL_SIZE
+	};
+
+	SIZE const delta[POS_REL_SIZE] = {
+		{  0, -1 }, // top
+		{  1, -1 }, // top-right
+		{  1,  0 }, // right
+		{  1,  1 }, // bottom-right
+		{  0,  1 }, // bottom
+		{ -1,  1 }, // bottom-left
+		{ -1,  0 }, // left
+		{ -1, -1 } // top-left
+	};
+
+	struct RepairItem
+	{
+		DynSPPointPairList3f::iterator where; // the grid position 
+		DynSPPointPairList3f::value_type v;
+	};
+	std::list<RepairItem> repairs;
+
+	long xs = width / wGrid;
+	long ys = height / hGrid;
+
+	if( xs && ys )
+	{
+		auto pt = lPoints.begin();
+		for( long yG = 0; yG != hGrid; yG++ )
+		{
+			for( long xG = 0; xG != wGrid; xG++, pt++ )
+			{
+				if( !pt->fUse ) // me is invalid, so try to find a pseudo grid point next to me
+				{
+					for( int i = POS_REL_T; i != POS_REL_SIZE; i++ )
+					{
+						long oxG = xG + delta[i].cx;
+						long oyG = yG + delta[i].cy;
+
+						if(
+							oxG < wGrid && // not over right border
+							oxG >= 0 && // not over left border
+							oyG < hGrid && // not over bottom border
+							oyG >= 0
+							)
+						{
+							auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) );
+							if( opt->fUse )
+							{
+								// got a valid point in some direction
+								// so we go from me (pt) towards other (opt) until we find a valid point in the map
+								long bx = long( pt->lPt2[0] );
+								long by = long( pt->lPt2[1] );
+								long ex = long( opt->lPt2[0] );
+								long ey = long( opt->lPt2[1] );
+								long x = bx + delta[i].cx;
+								long y = by + delta[i].cy;
+
+								while( x != ex || y != ey )
+								{
+
+									ptrdiff_t off = ptrdiff_t( x ) + y * width;
+									VWB_WarpRecord const* pW = pSrcD + off;
+									if( 0.5f <= pW->w ) // hit!
+									{
+										VWB_BlendRecord2* pB = pSrcDB + off;
+										repairs.emplace_back( RepairItem{ pt, SPPair3f{
+											1, 0,
+											{pW->x, pW->y, pW->z},
+											{float( x ), float( y ), pW->w},
+											{float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f},
+											{float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f}
+											} } );
+										break;
+									}
+
+									if( delta[i].cx && delta[i].cy ) // diagonal
+									{
+										long d = ( x - bx ) * delta[i].cy * ys / delta[i].cx / ( y - by );
+										if( xs > d )
+											x += delta[i].cx;
+										else
+											y += delta[i].cy;
+									}
+									else
+									{
+										x += delta[i].cx;
+										y += delta[i].cy;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// find best match for each point, which is the closest to the original grid point
+	auto minC = repairs.end();
+	auto minS = float( 0 );
+	for( auto r = repairs.begin(); r != repairs.end(); )
+	{
+		if( minC == repairs.end() || minC->where != r->where )
+		{
+			minC = r;
+			long dx = r->where->lPt2[0] - r->v.lPt2[0];
+			long dy = r->where->lPt2[1] - r->v.lPt2[1];
+			minS = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+			r++;
+		}
+		else
+		{
+			long dx = r->where->lPt2[0] - r->v.lPt2[0];
+			long dy = r->where->lPt2[1] - r->v.lPt2[1];
+			float s = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+			if( s < minS ) // I am closer
+			{
+				minS = s;
+				// delete other
+				repairs.erase( minC );
+				minC = r;
+				r++;
+			}
+			else // other was closer
+			{
+				// delete me
+				r = repairs.erase( r );
+			}
+
+		}
+	}
+
+	// consolidate; transfer points to grid
+	for( auto& r : repairs )
+	{
+		*r.where = r.v;
+	}
+	repairs.clear();
+
+	triangulateGrid( lPoints, wGrid, hGrid, lTriangleIdx );
+
+	return 1;
+}
 
 VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
 {
@@ -3313,109 +3217,96 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 
 	DynSPPointPairList3f points;
 	DynLongList	indices;
-	if(m_bDynamicEye)
+	if( m_bDynamicEye )
 	{
-		if(ComputeTriangluation2_3D(points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows))
+		if( ComputeTriangluation2_3D( points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows ) )
 		{
-			logStr(2, "INFO: getWarpMesh: triangulation.\n");
+			logStr( 2, "INFO: getWarpMesh: triangulation.\n" );
+			mesh.nVtx = (VWB_uint)points.size();
+			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
+			for( VWB_uint i = 0; i != points.size(); i++ )
+			{
+				VWB_VEC3f pos = m_mBaseI * VWB_VEC3f::ptr( points[i].lPt1 );
+				mesh.vtx[i] = VWB_WarpBlendVertex{
+					{ pos.x, pos.y, pos.z },
+					{ points[i].lPt2[0] / w, points[i].lPt2[1] / h },
+					{ points[i].lTangDescX[0] * points[i].lTangDescY[1],
+					  points[i].lTangDescX[1] * points[i].lTangDescY[1],
+					  points[i].lTangDescY[0] * points[i].lTangDescY[1]}
+				};
+			}
+
 			mesh.nIdx = (VWB_uint)indices.size();
 			mesh.idx = new VWB_uint[mesh.nIdx];
-
-			mesh.nVtx = 0;
-
-			mesh.dim.cx = w;
-			mesh.dim.cy = h;
-			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
-			mesh.nVtx = (VWB_uint)points.size();
-			for(VWB_uint i = 0; i != points.size(); i++)
-			{
-				mesh.vtx[i] = VWB_WarpBlendVertex{
-					{points[i].lPt1[0], points[i].lPt1[1], points[i].lPt1[2]},
-					{points[i].lPt2[0]/w, points[i].lPt2[1]/h},
-					{points[i].lTangDescX[0] * points[i].lTangDescY[1],
-					points[i].lTangDescX[1] * points[i].lTangDescY[1],
-					points[i].lTangDescY[0] * points[i].lTangDescY[1]
-				}};
-			}
-			for(VWB_uint i = 0; i != indices.size(); i++)
+			for( VWB_uint i = 0; i != indices.size(); i++ )
 			{
 				mesh.idx[i] = indices[i];
 			}
-			logStr(2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3);
+
+			mesh.dim.cx = w;
+			mesh.dim.cy = h;
+
+			logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
+			return VWB_ERROR_NONE;
 		}
 		else
 		{
-			if(ComputeTriangluation2(points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows))
-			{
-				logStr(2, "INFO: getWarpMesh: triangulation.\n");
-				mesh.nIdx = (VWB_uint)indices.size();
-				mesh.idx = new VWB_uint[mesh.nIdx];
-
-				mesh.nVtx = 0;
-
-				mesh.dim.cx = w;
-				mesh.dim.cy = h;
-
-			#if 0
-				VWB_uint nRes = mesh.nIdx / 2;
-				mesh.vtx = new VWB_WarpBlendVertex[nRes];
-				DynLongList indTrans; indTrans.resize(points.size(), -1);
-				DynLongList::iterator iSrc = indices.begin();
-				logStr(2, "INFO: getWarpMesh: resize.\n");
-				for(VWB_uint* iDst = mesh.idx, *iDstE = iDst+mesh.nIdx; iDst != iDstE; iDst++, iSrc++)
-				{
-					long const& i = *iSrc;
-					long& j = indTrans[i];
-					if(-1 == j)
-					{
-						if(mesh.nVtx >= nRes)
-						{
-							VWB_uint n = nRes;
-							nRes*= 2;
-							VWB_WarpBlendVertex* t = mesh.vtx;
-							mesh.vtx = new VWB_WarpBlendVertex[nRes];
-							memcpy(mesh.vtx, t, n * sizeof(VWB_WarpBlendVertex));
-							delete[] t;
-						}
-						j = mesh.nVtx;
-						VWB_WarpBlendVertex const v ={
-							{points[i].lPt1[0] / w, points[i].lPt1[1] / h, 0},
-							{points[i].lPt2[0], points[i].lPt2[1]},
-							{points[i].lTangDescX[0], points[i].lTangDescX[1], points[i].lTangDescY[0]}
-						};
-						mesh.vtx[mesh.nVtx] = v;
-						mesh.nVtx++;
-					}
-					*iDst = (VWB_uint)j;
-				}
-			#else
-				mesh.vtx = new VWB_WarpBlendVertex[points.size()];
-				mesh.nVtx = (VWB_uint)points.size();
-				for(VWB_uint i = 0; i != points.size(); i++)
-				{
-					mesh.vtx[i] = VWB_WarpBlendVertex{
-						{points[i].lPt1[0] / w, points[i].lPt1[1] / h, 0},
-						{points[i].lPt2[0], points[i].lPt2[1]},
-						{points[i].lTangDescX[0] * points[i].lTangDescY[1],
-						points[i].lTangDescX[1] * points[i].lTangDescY[1],
-						points[i].lTangDescY[0] * points[i].lTangDescY[1]
-					}};
-				}
-				for(VWB_uint i = 0; i != indices.size(); i++)
-				{
-					mesh.idx[i] = indices[i];
-				}
-			#endif
-				logStr(2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3);
-
-			}
-			else
-			{
-				logStr(0, "ERROR: getWarpMesh: Triangulation (CT) failed.\n");
-				return VWB_ERROR_GENERIC;
-			}
+			logStr( 0, "ERROR: getWarpMesh: Triangulation (3D) failed.\n" );
+			return VWB_ERROR_GENERIC;
 		}
-		return VWB_ERROR_NONE;
+	}
+	else
+	{
+		if(ComputeTriangluation2(points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows))
+		{
+			logStr(2, "INFO: getWarpMesh: triangulation.\n");
+
+			mesh.nVtx = (VWB_uint)points.size();
+			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
+			VWB_MAT44f mVI = m_mViewIG.Inverted();
+
+			for( VWB_uint i = 0; i != points.size(); i++ )
+			{
+				// we create a screen plane by using the mapping lookups and transform them by the view and base matrix
+				// this way 2D and 3D meshes can be used exact same way in the host program
+				// lPt1 contains a uv lookup
+				// unproject
+				VWB_VEC4f sc(
+					-m_viewSizes[0] + ( m_viewSizes[0] + m_viewSizes[2] ) * points[i].lPt1[0],
+					m_viewSizes[1] - ( m_viewSizes[1] + m_viewSizes[3] ) * points[i].lPt1[1],
+					m_bRH ? -screenDist : screenDist,
+					1
+					);
+				// put into view
+				VWB_VEC3f pos = VWB_VEC3f( mVI * sc );
+				// lPt2 contains the pixel position on the projector, this needs to be normalized
+				mesh.vtx[i] = VWB_WarpBlendVertex{
+					{ pos.x, pos.y, pos.z },
+					{ points[i].lPt2[0] / w, points[i].lPt2[1] / h },
+					{ points[i].lTangDescX[0] * points[i].lTangDescY[1],
+					  points[i].lTangDescX[1] * points[i].lTangDescY[1],
+					  points[i].lTangDescY[0] * points[i].lTangDescY[1]
+				} };
+			}
+
+			mesh.nIdx = (VWB_uint)indices.size();
+			mesh.idx = new VWB_uint[mesh.nIdx];
+			for( VWB_uint i = 0; i != indices.size(); i++ )
+			{
+				mesh.idx[i] = indices[i];
+			}
+
+			mesh.dim.cx = w;
+			mesh.dim.cy = h;
+
+			logStr(2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3);
+			return VWB_ERROR_NONE;
+		}
+		else
+		{
+			logStr(0, "ERROR: getWarpMesh: Triangulation (CT) failed.\n");
+			return VWB_ERROR_GENERIC;
+		}
 	}
 	return VWB_ERROR_FALSE;
 }
