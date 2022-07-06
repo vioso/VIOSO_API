@@ -6,23 +6,21 @@
 #include <memory>
 #include <map>
 #include <exception>
+#include <atomic>
 
 class VWB
 {
 private:
 	VWB_Warper* m_warper;
 	static HMODULE hMVIOSOWARPBLEND_DYNAMIC;
-	static int instanceCounter;
+	static std::atomic_int instanceCounter;
 	#define VIOSOWARPBLEND_API( ret, name, args ) typedef ret (*pfn_##name)args;\
 	static pfn_##name name;
 	#include "VIOSOWarpBlend.h"
 
-public:
-	VWB( const TCHAR* dllPath, void* pDxDevice, TCHAR const* szConfigFile, TCHAR const* szChannelName, VWB_int logLevel = 2, TCHAR const* szLogFile = NULL ) 
-		: m_warper( NULL )
+	static void loadDll( const TCHAR* dllPath )
 	{
-		if( 1 == ++instanceCounter )
-		{
+		try {
 			if( NULL == dllPath || 0 == dllPath[0] )
 			#if defined( _M_X64 )
 				dllPath = _T( "ViosoWarpBlend64" );
@@ -30,23 +28,41 @@ public:
 				dllPath = _T( "ViosoWarpBlend" );
 			#endif
 
-			hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibrary( dllPath );
-
-			#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
-			#include "VIOSOWarpBlend.h"
-
-			#define VIOSOWARPBLEND_API( ret, name, args ) if( NULL == name ) throw std::exception( #name )
-			try {
-				#include "VIOSOWarpBlend.h"
-			} catch( std::exception& e )
+			if( !hMVIOSOWARPBLEND_DYNAMIC )
 			{
-				UNREFERENCED_PARAMETER( e );
-				instanceCounter = 0;
-				if( hMVIOSOWARPBLEND_DYNAMIC )
-					::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
-				throw VWB_ERROR_GENERIC;
+				hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibrary( dllPath );
+
+				#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
+				#include "VIOSOWarpBlend.h"
+
+				#define VIOSOWARPBLEND_API( ret, name, args ) if( NULL == name ) throw std::exception( #name )
+				#include "VIOSOWarpBlend.h"
 			}
 		}
+		catch( std::exception& e )
+		{
+			UNREFERENCED_PARAMETER( e );
+			instanceCounter = 0;
+			if( hMVIOSOWARPBLEND_DYNAMIC )
+				::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
+			throw VWB_ERROR_GENERIC;
+		}
+	}
+
+	static void unloadDll()
+	{
+		#define VIOSOWARPBLEND_API( ret, name, args ) name = NULL;
+		#include "VIOSOWarpBlend.h"
+		if( hMVIOSOWARPBLEND_DYNAMIC )
+			::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
+	}
+
+public:
+	VWB( const TCHAR* dllPath, void* pDxDevice, TCHAR const* szConfigFile, TCHAR const* szChannelName, VWB_int logLevel = 2, TCHAR const* szLogFile = NULL ) 
+		: m_warper( NULL )
+	{
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
 		VWB_ERROR err = VWB_Create( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
 		if( VWB_ERROR_NONE != err )
 			throw err;
@@ -57,12 +73,7 @@ public:
 		if( VWB_Destroy && m_warper )
 			VWB_Destroy( m_warper );
 		if( 0 == --instanceCounter )
-		{
-			#define VIOSOWARPBLEND_API( ret, name, args ) name = NULL;
-			#include "VIOSOWarpBlend.h"
-			if( hMVIOSOWARPBLEND_DYNAMIC )
-				::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
-		}
+			unloadDll();
 	}
 
 	VWB_ERROR Init() { return VWB_Init( m_warper ); };
@@ -74,6 +85,14 @@ public:
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
 	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
 	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
+	static VWB_ERROR VwfInfo( const TCHAR* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) { 
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		VWB_ERROR ret = VWB_vwfInfo( path, set ); 
+		if( 0 == --instanceCounter )
+			unloadDll();
+		return ret;
+	}
 	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }
 	VWB_ERROR GetShaderVPMatrix( VWB_float* pMPV ) { return VWB_getShaderVPMatrix( m_warper, pMPV ); }
 	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
@@ -89,7 +108,7 @@ template< class _Base = VWB_EmptyData > struct VWBX: public _Base {
 template< class _Key, class _Data = VWB_EmptyData > class VWBmap : public std::map< _Key, std::shared_ptr< VWBX< _Data> > > { public: typedef VWBX< _Data> PtrT; typedef _Data BaseT; };
 
 HMODULE VWB::hMVIOSOWARPBLEND_DYNAMIC = 0;
-int VWB::instanceCounter = 0;
+std::atomic_int VWB::instanceCounter = 0;
 #define VIOSOWARPBLEND_API( ret, name, args ) VWB::pfn_##name VWB::name = NULL;
 #include "VIOSOWarpBlend.h"
 
