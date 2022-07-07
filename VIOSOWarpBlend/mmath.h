@@ -1054,11 +1054,11 @@ struct VWB_MATRIX33
 		res._11 = dx.x;
 		res._12 = dx.y;
 		res._13 = dx.z;
-		// y * x gives us a view direction aka base z in right handed system
+		// x * y gives us a view direction aka base z in right handed system
 		res._31 = dx.y * dy.z - dx.z * dy.y;
 		res._32 = dx.z * dy.x - dx.x * dy.z;
 		res._33 = dx.x * dy.y - dx.y * dy.x;
-		// z * x gives us a up aka y
+		// x * z gives us a up aka y
 		res._21 = dx.z * res._32 - dx.y * res._33;
 		res._22 = dx.x * res._33 - dx.z * res._31;
 		res._23 = dx.y * res._31 - dx.x * res._32;

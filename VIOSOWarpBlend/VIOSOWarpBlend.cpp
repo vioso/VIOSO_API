@@ -2281,7 +2281,7 @@ typedef std::vector<long> DynLongList;
 typedef std::vector<long*> DynLongPtrList;
 typedef std::vector<unsigned int> DynDWORDList;
 
-/// triangulate grid
+/// @ brief triangulate grid
 /// good points are marked: fUse & 1
 /// 
 ///	@note
@@ -2297,63 +2297,83 @@ typedef std::vector<unsigned int> DynDWORDList;
 ///			| / D|
 ///		y2  p4--p3
 /// we assume CW culling
-/// there is no hole detection, holes must be bigger than 
-void triangulateGrid( DynSPPointPairList3f lPoints, long wGrid, long hGrid, DynLongList& lTriangleIdx )
+/// @param [IN] vertices a list of vertices
+/// @param [IN] wGrid columns
+/// @param [IN] hGrid rows
+/// @param [OUT] indices the index list
+/// @param [template] W wrangler class to access vertex attributes
+/// @param [template] TP type of vertex
+/// @param [template] TP type of index
+/// @return number of triangles generated
+template< class W, class TP, class TI >
+size_t triangulateGrid( std::vector<TP> const& vertices, long wGrid, long hGrid, std::vector<TI>& indices )
 {
+	size_t nOld = indices.size();
+	indices.reserve( nOld + 6 * wGrid * hGrid );
+
 	for( long y = 1; y != hGrid; y++ )
 	{
 		for( long x = 1; x != wGrid; x++ )
 		{
-			long pt1 = ( y - 1 ) * wGrid + ( x - 1 );
-			long pt2 = ( y - 1 ) * wGrid + x;
 			long pt3 = y * wGrid + x;
-			long pt4 = y * wGrid + ( x - 1 );
+			long pt2 = pt3 - wGrid;
+			long pt4 = pt3 - 1;
+			long pt1 = pt2 - 1;
 
-			if( lPoints[pt1].fUse )
+			if( W::valid( vertices[pt1] ) )
 			{ // pt1 valid
-				if( lPoints[pt3].fUse )
+				if( W::valid( vertices[pt3] ) )
 				{
-					if( lPoints[pt4].fUse )
+					if( W::valid( vertices[pt4] ) )
 					{
 						// triangle B valid, add it
-						lTriangleIdx.push_back( pt1 );
-						lTriangleIdx.push_back( pt3 );
-						lTriangleIdx.push_back( pt4 );
+						indices.push_back( pt1 );
+						indices.push_back( pt3 );
+						indices.push_back( pt4 );
 					}
-					if( lPoints[pt2].fUse )
+					if( W::valid( vertices[pt2] ) )
 					{
 						// triangle A valid, add it
-						lTriangleIdx.push_back( pt1 );
-						lTriangleIdx.push_back( pt2 );
-						lTriangleIdx.push_back( pt3 );
+						indices.push_back( pt1 );
+						indices.push_back( pt2 );
+						indices.push_back( pt3 );
 					}
 				}
 				else if(
-					lPoints[pt2].fUse &&
-					lPoints[pt4].fUse )
+					W::valid( vertices[pt2] ) &&
+					W::valid( vertices[pt4] ) )
 				{
 					// tiangle C valid
-					lTriangleIdx.push_back( pt1 );
-					lTriangleIdx.push_back( pt2 );
-					lTriangleIdx.push_back( pt4 );
+					indices.push_back( pt1 );
+					indices.push_back( pt2 );
+					indices.push_back( pt4 );
 				}
 			}
 			else if(
-				lPoints[pt2].fUse &&
-				lPoints[pt3].fUse &&
-				lPoints[pt4].fUse )
+				W::valid( vertices[pt2] ) &&
+				W::valid( vertices[pt3] ) &&
+				W::valid( vertices[pt4] ) )
 			{
 				// tiangle D valid
-				lTriangleIdx.push_back( pt2 );
-				lTriangleIdx.push_back( pt3 );
-				lTriangleIdx.push_back( pt4 );
+				indices.push_back( pt2 );
+				indices.push_back( pt3 );
+				indices.push_back( pt4 );
 			}
 		}
 	}
+	return ( indices.size() - nOld ) / 3;
 }
-// return
-// see ESPCommonState
-bool RepairUniformGrid( DynSPPointPairList3f& grid, int wGrid, int hGrid, int dist )
+
+/// @brief Repairs a grid by extrapolation. Grid positions are unchanged, so it works for warpers that rely on a fixed grid alignment.
+/// @param grid		list of vertices
+/// @param wGrid	columns
+/// @param hGrid	rows
+/// @param dist		extrapolation distance. Number of iterations the grid is expanded. This can be -1 to fill whole grid.
+/// @param [template] W wrangler class to access vertex attributes
+/// @param [template] TP type of vertex
+/// @return true in case of success, false otherwise
+template< class W, class TP >
+bool RepairUniformGrid( std::vector<TP>& grid, int wGrid, int hGrid, int dist )
 {
 	enum POS_REL {
 		POS_REL_T, // tops
@@ -2600,28 +2620,89 @@ bool RepairUniformGrid( DynSPPointPairList3f& grid, int wGrid, int hGrid, int di
 	return true;
 }
 
-// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
-inline float& getU( SPPair3f& p ) {
-	return p.lPt1[0];
-}
+/// Wrangler for SPPair3f as vertex
+struct SPPair3fWrangler : public SPPair3f
+{
+	// translate to map where lPt1 ist the vertex coordinate and lPt2 is the texture coordinate; fill the index list
+	static inline float& x( SPPair3f& p ) {
+		return p.lPt1[0];
+	}
+	static inline float& y( SPPair3f& p ) {
+		return p.lPt1[1];
+	}
+	static inline float& z( SPPair3f& p ) {
+		return p.lPt1[2];
+	}
+	static inline bool valid( SPPair3f const& p ) {
+		return p.fUse & 1;
+	}
+	static inline bool validate( SPPair3f& p ) {
+		return p.fUse |= 1;
+	}
+	static inline bool invalidate( SPPair3f& p ) {
+		return p.fUse &= ~1;
+	}
+	static inline float& u( SPPair3f& p ) {
+		return p.lPt2[0];
+	}
+	static inline float& v( SPPair3f& p ) {
+		return p.lPt2[1];
+	}
+	static inline float& w( SPPair3f& p ) {
+		return p.lPt2[2];
+	}
+	static inline float& r( SPPair3f& p ) {
+		return p.lTangDescX[0];
+	}
+	static inline float& g( SPPair3f& p ) {
+		return p.lTangDescX[1];
+	}
+	static inline float& b( SPPair3f& p ) {
+		return p.lTangDescY[0];
+	}
+	static inline float& a( SPPair3f& p ) {
+		return p.lTangDescY[1];
+	}
+	static inline SPPair3f make( bool valid, float x, float y, float z, float u, float v, float w, float r, float g, float b, float a  ) {
+		SPPair3f p;
+		p.fPos = 0;
+		p.fUse = valid ? 1 : 0;
+		p.lPt1[0] = x;
+		p.lPt1[1] = y;
+		p.lPt1[2] = z;
+		p.lPt2[0] = u;
+		p.lPt2[1] = v;
+		p.lPt2[2] = w;
+		p.lTangDescX[0] = r;
+		p.lTangDescX[1] = g;
+		p.lTangDescY[0] = b;
+		p.lTangDescY[1] = a;
+		return p;
+	}
+};
 
-inline float& getV( SPPair3f& p ) {
-	return p.lPt1[1];
-}
+// test functions
+bool testW( VWB_WarpRecord const& w ) { return 0.5 <= w.w; }
+bool testZ( VWB_WarpRecord const& w ) { return 0.5 <= w.z; }
 
-template< auto f >
-void splitEdge( SPPair3f& p, SPPair3f& p1, float l, float r, long ip, long ip1, std::vector<SPPair3f>& newVtx, std::map<std::pair<long, long>, std::pair<long, long>>& cache, long& i1, long& i2, long& c )
+
+template< class W, auto f, class TP, class TI>
+void splitEdge( TP& p, TP& p1, float l, float r, long ip, long ip1, std::vector<TP>& newVtx, std::map<std::pair<TI, TI>, std::pair<TI, TI>>& cache, TI& i1, TI& i2, TI& c )
 {
 	// find weight
 	float w = f( p1 ) / ( 1.0f - f( p ) + f( p1 ) );
 	SPPair3f v; v.fUse = 1;
 	// v1 point close to p
-	v.lPt1[0] = w * p.lPt1[0] + ( 1.0f - w ) * p1.lPt1[0];
-	v.lPt1[1] = w * p.lPt1[1] + ( 1.0f - w ) * p1.lPt1[1];
-	v.lPt1[2] = w * p.lPt1[2] + ( 1.0f - w ) * p1.lPt1[2];
-	v.lPt2[0] = w * p.lPt2[0] + ( 1.0f - w ) * p1.lPt2[0];
-	v.lPt2[1] = w * p.lPt2[1] + ( 1.0f - w ) * p1.lPt2[1];
-	v.lPt2[2] = w * p.lPt2[2] + ( 1.0f - w ) * p1.lPt2[2];
+	W::x( v ) = w * W::x( p ) + ( 1.0f - w ) * W::x( p1 );
+	W::y( v ) = w * W::y( p ) + ( 1.0f - w ) * W::y( p1 );
+	W::z( v ) = w * W::z( p ) + ( 1.0f - w ) * W::z( p1 );
+	W::u( v ) = w * W::u( p ) + ( 1.0f - w ) * W::u( p1 );
+	W::v( v ) = w * W::v( p ) + ( 1.0f - w ) * W::v( p1 );
+	W::w( v ) = w * W::w( p ) + ( 1.0f - w ) * W::w( p1 );
+	W::r( v ) = w * W::r( p ) + ( 1.0f - w ) * W::r( p1 );
+	W::g( v ) = w * W::g( p ) + ( 1.0f - w ) * W::g( p1 );
+	W::b( v ) = w * W::b( p ) + ( 1.0f - w ) * W::b( p1 );
+	W::a( v ) = w * W::a( p ) + ( 1.0f - w ) * W::a( p1 );
 	f( v ) = r;
 	newVtx.push_back( v );
 	i1 = c++;
@@ -2632,40 +2713,47 @@ void splitEdge( SPPair3f& p, SPPair3f& p1, float l, float r, long ip, long ip1, 
 	cache.emplace( std::pair( ip, ip1 ), std::pair( i1, i2 ) ); // instert hint to newly created vertices, note: p is always the one with max texture coordinate!
 }
 
-/// @param dim the pixel dimension of the wrap, to make a half-pixel correction
-template< auto f >
-void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim )
+/// @brief fixes a seam by subdividing a triangle spanning a texture coordinate wrap into 3, while the original triangle is kept and altered and 2 others are appended into the index/vertex list
+/// @param [IN|OUT] vertices the pixel dimension of the wrap, to make a half-pixel correction
+/// @param [IN|OUT] indices the pixel dimension of the wrap, to make a half-pixel correction
+/// @param [IN] dim the pixel dimension of the wrap, to make a half-pixel correction
+/// @param [template] W the vertex wrangler
+/// @param [template] f a function TP -> tex, to read/write a texture coordinate
+/// @param [template] TP the vertex type
+/// @param [template] TI the index type
+template< class W, auto f, class TP, class TI >
+bool fixSeam( std::vector<TP>& vertices, std::vector<TI>& indices, long dim )
 {
-	std::vector<SPPair3f> newVtx;
-	std::vector<long> newIdx;
-	std::map<std::pair<long, long>, std::pair<long, long>> cache; // this map points from a pair of indices defining an edge to the indices of the newly created vertices to avoid creating same vertices twice
-	long c = (long)lPoints.size(); // the index base
-	for( long* idx = lTriangleIdx.data(), *idxE = idx + lTriangleIdx.size(); idx != idxE; idx += 3 )
+	std::vector<TP> newVtx;
+	std::vector<TI> newIdx;
+	std::map<std::pair<TI, TI>, std::pair<TI, TI>> cache; // this map points from a pair of indices defining an edge to the indices of the newly created vertices to avoid creating same vertices twice
+	TI c = (TI)vertices.size(); // the index base
+	for( TI* idx = indices.data(), *idxE = idx + indices.size(); idx != idxE; idx += 3 )
 	{
 		// check edge if it wraps in U, this is when abs(u1-u2) > 0.5
 		// there must always be 2 edges wrapping, as by design there is a seam in the P2C pixels, where one side u is 1 and other is 0, therefore each point belongs to some side
-		long* idWrap[6]{}; // we still allow for 3 edges in memory to avoid crash
-		long  n = 0;
-		if( 0.5f < abs( f( lPoints[idx[0]] ) - f( lPoints[idx[1]] ) ) ) // check first edge
+		TI* idWrap[6]{}; // we still allow for 3 edges in memory to avoid crash
+		TI  n = 0;
+		if( 0.5f < abs( f( vertices[idx[0]] ) - f( vertices[idx[1]] ) ) ) // check first edge
 		{
 			idWrap[n++] = idx;
 			idWrap[n++] = idx + 1;
 		}
 
-		if( 0.5f < abs( f( lPoints[idx[1]] ) - f( lPoints[idx[2]] ) ) ) // check second edge
+		if( 0.5f < abs( f( vertices[idx[1]] ) - f( vertices[idx[2]] ) ) ) // check second edge
 		{
 			idWrap[n++] = idx + 1;
 			idWrap[n++] = idx + 2;
 		}
 
-		if( 0.5f < abs( f( lPoints[idx[2]] ) - f( lPoints[idx[0]] ) ) ) // check third edge
+		if( 0.5f < abs( f( vertices[idx[2]] ) - f( vertices[idx[0]] ) ) ) // check third edge
 		{
 			idWrap[n++] = idx + 2;
 			idWrap[n++] = idx;
 		}
 		if( 4 == n ) // this is a triangle with a seam
 		{
-			// in 2 cases id[1] is id[2] and thus solo
+			// in 2 cases id[1] == id[2] and thus solo
 			// if id[0] and id[3] is same, we swap around
 			if( idWrap[0] == idWrap[3] )
 			{
@@ -2675,9 +2763,9 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 				idWrap[3] = idx + 1;
 			}
 
-			SPPair3f& p = lPoints[*idWrap[1]]; // the solo point
-			SPPair3f& p1 = lPoints[*idWrap[0]];
-			SPPair3f& p2 = lPoints[*idWrap[3]];
+			TP& p = vertices[*idWrap[1]]; // the solo point
+			TP& p1 = vertices[*idWrap[0]];
+			TP& p2 = vertices[*idWrap[3]];
 			bool bReverse = f( p1 ) > f( p ); // solo point got smaller texture coordinate, meaning the solo point is on other side
 
 			// calculate half pixel; this is actually not right, as we would need the input texture size. But it looks better not causing a black line by design
@@ -2691,7 +2779,7 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 			//       /       \		 / 2  \3 \
 			//      p1--------p2    p1--------p2
 
-			long iv[4]; // the assigned indices
+			TI iv[4]; // the assigned indices
 
 			if( bReverse )
 			{
@@ -2703,7 +2791,7 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 					cache.erase( found );
 				}
 				else
-					splitEdge<f>( p1, p, l, r, *idWrap[0], *idWrap[1], newVtx, cache, iv[1], iv[0], c );
+					splitEdge<W,f>( p1, p, l, r, *idWrap[0], *idWrap[1], newVtx, cache, iv[1], iv[0], c );
 
 				// second edge p - p2
 				if( auto found = cache.find( std::pair( *idWrap[3], *idWrap[1] ) ); found != cache.end() )
@@ -2713,7 +2801,7 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 					cache.erase( found );
 				}
 				else // we need two new vertices
-					splitEdge<f>( p2, p, l, r, *idWrap[3], *idWrap[1], newVtx, cache, iv[3], iv[2], c );
+					splitEdge<W,f>( p2, p, l, r, *idWrap[3], *idWrap[1], newVtx, cache, iv[3], iv[2], c );
 			}
 			else
 			{
@@ -2725,7 +2813,7 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 					cache.erase( found );
 				}
 				else
-					splitEdge<f>( p, p1, l, r, *idWrap[1], *idWrap[0], newVtx, cache, iv[0], iv[1], c );
+					splitEdge<W,f>( p, p1, l, r, *idWrap[1], *idWrap[0], newVtx, cache, iv[0], iv[1], c );
 
 				// second edge p - p2
 				if( auto found = cache.find( std::pair( *idWrap[1], *idWrap[3] ) ); found != cache.end() )
@@ -2735,7 +2823,7 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 					cache.erase( found );
 				}
 				else // we need two new vertices
-					splitEdge<f>( p, p2, l, r, *idWrap[1], *idWrap[3], newVtx, cache, iv[2], iv[3], c );
+					splitEdge<W,f>( p, p2, l, r, *idWrap[1], *idWrap[3], newVtx, cache, iv[2], iv[3], c );
 			}
 
 			// add two new triangles
@@ -2753,19 +2841,34 @@ void FixSeam( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, long dim
 			*idWrap[0] = iv[0];
 			*idWrap[3] = iv[2];
 		}
-		else if( n ) // this is somthing odd...
+		else if( n )
+		{// this is somthing odd...
 			logStr( 1, "WARNING: Malformed triangle seam detected." );
+		}
 
 	}
 	// merge
-	lPoints.insert( lPoints.end(), make_move_iterator( newVtx.begin() ), make_move_iterator( newVtx.end() ) );
-	lTriangleIdx.insert( lTriangleIdx.end(), make_move_iterator( newIdx.begin() ), make_move_iterator( newIdx.end() ) );
+	vertices.insert( vertices.end(), make_move_iterator( newVtx.begin() ), make_move_iterator( newVtx.end() ) );
+	indices.insert( indices.end(), make_move_iterator( newIdx.begin() ), make_move_iterator( newIdx.end() ) );
+	return true;
 }
 
-// translate mapping to mesh where lPt1 ist the vertex position and lPt2 is the texture coordinate, triangulates as grid
-int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
+/// translate mapping to grid where (x,y,z) is the vertex position and (u,v,w) is the texture coordinate. It uses only coodrinates from mapping.
+/// The grid-points are not perfectly uniform distributed, but they stay inside their grid-cell. We need a secondary coordinate to record the projector position, this goes to uv.
+/// @param [IN] pSrcD the mapping
+/// @param [IN] pSrcDB the blend map
+/// @param [IN] width the mapping width
+/// @param [IN] height the mapping height
+/// @param [IN] wGrid the grid width (columns)
+/// @param [IN] hGrid the grid height (rows)
+/// @param [OUT] vertices the result grid; it generates all points (wGrid * hGrid) and marks valid points
+/// @param [template] test a function VWB_WarpRecord->bool that indicates a valid lookup
+/// @param [template] W a wrangler class that provides access to vertex attributes of template parameter TP
+/// @param [template] TP a type compiling a vertex
+/// @eturn 1 if successful, 0 otherwise
+template< auto test, class W, class TP >
+int pseudoGridFromMapping( VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid, std::vector<TP>& vertices )
 {
-
 	if( wGrid > width / 2 ) // half size is OK
 		wGrid = width / 2;
 	if( hGrid > height / 2 ) // half size is OK
@@ -2774,11 +2877,8 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 	if( nullptr == pSrcD || nullptr == pSrcDB
 		) return 0;
 
-	lTriangleIdx.clear();
-	lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
-
-	lPoints.clear();
-	lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
+	vertices.clear();
+	vertices.reserve( ptrdiff_t( wGrid ) * hGrid );
 
 	// first we create a P2C pixel aligned grid and fill with the values from P2C
 	for( long yG = 0; yG != hGrid; yG++ )
@@ -2793,19 +2893,34 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 			VWB_WarpRecord const* pW = pSrcD + i;
 			VWB_BlendRecord2 const* pB = pSrcDB + i;
 
-			lPoints.emplace_back( SPPair3f{
-				0.5f <= pW->z ? 1 : 0, 0,
-				{pW->x,pW->y, pW->z},
-				{float( x ), float( y ), 0},
-				{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
-				{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f }
-			} );
+			vertices.emplace_back( W::make(
+				test( *pW ),
+				pW->x,pW->y, pW->z,
+				float( x ), float( y ), 0,
+				float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f,
+				float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f
+			));
 		}
 	}
+	return 1;
+}
 
-	// now we try to refine the grid
-	// find pseudo gridpoints close to valid gridpoints to get better border aproximation
-	// note: this process cannot be repeated, as the algo relies on points that are still aligned as a grid
+/// find pseudo gridpoints close to valid gridpoints to get better border aproximation
+/// note: this process cannot be repeated, as the algo relies on points that are still aligned as a grid
+/// @param [IN] pSrcD the mapping
+/// @param [IN] pSrcDB the blend map
+/// @param [IN] width the mapping width
+/// @param [IN] height the mapping height
+/// @param [IN] wGrid the grid width (columns)
+/// @param [IN] hGrid the grid height (rows)
+/// @param [IN|OUT] vertices the result grid; fixed points are no longer on the same place
+/// @param [template] test a function VWB_WarpRecord->bool that indicates a valid lookup
+/// @param [template] W a wrangler class that provides access to vertex attributes of template parameter TP
+/// @param [template] TP a type compiling a vertex
+/// @return 1 if successful, 0 otherwise
+template< auto test, class W, class TP >
+int expandPseudoGrid( VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid, std::vector<TP>& vertices )
+{
 	enum POS_REL {
 		POS_REL_T, // top
 		POS_REL_TR,  // top-right
@@ -2831,8 +2946,8 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 
 	struct RepairItem
 	{
-		DynSPPointPairList3f::iterator where; // the grid position 
-		DynSPPointPairList3f::value_type v;
+		std::vector<TP>::iterator where; // the grid position 
+		std::vector<TP>::value_type v;
 	};
 	std::list<RepairItem> repairs;
 
@@ -2842,14 +2957,14 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 
 	if( xs && ys )
 	{
-		auto pt = lPoints.begin();
+		auto pt = vertices.begin();
 		for( long yG = 0; yG != hGrid; yG++ )
 		{
 			for( long xG = 0; xG != wGrid; xG++, pt++ )
 			{
-				if( !pt->fUse ) // me is invalid, so try to find a pseudo grid point next to me
+				if( !W::valid( *pt ) ) // me is invalid, so try to find a pseudo grid point next to me
 				{
-					for( int i = POS_REL_T; i != POS_REL_SIZE; i++ )
+					for( int i = POS_REL_T; i != POS_REL_SIZE; i++ ) // iterate over neighbors
 					{
 						long oxG = xG + delta[i].cx;
 						long oyG = yG + delta[i].cy;
@@ -2861,15 +2976,15 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 							oyG >= 0
 							)
 						{
-							auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) );
-							if( opt->fUse )
+							auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) ); // get the iterator of the other point
+							if( W::valid( *opt ) )
 							{
 								// got a valid point in some direction
 								// so we go from me (pt) towards other (opt) until we find a valid point in the map
-								long bx = long(  pt->lPt2[0] );
-								long by = long(  pt->lPt2[1] );
-								long ex = long( opt->lPt2[0] );
-								long ey = long( opt->lPt2[1] );
+								long bx = long( W::u( *pt ) );
+								long by = long( W::v( *pt ) );
+								long ex = long( W::u( *opt ) );
+								long ey = long( W::v( *opt ) );
 								long x = bx + delta[i].cx;
 								long y = by + delta[i].cy;
 
@@ -2880,16 +2995,14 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 									VWB_WarpRecord const* pW = pSrcD + off;
 									VWB_BlendRecord2 const* pB = pSrcDB + off;
 
-									if( 0.5f <= pW->z ) // hit!
+									if( test(*pW) ) // hit!
 									{
-										repairs.emplace_back( RepairItem{ pt, 
-											SPPair3f{
-												1, 0,
-												{ pW->x, pW->y, pW->z },
-												{ float( x ), float( y ), 0 },
-												{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
-												{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f }
-											}
+										repairs.emplace_back( RepairItem{ pt,
+											W::make( 
+												true, pW->x, pW->y, pW->z,
+												float( x ), float( y ), 0,
+												float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f ,	float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f 
+											)
 										} );
 
 										break;
@@ -2925,16 +3038,16 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 		if( minC == repairs.end() || minC->where != r->where )
 		{
 			minC = r;
-			long dy = r->where->lPt2[1] - r->v.lPt2[1];
-			long dx = r->where->lPt2[0] - r->v.lPt2[0];
-			minS = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+			float dx = W::u( *r->where ) - W::u( r->v );
+			float dy = W::v( *r->where ) - W::v( r->v );
+			minS = dx * dx + dy * dy; // we count in float to avoid int overflow
 			r++;
 		}
 		else
 		{
-			long dx = r->where->lPt2[0] - r->v.lPt2[0];
-			long dy = r->where->lPt2[1] - r->v.lPt2[1];
-			float s = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
+			float dx = W::u( *r->where ) - W::u( r->v );
+			float dy = W::v( *r->where ) - W::v( r->v );
+			float s = dx * dx + dy * dy; // we count in float to avoid int overflow
 			if( s < minS ) // I am closer
 			{
 				minS = s;
@@ -2957,215 +3070,6 @@ int ComputeTriangluation2( DynSPPointPairList3f& lPoints, DynLongList& lTriangle
 	{
 		*r.where = r.v;
 	}
-	repairs.clear();
-
-
-	triangulateGrid( lPoints, wGrid, hGrid, lTriangleIdx );
-
-	// deal with UV-wraps
-	FixSeam<getU>( lPoints, lTriangleIdx, width );
-	FixSeam<getV>( lPoints, lTriangleIdx, height );
-		
-	return 1;
-}
-
-// translate mapping to mesh where lPt1 ist the vertex position and lPt2 is the texture coordinate, triangulates as grid
-int ComputeTriangluation2_3D( DynSPPointPairList3f& lPoints, DynLongList& lTriangleIdx, VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long width, long height, long wGrid, long hGrid )
-{
-
-	if( wGrid > width / 2 ) // half size is OK
-		wGrid = width / 2;
-	if( hGrid > height / 2 ) // half size is OK
-		hGrid = height / 2;
-
-	if( nullptr == pSrcD || nullptr == pSrcDB
-		) return 0;
-
-	lTriangleIdx.clear();
-	lTriangleIdx.reserve( 4 * width / wGrid * height / hGrid );
-
-	//std::vector< ptrdiff_t > lGrid;
-	//lGrid.reserve( ptrdiff_t( wGrid ) * hGrid );
-
-	lPoints.clear();
-	lPoints.reserve( ptrdiff_t( wGrid ) * hGrid );
-
-	// first we create a P2C pixel aligned grid and fill with the values from P2C
-	for( long yG = 0; yG != hGrid; yG++ )
-	{
-		long y = yG * ( height - 1 ) / ( hGrid - 1 );
-		for( long xG = 0; xG != wGrid; xG++ )
-		{
-			long x = xG * ( width - 1 ) / ( wGrid - 1 );
-
-			ptrdiff_t i = ptrdiff_t( y ) * width + x;
-
-			VWB_WarpRecord const* pW = pSrcD + i;
-			VWB_BlendRecord2 const* pB = pSrcDB + i;
-
-			lPoints.emplace_back( SPPair3f{
-				0.5f <= pW->w ? 1 : 0, 0,
-				{ pW->x, pW->y, pW->z },
-				{ float( x ), float( y ), pW->w },
-				{ float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f },
-				{ float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f }
-			} );
-		}
-	}
-
-	// now we try to refine the grid
-	// find pseudo gridpoints close to valid gridpoints to get better border aproximation
-	// note: this process cannot be repeated, as the algo relies on points that are still aligned as a grid
-	enum POS_REL {
-		POS_REL_T, // top
-		POS_REL_TR,  // top-right
-		POS_REL_R, // right
-		POS_REL_BR, // bottom-right
-		POS_REL_B,  // bottom
-		POS_REL_BL, // bottom-left
-		POS_REL_L, // left
-		POS_REL_TL, // top-left
-		POS_REL_SIZE
-	};
-
-	SIZE const delta[POS_REL_SIZE] = {
-		{  0, -1 }, // top
-		{  1, -1 }, // top-right
-		{  1,  0 }, // right
-		{  1,  1 }, // bottom-right
-		{  0,  1 }, // bottom
-		{ -1,  1 }, // bottom-left
-		{ -1,  0 }, // left
-		{ -1, -1 } // top-left
-	};
-
-	struct RepairItem
-	{
-		DynSPPointPairList3f::iterator where; // the grid position 
-		DynSPPointPairList3f::value_type v;
-	};
-	std::list<RepairItem> repairs;
-
-	long xs = width / wGrid;
-	long ys = height / hGrid;
-
-	if( xs && ys )
-	{
-		auto pt = lPoints.begin();
-		for( long yG = 0; yG != hGrid; yG++ )
-		{
-			for( long xG = 0; xG != wGrid; xG++, pt++ )
-			{
-				if( !pt->fUse ) // me is invalid, so try to find a pseudo grid point next to me
-				{
-					for( int i = POS_REL_T; i != POS_REL_SIZE; i++ )
-					{
-						long oxG = xG + delta[i].cx;
-						long oyG = yG + delta[i].cy;
-
-						if(
-							oxG < wGrid && // not over right border
-							oxG >= 0 && // not over left border
-							oyG < hGrid && // not over bottom border
-							oyG >= 0
-							)
-						{
-							auto const& opt = pt + ( ptrdiff_t( delta[i].cy ) * wGrid + ptrdiff_t( delta[i].cx ) );
-							if( opt->fUse )
-							{
-								// got a valid point in some direction
-								// so we go from me (pt) towards other (opt) until we find a valid point in the map
-								long bx = long( pt->lPt2[0] );
-								long by = long( pt->lPt2[1] );
-								long ex = long( opt->lPt2[0] );
-								long ey = long( opt->lPt2[1] );
-								long x = bx + delta[i].cx;
-								long y = by + delta[i].cy;
-
-								while( x != ex || y != ey )
-								{
-
-									ptrdiff_t off = ptrdiff_t( x ) + y * width;
-									VWB_WarpRecord const* pW = pSrcD + off;
-									if( 0.5f <= pW->w ) // hit!
-									{
-										VWB_BlendRecord2* pB = pSrcDB + off;
-										repairs.emplace_back( RepairItem{ pt, SPPair3f{
-											1, 0,
-											{pW->x, pW->y, pW->z},
-											{float( x ), float( y ), pW->w},
-											{float( pB->r ) / 65535.0f, float( pB->g ) / 65535.0f},
-											{float( pB->b ) / 65535.0f, float( pB->a ) / 65535.0f}
-											} } );
-										break;
-									}
-
-									if( delta[i].cx && delta[i].cy ) // diagonal
-									{
-										long d = ( x - bx ) * delta[i].cy * ys / delta[i].cx / ( y - by );
-										if( xs > d )
-											x += delta[i].cx;
-										else
-											y += delta[i].cy;
-									}
-									else
-									{
-										x += delta[i].cx;
-										y += delta[i].cy;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// find best match for each point, which is the closest to the original grid point
-	auto minC = repairs.end();
-	auto minS = float( 0 );
-	for( auto r = repairs.begin(); r != repairs.end(); )
-	{
-		if( minC == repairs.end() || minC->where != r->where )
-		{
-			minC = r;
-			long dx = r->where->lPt2[0] - r->v.lPt2[0];
-			long dy = r->where->lPt2[1] - r->v.lPt2[1];
-			minS = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
-			r++;
-		}
-		else
-		{
-			long dx = r->where->lPt2[0] - r->v.lPt2[0];
-			long dy = r->where->lPt2[1] - r->v.lPt2[1];
-			float s = float( dx ) * dx + float( dy ) * dy; // we count in float to avoid int overflow
-			if( s < minS ) // I am closer
-			{
-				minS = s;
-				// delete other
-				repairs.erase( minC );
-				minC = r;
-				r++;
-			}
-			else // other was closer
-			{
-				// delete me
-				r = repairs.erase( r );
-			}
-
-		}
-	}
-
-	// consolidate; transfer points to grid
-	for( auto& r : repairs )
-	{
-		*r.where = r.v;
-	}
-	repairs.clear();
-
-	triangulateGrid( lPoints, wGrid, hGrid, lTriangleIdx );
-
 	return 1;
 }
 
@@ -3182,7 +3086,6 @@ VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
 	return VWB_ERROR_NONE;
 }
 
-
 VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh )
 {
 	if(3 > cols || 3 > rows)
@@ -3191,19 +3094,6 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 		return VWB_ERROR_PARAMETER;
 	}
 
-	/*
-	if( cols < 129 )
-		{
-			logStr( 1, "WARNING: getWarpMesh too few cols specified set to 129.\n" );
-			cols = 129;
-		}
-
-		if( rows < 129 )
-		{
-			logStr( 1, "WARNING: getWarpMesh too few rows specified set to 129.\n" );
-			rows = 129;
-		}
-	*/
 	VWB_int& w = m_wb.header.width;
 	VWB_int& h = m_wb.header.height;
 	int nRecords = w * h;
@@ -3215,24 +3105,26 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 	}
 	logStr(2, "INFO: getWarpMesh( %i, %i, * ): params OK.\n", cols, rows);
 
-	DynSPPointPairList3f points;
+	DynSPPointPairList3f vertices;
 	DynLongList	indices;
 	if( m_bDynamicEye )
 	{
-		if( ComputeTriangluation2_3D( points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows ) )
+		if( pseudoGridFromMapping < testW, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+			expandPseudoGrid< testW, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+			triangulateGrid< SPPair3fWrangler >( vertices, cols, rows, indices ) )
 		{
 			logStr( 2, "INFO: getWarpMesh: triangulation.\n" );
-			mesh.nVtx = (VWB_uint)points.size();
-			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
-			for( VWB_uint i = 0; i != points.size(); i++ )
+			mesh.nVtx = (VWB_uint)vertices.size();
+			mesh.vtx = new VWB_WarpBlendVertex[vertices.size()];
+			for( VWB_uint i = 0; i != vertices.size(); i++ )
 			{
-				VWB_VEC3f pos = m_mBaseI * VWB_VEC3f::ptr( points[i].lPt1 );
+				VWB_VEC3f pos = m_mBaseI * VWB_VEC3f::ptr( vertices[i].lPt1 );
 				mesh.vtx[i] = VWB_WarpBlendVertex{
 					{ pos.x, pos.y, pos.z },
-					{ points[i].lPt2[0] / w, points[i].lPt2[1] / h },
-					{ points[i].lTangDescX[0] * points[i].lTangDescY[1],
-					  points[i].lTangDescX[1] * points[i].lTangDescY[1],
-					  points[i].lTangDescY[0] * points[i].lTangDescY[1]}
+					{ vertices[i].lPt2[0] / w, vertices[i].lPt2[1] / h },
+					{ vertices[i].lTangDescX[0] * vertices[i].lTangDescY[1],
+					  vertices[i].lTangDescX[1] * vertices[i].lTangDescY[1],
+					  vertices[i].lTangDescY[0] * vertices[i].lTangDescY[1]}
 				};
 			}
 
@@ -3257,23 +3149,29 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 	}
 	else
 	{
-		if(ComputeTriangluation2(points, indices, m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows))
+		if( pseudoGridFromMapping< testZ, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+			expandPseudoGrid< testZ, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+			triangulateGrid< SPPair3fWrangler >( vertices, cols, rows, indices ) &&
+			fixSeam< SPPair3fWrangler, SPPair3fWrangler::x >( vertices, indices, w ) &&
+			fixSeam< SPPair3fWrangler, SPPair3fWrangler::y >( vertices, indices, h )
+			)
 		{
-			logStr(2, "INFO: getWarpMesh: triangulation.\n");
 
-			mesh.nVtx = (VWB_uint)points.size();
-			mesh.vtx = new VWB_WarpBlendVertex[points.size()];
+			logStr(2, "INFO: getWarpMesh: triangulation of grid (%ix%i) with %lu indices (%5.1f%%)\n", cols, rows, indices.size(), float( indices.size() ) / ( rows - 1 ) / ( cols - 1 ) / 6 * 100 );
+
+			mesh.nVtx = (VWB_uint)vertices.size();
+			mesh.vtx = new VWB_WarpBlendVertex[vertices.size()];
 			VWB_MAT44f mVI = m_mViewIG.Inverted();
 
-			for( VWB_uint i = 0; i != points.size(); i++ )
+			for( VWB_uint i = 0; i != vertices.size(); i++ )
 			{
 				// we create a screen plane by using the mapping lookups and transform them by the view and base matrix
 				// this way 2D and 3D meshes can be used exact same way in the host program
 				// lPt1 contains a uv lookup
 				// unproject
 				VWB_VEC4f sc(
-					-m_viewSizes[0] + ( m_viewSizes[0] + m_viewSizes[2] ) * points[i].lPt1[0],
-					m_viewSizes[1] - ( m_viewSizes[1] + m_viewSizes[3] ) * points[i].lPt1[1],
+					-m_viewSizes[0] + ( m_viewSizes[0] + m_viewSizes[2] ) * vertices[i].lPt1[0],
+					m_viewSizes[1] - ( m_viewSizes[1] + m_viewSizes[3] ) * vertices[i].lPt1[1],
 					m_bRH ? -screenDist : screenDist,
 					1
 					);
@@ -3282,10 +3180,10 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 				// lPt2 contains the pixel position on the projector, this needs to be normalized
 				mesh.vtx[i] = VWB_WarpBlendVertex{
 					{ pos.x, pos.y, pos.z },
-					{ points[i].lPt2[0] / w, points[i].lPt2[1] / h },
-					{ points[i].lTangDescX[0] * points[i].lTangDescY[1],
-					  points[i].lTangDescX[1] * points[i].lTangDescY[1],
-					  points[i].lTangDescY[0] * points[i].lTangDescY[1]
+					{ vertices[i].lPt2[0] / w, vertices[i].lPt2[1] / h },
+					{ vertices[i].lTangDescX[0] * vertices[i].lTangDescY[1],
+					  vertices[i].lTangDescX[1] * vertices[i].lTangDescY[1],
+					  vertices[i].lTangDescY[0] * vertices[i].lTangDescY[1]
 				} };
 			}
 

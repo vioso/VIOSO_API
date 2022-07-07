@@ -55,6 +55,7 @@ private:
 		#include "VIOSOWarpBlend.h"
 		if( hMVIOSOWARPBLEND_DYNAMIC )
 			::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
+		hMVIOSOWARPBLEND_DYNAMIC = 0;
 	}
 
 public:
@@ -75,6 +76,9 @@ public:
 		if( 0 == --instanceCounter )
 			unloadDll();
 	}
+
+	VWB_Warper& get() { return *m_warper; }
+	VWB_Warper const& get()  const { return *m_warper; }
 
 	VWB_ERROR Init() { return VWB_Init( m_warper ); };
 	VWB_ERROR InitExt( VWB_WarpBlendSet* extSet ) { return VWB_InitExt( m_warper, extSet ); }

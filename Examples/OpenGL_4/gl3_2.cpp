@@ -11,7 +11,6 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/euler_angles.hpp"
 #include "glm/gtc/type_ptr.hpp"
-#include <DirectXMath.h>
 
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "../../VIOSOWarpBlend/GL/GLext.h"
@@ -491,19 +490,17 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	if( pWarper )
 	{
 		static int c = 0;
-		if( 0 == c )
+		if( 0 == c++ )
 		{
 			// either use this
 			pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), glm::value_ptr( proj ) );
-			c = 1;
 		}
-		else if( 1 == c )
+		else if( 1 == c++ )
 		{
 			// or use this, which yields exact same result
 			GLfloat clip[6];
 			pWarper->GetViewClip( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), clip );
 			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			c = 2;
 		}
 		else
 		{
@@ -520,6 +517,7 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 			view[1].w = pos[1];
 			view[2].w = pos[2];
 			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			c = 0;
 		}
 	}
 	//< end VIOSO API code
