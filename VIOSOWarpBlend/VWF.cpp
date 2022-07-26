@@ -379,12 +379,21 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 											{
 												if( aesKey && aesKey[0] )
 												{
+													// test passkey
 													AES_ctx ctx;
 													AES_init_ctx( &ctx, (uint8_t*)aesKey );
+													if( !strcmp( "AES128", pWB->header.keyIdent ) )
+													{
+														AES_CBC_decrypt_buffer( &ctx, (uint8_t*)pWB->header.keyIdent, sizeof( pWB->header.keyIdent ) );
+															if( !strcmp( "AES128", pWB->header.keyIdent ) )
+															{
+																logStr( 1, "WARNING: Probably wrong passkey. %s.\n", pWB->header.keyDesc );
+															}
+													}
 													AES_CBC_decrypt_buffer( &ctx, (uint8_t*)pWB->pWarp, nRecords * sizeof( VWB_WarpRecord ) );
 
-													nSets--;
-													break;
+														nSets--;
+														break;
 												}
 												else
 													logStr( 0, "ERROR: Passkey missing. The file has been encrypted.\n" );
@@ -842,7 +851,8 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 					AES_CBC_encrypt_buffer( &ctx, (uint8_t*)setIt->pWarp, sz );
 					setIt->header.szKey = 16;
 					strcpy( setIt->header.keyIdent, "AES128" );
-					memcpy( setIt->header.key, aesKey, sizeof( setIt->header.key ) ); // TODO just for testing !! remove writing plain key here!!
+					AES_CBC_encrypt_buffer( &ctx, (uint8_t*)setIt->header.keyIdent, 16 );
+					// memcpy( setIt->header.key, aesKey, sizeof( setIt->header.key ) ); // TODO just for testing !! remove writing plain key here!!
 					strcpy( setIt->header.keyDesc, "encrypted with AES128" );
 				}
 
