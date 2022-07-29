@@ -9,6 +9,8 @@
 #include <fstream>
 #include <math.h>
 
+const uint8_t _iv[]{ 0xd7, 0x04, 0xa7, 0x9f, 0xad, 0x4a, 0x48, 0xb6, 0x1f, 0x3e, 0x55, 0x30, 0x46, 0x6a, 0xa1, 0x2d };
+
 bool DeleteVWF( VWB_WarpBlend& wb )
 {
 		if( wb.pWarp ) 
@@ -381,7 +383,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 												{
 													// test passkey
 													AES_ctx ctx;
-													AES_init_ctx( &ctx, (uint8_t*)aesKey );
+													AES_init_ctx_iv( &ctx, (uint8_t*)aesKey, _iv );
 													if( !strcmp( "AES128", pWB->header.keyIdent ) )
 													{
 														AES_CBC_decrypt_buffer( &ctx, (uint8_t*)pWB->header.keyIdent, sizeof( pWB->header.keyIdent ) );
