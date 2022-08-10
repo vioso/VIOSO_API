@@ -134,7 +134,7 @@ It provides image based warping, suitable for most cases and, if a 3D map is pro
 	* @param [OUT|OPT]		headers	a pointer to an array of VWB_WarpBlendHeader
 	* @param [IN|OUT]		count   the number of array elements provided, if headers is NULL, it is set to the number of headers needed
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAM if fname is not set or empty or count is NULL, VWB_ERROR_FALSE if *count is less than the number of headers needed, VWB_ERROR_VWF_FILE_NOT_FOUND if path did not resolve, VWB_ERROR_GENERIC otherwise
-	* @remarks The list is emptied and all found headers are appended. Calling with a VWB_WarpBlendHeaderSet*,  */
+	* @remarks The list is emptied and all found headers are appended. You need to call VWB_vwfInfo( NULL, set ) to release memory from within the warper-dll.  */
 	#ifdef __cplusplus
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfo, ( char const* path, VWB_WarpBlendHeaderSet* set ) );
 	#endif

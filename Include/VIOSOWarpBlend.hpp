@@ -79,7 +79,7 @@ public:
 
 	VWB_Warper& get() { return *m_warper; }
 	VWB_Warper const& get()  const { return *m_warper; }
-
+	operator const bool() const { return nullptr != m_warper; }
 	VWB_ERROR Init() { return VWB_Init( m_warper ); };
 	VWB_ERROR InitExt( VWB_WarpBlendSet* extSet ) { return VWB_InitExt( m_warper, extSet ); }
 	VWB_ERROR GetViewProj( VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj ) { return VWB_getViewProj( m_warper, pEye, pRot, pView, pProj ); }
@@ -89,12 +89,17 @@ public:
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
 	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
 	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
+	// call again with path = NULL, to release memory
 	static VWB_ERROR VwfInfo( const TCHAR* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) { 
-		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
-		VWB_ERROR ret = VWB_vwfInfo( path, set ); 
-		if( 0 == --instanceCounter )
-			unloadDll();
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( nullptr != path )
+			if( 1 == ++instanceCounter )
+				loadDll( dllPath );
+		if( instanceCounter )
+			ret = VWB_vwfInfo( path, set ); 
+		if( nullptr == path )
+			if( 0 == --instanceCounter )
+				unloadDll();
 		return ret;
 	}
 	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }

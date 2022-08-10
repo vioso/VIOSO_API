@@ -51,7 +51,7 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set )
 	return true;
 }
 
-
+// make sure to free() pBmi and delete[] pData after use!
 VWB_ERROR LoadBMP( std::istream& is, BITMAPFILEHEADER& bmfh, BITMAPINFO*& pBmi, char*& pData, bool bSkipData )
 {
 	if( is.bad() )
@@ -271,17 +271,26 @@ VWB_ERROR convertFromBitmapData( VWB_BlendRecord*& pB, char* pBMData, int w, int
 	return VWB_ERROR_PARAMETER;
 }
 
-VWB_ERROR LoadHeader( VWB_WarpFileHeader5& header, std::istream& is, size_t sz )
+template< class T >
+VWB_ERROR LoadHeader( T& header, std::istream& is, size_t sz )
 {
 	if( is.bad() )
 		return VWB_ERROR_PARAMETER;
+
+	// if we bound to load a newer (bigger) version of a header, just load the known part
+	size_t padd = 0;
+	if(sz > sizeof(T))
+	{
+		padd = sz - sizeof(T);
+		sz = sizeof(T);
+	}
+
 	is.read( (char*)&header, sz );
+	is.seekg( padd, std::ios_base::cur );
 
 	if( !is.eof() )
 	{
-		// correct header size, as we are now VWB_WarpFileHeader4
-		header.szHdr = sizeof( VWB_WarpFileHeader5 );
-
+		header.szHdr = sizeof( T );
 		return VWB_ERROR_NONE;
 	}
 	return VWB_ERROR_VWF_LOAD;
@@ -1227,17 +1236,20 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma )
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set )
+VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 {
-	if( NULL == set )
+	if(NULL == set)
 	{
-		logStr( 0, "ERROR: VWB_vwfInfo: set is NULL.\n" );
+		logStr(0, "ERROR: VWB_vwfInfo: set is NULL.\n");
 		return VWB_ERROR_PARAMETER;
 	}
-	DeleteVWF( *set );
+	DeleteVWF(*set);
+	if( nullptr == path )
+		set->shrink_to_fit(); // release the vector's memory
 
 	VWB_WarpBlendSet wbs;
-	LoadVWF( wbs, path, true, -1 );
+	if(path && path[0] )
+		LoadVWF( wbs, path, true, -1 );
 
 	for( auto const& d : wbs )
 	{
