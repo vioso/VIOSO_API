@@ -764,7 +764,7 @@ namespace VIOSOWarpBlend
         {
             if (null == key)
             {
-                if (null != cryptoKeyMem)
+                if (IntPtr.Zero != cryptoKeyMem)
                 {
                     Marshal.FreeHGlobal(cryptoKeyMem);
                 }
@@ -775,7 +775,7 @@ namespace VIOSOWarpBlend
                 if (key.Length < 16)
                     return ERROR.PARAMETER;
 
-                if (cryptoKeyMem == null)
+                if (cryptoKeyMem == IntPtr.Zero)
                 {
                     cryptoKeyMem = Marshal.AllocHGlobal(16);
                 }
