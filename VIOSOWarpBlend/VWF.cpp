@@ -849,7 +849,7 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 				if( setIt->header.flags & FLAG_WARPFILE_HEADER_ENCRYPTED )
 				{
 					AES_ctx ctx;
-					AES_init_ctx( &ctx, (uint8_t*)aesKey );
+					AES_init_ctx_iv( &ctx, (uint8_t*)aesKey, _iv );
 					AES_CBC_encrypt_buffer( &ctx, (uint8_t*)setIt->pWarp, sz );
 					setIt->header.szKey = 16;
 					strcpy( setIt->header.keyIdent, "AES128" );
