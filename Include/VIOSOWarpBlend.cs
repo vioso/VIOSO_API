@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 // make sure to set x64 as build target
 namespace VIOSOWarpBlend
 {
-    public class Warper
+    public class Warper : IDisposable
     {
 
         public const int MAX_PATH = 260;
@@ -578,8 +578,14 @@ namespace VIOSOWarpBlend
 
         ~Warper()
         {
+            Dispose();
+        }
+
+        public void Dispose()
+        {
             if (IntPtr.Zero != _warper)
                 VWB_Destroy(_warper);
+            _warper = IntPtr.Zero;
         }
 
         public ERROR Init()

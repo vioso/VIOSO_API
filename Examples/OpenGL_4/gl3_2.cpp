@@ -85,7 +85,6 @@ HDC			hDC = NULL;		// Private GDI Device Context
 HGLRC		hRC = NULL;		// Permanent Rendering Context
 HWND		hWnd = NULL;		// Holds Our Window Handle
 HINSTANCE	hInstance;		// Holds The Instance Of The Application
-bool	active = TRUE;		// Window Active Flag Set To TRUE By Default
 
 GLvoid ReSizeGLScene( GLsizei width, GLsizei height );		// Resize And Initialize The GL Window
 
@@ -195,98 +194,6 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 
 	#define GL_EXT_INITIALIZE
 	#include "../../VIOSOWarpBlend/GL/GLext.h"
-
-	#if defined( _DEBUG)
-	glDebugMessageCallback( &glLog, nullptr );
-	glEnable( GL_DEBUG_OUTPUT );							// Enables Debug output
-	glDebugMessageCallback( &glLog, nullptr );
-	#endif
-
-	RECT rWnd;
-	GetWindowRect( hWnd, &rWnd );
-	DWORD dwStyle = GetWindowLong( hWnd, GWL_STYLE );
-	DWORD dwExStyle = GetWindowLong( hWnd, GWL_EXSTYLE );
-	char const* szVer = (const char*)glGetString( GL_VERSION );
-	HWND newHwnd;
-	if( !( newHwnd = CreateWindowEx( dwExStyle,							// Extended Style For The Window
-									 "OpenGL",							// Class Name
-									 szVer,								// Window Title
-									 dwStyle |							// Defined Window Style
-									 WS_CLIPSIBLINGS |					// Required Window Style
-									 WS_CLIPCHILDREN,					// Required Window Style
-									 rWnd.left, rWnd.top,								// Window Position
-									 rWnd.right - rWnd.left,	// Calculate Window Width
-									 rWnd.bottom - rWnd.top,	// Calculate Window Height
-									 NULL,								// No Parent Window
-									 NULL,								// No Menu
-									 hInstance,							// Instance
-									 NULL ) ) )								// Dont Pass Anything To WM_CREATE
-	{
-		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Window Creation Error.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
-		return FALSE;								// Return FALSE
-	}
-	HDC newHDC = GetDC( newHwnd );
-	const int pixelAttribs[] = {
-		WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-		WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-		WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-		WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-		WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
-		WGL_COLOR_BITS_ARB, 32,
-		WGL_ALPHA_BITS_ARB, 8,
-		WGL_DEPTH_BITS_ARB, 24,
-		WGL_STENCIL_BITS_ARB, 8,
-		WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-		WGL_SAMPLES_ARB, 4,
-		0
-	};
-
-	int pixelFormatID; UINT numFormats;
-	BOOL status = wglChoosePixelFormatARB( newHDC, pixelAttribs, NULL, 1, &pixelFormatID, &numFormats );
-
-	if( status == false || numFormats == 0 )
-	{
-		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Find A Suitable PixelFormat.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
-		return FALSE;								// Return FALSE
-	}
-	PIXELFORMATDESCRIPTOR pfd;
-	DescribePixelFormat( newHDC, pixelFormatID, sizeof( pfd ), &pfd );
-
-	if( !SetPixelFormat( newHDC, pixelFormatID, &pfd ) )		// Are We Able To Set The Pixel Format?
-	{
-		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Set The PixelFormat.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
-		return FALSE;								// Return FALSE
-	}
-
-	const int attribList[] = {
-		WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-		WGL_CONTEXT_MINOR_VERSION_ARB, 2,
-		0, 0 };
-
-	HGLRC thRC;
-	if( !( thRC = wglCreateContextAttribsARB( newHDC, 0, attribList ) ) )
-	{
-		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Create A GL Rendering Context.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
-		return FALSE;								// Return FALSE
-	}
-
-	wglMakeCurrent( hDC, NULL );
-	wglDeleteContext( hRC );
-	ReleaseDC( hWnd, hDC );
-	DestroyWindow( hWnd );
-	hWnd = newHwnd;
-	hDC = newHDC;
-	hRC = thRC;
-	if( !wglMakeCurrent( hDC, hRC ) )					// Try To Activate The Rendering Context
-	{
-		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Activate The GL Rendering Context.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
-		return FALSE;								// Return FALSE
-	}
 
 	#if defined( _DEBUG)
 	glDebugMessageCallback( &glLog, nullptr );
@@ -490,17 +397,19 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	if( pWarper )
 	{
 		static int c = 0;
-		if( 0 == c++ )
+		if( 0 == c )
 		{
 			// either use this
 			pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), glm::value_ptr( proj ) );
+			c=1;
 		}
-		else if( 1 == c++ )
+		else if( 1 == c )
 		{
 			// or use this, which yields exact same result
 			GLfloat clip[6];
 			pWarper->GetViewClip( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), clip );
 			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			c = 2;
 		}
 		else
 		{
@@ -524,10 +433,10 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	#else
 	view = glm::mat4(1); // identity
 	proj = glm::frustum( -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
-	GLFrustumRH( reinterpret_cast<GLfloat( & )[16]>( proj ), -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
+	//GLFrustumRH( reinterpret_cast<GLfloat( & )[16]>( proj ), -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
 	#endif //def USE_VIOSO_API
 
-
+	glUseProgram(iProg);
 	/* Set background colour to light blue sky color */
 	glClearColor( 0.6f, 0.8f, 1, 1.0f );
 
@@ -586,19 +495,6 @@ LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
 {
 	switch( uMsg )									// Check For Windows Messages
 	{
-	case WM_ACTIVATE:							// Watch For Window Activate Message
-	{
-		// LoWord Can Be WA_INACTIVE, WA_ACTIVE, WA_CLICKACTIVE,
-		// The High-Order Word Specifies The Minimized State Of The Window Being Activated Or Deactivated.
-		// A NonZero Value Indicates The Window Is Minimized.
-		if( ( LOWORD( wParam ) != WA_INACTIVE ) && !( (BOOL)HIWORD( wParam ) ) )
-			active = TRUE;						// Program Is Active
-		else
-			active = FALSE;						// Program Is No Longer Active
-
-		return 0;								// Return To The Message Loop
-	}
-
 	case WM_SYSCOMMAND:							// Intercept System Commands
 	{
 		switch( wParam )							// Check System Calls
@@ -828,21 +724,17 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	{
 		if( !PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ) // we are active, Is There A Message Waiting?
 		{
-			//if( active )
+			// Draw The Scene.  Watch For ESC Key And Quit Messages From DrawGLScene()
+			if( !DrawGLScene( -0.1280f, 0.1280f, -0.0800f, 0.0800f, 0.3f, 2048.0f ) )	// Active?  Was There A Quit Received?
 			{
-				// Draw The Scene.  Watch For ESC Key And Quit Messages From DrawGLScene()
-				if( !DrawGLScene( -0.1280f, 0.1280f, -0.0800f, 0.0800f, 0.3f, 2048.0f ) )	// Active?  Was There A Quit Received?
-				{
-					done = TRUE;							// ESC or DrawGLScene Signalled A Quit
-				}
-				else									// Not Time To Quit, Update Screen
-				{
-					SwapBuffers( hDC );					// Swap Buffers (Double Buffering)
-				}
+				done = TRUE;							// ESC or DrawGLScene Signalled A Quit
+			}
+			else									// Not Time To Quit, Update Screen
+			{
+				SwapBuffers( hDC );					// Swap Buffers (Double Buffering)
 			}
 		}
 		else if(
-			!active && GetMessage( &msg, NULL, 0, 0 ) ||
 			WM_QUIT != msg.message
 			) // do messages
 		{
