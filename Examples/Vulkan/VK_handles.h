@@ -245,8 +245,8 @@ namespace VK
 		operator SHnd<H, dfn, E...>() const {
 			return piRef && *piRef ? SHnd<H, dfn, E...>( *reinterpret_cast<SHnd<H, dfn, E...> const*>( this ) ) : SHnd<H, dfn, E...>();
 		};
-		operator H const& ( ) const {
-			return operator SHnd<H, dfn, E...>().operator const H & ( );
+		operator H ( ) const {
+			return piRef && *piRef ? hnd : 0;
 		}
 		operator bool() const { return hnd && *piRef; }
 
