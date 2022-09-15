@@ -23,26 +23,87 @@ using namespace std;
 mat4x4 g_mWorld;
 std::unique_ptr<VK::OutputWindow> g_wnd;
 
+#pragma warning( push )
+#pragma warning( disable : 4309 )
+#pragma warning( disable : 4838 )
+#include "triangleVS.h"
+#include "triangleFS.h"
+#pragma warning( pop )
+
+class TriangleRenderer : public VK::Renderer
+{
+	VK::ShaderModuleH m_sm;
+	//VK::VertexBufferLoc<VertexWCol> m_vb;
+	//static const vector< VertexWCol > s_vertices;
+
+public:
+	TriangleRenderer( VK::GFX const& gfx, VK::RenderTarget const& rt );
+	TriangleRenderer( TriangleRenderer const& ) = delete;
+	TriangleRenderer( TriangleRenderer&& other ) noexcept 
+	: VK::Renderer( move( other ) )
+	, m_sm( move( other.m_sm ) )
+//	, m_vb( move( other.m_vb ) ) 
+	{}
+	virtual void preRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
+	virtual void render( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
+	virtual void postRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
+};
+//const vector<VK::Renderer::VertexWCol> TriangleRenderer::s_vertices( {
+//		VertexWCol{ 0.0f, -0.5f, 0, 1, 1, 1, 1, 1 }, // CW
+//		VertexWCol{ 0.5f,  0.5f, 0, 1, 1, 1, 1, 1 },
+//		VertexWCol{-0.5f,  0.5f, 0, 1, 1, 1, 1, 1 }
+//	} );
+
+TriangleRenderer::TriangleRenderer( VK::GFX const& gfx, VK::RenderTarget const& rt )	
+	: VK::Renderer(
+		gfx, 
+		{VK_DYNAMIC_STATE_VIEWPORT,	VK_DYNAMIC_STATE_SCISSOR},
+		{ 
+			make_shared < VK::ShaderModule>( gfx.getDevice(), (uint32_t const*)triangleVS_bytecode, sizeof(triangleVS_bytecode) ), 
+			make_shared < VK::ShaderModule>( gfx.getDevice(), (uint32_t const*)triangleFS_bytecode, sizeof(triangleFS_bytecode), VK_SHADER_STAGE_FRAGMENT_BIT )  }
+		,
+		rt, nullptr, nullptr, {},
+		false )
+{
+}
+
+void TriangleRenderer::preRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
+{
+	__super::preRender( gfx, world, view, projection );
+	//mat4x4 M;
+	//mat4x4_mul( M, view, projection );
+	//mat4x4_mul( m_mub.mVP, world, M );
+}
+
+void TriangleRenderer::render( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
+{
+	__super::render( gfx, world, view, projection );
+	vkCmdDraw( m_cbs[0], 3, 1, 0, 0 );
+}
+
+void TriangleRenderer::postRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
+{
+	__super::postRender( gfx, world, view, projection );
+}
+
+/// <summary>
+/// ///////////////////////////////////////////////////////////////////////////////////////////////
+/// </summary>
+
 class CubesRenderer : public VK::Renderer
 {
 	struct Constants {
 		mat4x4 mVP;
 	};
-	VK::MappedUniformBuffer<Constants> m_ubo;
-	VK::TextureImage m_tex;
-	VK::ShaderModuleH m_sm;
-	VK::VertexBufferLoc<VertexWColTex> m_vb;
 
 	vector<VertexWColTex> makeVertexBuffer();
+	Constants& m_mub;
 public:
-	CubesRenderer( VK::GFX const& gfx, std::vector<std::unique_ptr<VK::Image>> const& attachments, VK::AttachmentDescription const& desc );
+	CubesRenderer( VK::GFX const& gfx, std::vector<std::unique_ptr<VK::Image>> const& attachments );
 	CubesRenderer( CubesRenderer const& ) = delete;
 	CubesRenderer( CubesRenderer&& other ) noexcept 
 		: VK::Renderer( move( other ))
-		, m_ubo ( move( other.m_ubo ))
-		, m_tex( move( other.m_tex ))
-		, m_sm ( move( other.m_sm ))
-		, m_vb ( move( other.m_vb ))
+		, m_mub( other.m_mub )
 	{}
 	virtual void preRender(  VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
 	virtual void render(     VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
@@ -127,12 +188,12 @@ vector<CubesRenderer::VertexWColTex> CubesRenderer::makeVertexBuffer()
 					{
 						for( int j = 0; j != 3; j++ )
 						{
-							vertices.push_back( VertexWColTex{ fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2], col[0], col[1], col[2], 1.0f, uv[i][j][0], uv[i][j][1] } );
+							vertices.push_back( VertexWColTex( fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2], col[0], col[1], col[2], 1.0f, uv[i][j][0], uv[i][j][1] ) );
 						}
-						vertices.push_back( VertexWColTex{ fx + corners[faces[i][0]][0], fy + corners[faces[i][0]][1], fz + corners[faces[i][0]][2], col[0], col[1], col[2], 1.0f, uv[i][0][0], uv[i][0][1] } );
+						vertices.push_back( VertexWColTex( fx + corners[faces[i][0]][0], fy + corners[faces[i][0]][1], fz + corners[faces[i][0]][2], col[0], col[1], col[2], 1.0f, uv[i][0][0], uv[i][0][1] ) );
 						for( int j = 2; j != 4; j++ )
 						{
-							vertices.push_back( VertexWColTex{ fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2], col[0], col[1], col[2], 1.0f, uv[i][j][0], uv[i][j][1] } );
+							vertices.push_back( VertexWColTex( fx + corners[faces[i][j]][0], fy + corners[faces[i][j]][1], fz + corners[faces[i][j]][2], col[0], col[1], col[2], 1.0f, uv[i][j][0], uv[i][j][1] ) );
 						}
 						//break;
 					}
@@ -144,20 +205,20 @@ vector<CubesRenderer::VertexWColTex> CubesRenderer::makeVertexBuffer()
 	return vertices;
 }
 
-CubesRenderer::CubesRenderer( 
-	VK::GFX const& gfx, 
-	std::vector<std::unique_ptr<VK::Image>> const& attachments,
-	VK::AttachmentDescription const& desc )
-: VK::Renderer( 
-	gfx,
-	attachments,
-	desc,
-	{ gfx.createVSPassthrough(), gfx.createFSPassthrough() },
-	m_vb.getInputLayout(),
+#if 0
+CubesRenderer::CubesRenderer(
+	VK::GFX const& gfx,
+	std::vector<std::unique_ptr<VK::Image>> const& attachments )
+	: VK::Renderer(
+		gfx,
+		{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR },
+		{ 
+			make_shared<VK::ShaderModule>( gfx.createVSPassthrough() ),
+			make_shared<VK::ShaderModule>( gfx.createFSPassthrough() ) 
+		},
+		attachments, make_unique<VK::MappedUniformBuffer<Constants>>( gfx, Constants{} ), nullptr, {},
 	false )
-, m_ubo( gfx )
-, m_tex( gfx )
-, m_vb( gfx, makeVertexBuffer() )
+	, m_mub( *(Constants*)m_ub.get() )
 {}
 
 void CubesRenderer::preRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
@@ -165,40 +226,20 @@ void CubesRenderer::preRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 c
 	__super::preRender( gfx, world, view, projection );
 	mat4x4 M;
 	mat4x4_mul( M, view, projection );
-	mat4x4_mul( m_ubo.mapped->mVP, world, M );
+	mat4x4_mul( m_mub.mVP, world, M );
 }
 
 void CubesRenderer::render( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
 {
 	__super::render( gfx, world, view, projection );
-	vkCmdDraw( m_cbs[0], m_vb.getVertexCount(), 1, 0, 0 );
+	vkCmdDraw( m_cbs[0], m_vb->getVertexCount(), 1, 0, 0 );
 }
 
 void CubesRenderer::postRender( VK::GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
 {
 	__super::postRender( gfx, world, view, projection );
 }
-
-
-bool DrawVkScene( float l, float r, float b, float t, float n, float f )
-{
-	try {
-		g_wnd->preRender( g_mWorld );
-		g_wnd->render( g_mWorld );
-		g_wnd->postRender( g_mWorld );
-	}
-	catch( VK::device_lost& )
-	{
-		//	TODO	g_wnd->recreate();
-		// 		g_wnd->resize();
-	}
-	catch( VK::out_of_date& )
-	{
-		// TODO		g_wnd->resize();
-	}
-	return true;
-}
-
+#endif
 int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 					HINSTANCE	hPrevInstance,		// Previous Instance
 					LPSTR		lpCmdLine,			// Command Line Parameters
@@ -222,7 +263,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 		g_wnd = std::make_unique<VK::OutputWindow>(hInstance, "VULKAN Demo", x, y, w, h, SW_SHOW, VK_PRESENT_MODE_FIFO_KHR, 3, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, true, gpu, true );
 
-		g_wnd->addRenderer( make_shared<CubesRenderer>( *g_wnd, g_wnd->getRT().getAttachments(), g_wnd->getRT().getAttachmentDescription() ) );
+		g_wnd->addRenderer( make_shared<TriangleRenderer>( *g_wnd, g_wnd->getRT() ) );
 		// Main message loop
 		MSG msg = { 0 };
 		while( WM_QUIT != msg.message )

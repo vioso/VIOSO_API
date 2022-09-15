@@ -63,6 +63,7 @@ namespace VK
 		}
 
 		SHnd( SHnd&& other ) noexcept
+		: params( std::move( other.params ) )
 		{
 			if( this != &other )
 			{
@@ -72,7 +73,6 @@ namespace VK
 				other.hnd = 0;
 				piWRef = other.piWRef;
 				other.piWRef = nullptr;
-				params = other.params;
 			}
 		}
 
@@ -203,6 +203,7 @@ namespace VK
 		}
 
 		WHnd( WHnd&& other ) noexcept
+		: params( std::move( other.params ) )
 		{
 			if( this != &other )
 			{
@@ -212,7 +213,6 @@ namespace VK
 				other.hnd = 0;
 				piWRef = other.piWRef;
 				other.piWRef = nullptr;
-				params = other.params;
 			}
 		}
 

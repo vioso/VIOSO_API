@@ -563,7 +563,6 @@ struct VWB_MATRIX
 						    P._41,  P._42,  P._43,  P._44 );
 	}
 
-	// TODO: test
 	_inline_ static VWB_MATRIX GLOrthoRH( _T const* pClip )
 	{
 		_T ReciprocalWidth = _T( 1 ) / ( pClip[0] + pClip[2] );
@@ -592,7 +591,6 @@ struct VWB_MATRIX
 			(_T)1 );
 	}
 
-	// TODO: test
 	_inline_ static VWB_MATRIX GLOrthoLH( _T const* pClip )
 	{
 		VWB_MATRIX P = GLOrthoRH( pClip );

@@ -250,6 +250,10 @@ type "%(RootDir)%(Directory)%(Filename)VS.spv" | $(ProjectDir)VulkanSDK\bin\bin2
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compiling shader</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compiling shader</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling shader</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling shader</Message>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
@@ -271,6 +275,58 @@ type "%(RootDir)%(Directory)%(Filename)FS.spv" | $(ProjectDir)VulkanSDK\bin\bin2
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling shader</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compiling shader</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compiling shader</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling shader</Message>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="triangle.frag">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)FS.spv"
+type "%(RootDir)%(Directory)%(Filename)FS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)FS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)FS.h"
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)FS.spv"
+type "%(RootDir)%(Directory)%(Filename)FS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)FS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)FS.h"
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)FS.spv"
+type "%(RootDir)%(Directory)%(Filename)FS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)FS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)FS.h"
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)FS.spv"
+type "%(RootDir)%(Directory)%(Filename)FS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)FS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)FS.h"
+</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)FS.spv;%(RootDir)%(Directory)%(Filename)FS.h</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="triangle.vert">
+      <FileType>Document</FileType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compiling shader</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compiling shader</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling shader</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling shader</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RootDir)%(Directory)%(Filename)VS.spv;%(RootDir)%(Directory)%(Filename)VS.h</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)VS.spv"
+type "%(RootDir)%(Directory)%(Filename)VS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)VS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)VS.h"
+
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)VS.spv"
+type "%(RootDir)%(Directory)%(Filename)VS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)VS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)VS.h"
+
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)VS.spv"
+type "%(RootDir)%(Directory)%(Filename)VS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)VS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)VS.h"
+
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)VulkanSDK\bin\glslc.exe "%(FullPath)" -o "%(RootDir)%(Directory)%(Filename)VS.spv"
+type "%(RootDir)%(Directory)%(Filename)VS.spv" | $(ProjectDir)VulkanSDK\bin\bin2h.exe %(Filename)VS_bytecode &gt; "%(RootDir)%(Directory)%(Filename)VS.h"
+
+</Command>
     </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

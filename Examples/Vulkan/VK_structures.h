@@ -33,6 +33,14 @@ namespace VK {
 		VkFenceCreateInfo* operator&() { return this; }
 	};
 
+	class CommandPoolCreateInfo : public VkCommandPoolCreateInfo
+	{
+	public:
+		CommandPoolCreateInfo( VkFenceCreateFlags flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, uint32_t queueFamilyIndex = 0 ) noexcept : VkCommandPoolCreateInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr, flags, queueFamilyIndex } {}
+		CommandPoolCreateInfo( VkCommandPoolCreateInfo const& other ) noexcept : VkCommandPoolCreateInfo( other ) {}
+		VkCommandPoolCreateInfo* operator&() { return this; }
+	};
+
 	class ImageCreateInfo : public VkImageCreateInfo {
 	public:
 		ImageCreateInfo(
@@ -101,6 +109,16 @@ namespace VK {
 			renderPass, frameBuffer, renderArea,
 			uint32_t( cvs_ ), clearValues
 		} {}
+		//RenderPassBeginInfo( 
+		//	VkRenderPass const& renderPass,
+		//	VkFramebuffer const& frameBuffer,
+		//	VkRect2D const& renderArea,
+		//	std::vector<VkClearValue> const& clearValues
+		//) noexcept : VkRenderPassBeginInfo{
+		//	VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, nullptr,
+		//	renderPass, frameBuffer, renderArea,
+		//	uint32_t( clearValues.size() ), clearValues.data()
+		//} {}
 		RenderPassBeginInfo( VkRenderPassBeginInfo const& other ) noexcept : VkRenderPassBeginInfo( other ) {}
 		VkRenderPassBeginInfo* operator&() { return this; }
 	};
@@ -124,6 +142,12 @@ namespace VK {
 	class PipelineVertexInputStateCreateInfo : public VkPipelineVertexInputStateCreateInfo
 	{
 	public:
+		PipelineVertexInputStateCreateInfo() noexcept :
+			VkPipelineVertexInputStateCreateInfo{
+			VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, nullptr, 0,
+			0, nullptr,
+			0, nullptr
+		} {}
 		template< size_t bds_, size_t lys_ >
 		PipelineVertexInputStateCreateInfo( VkVertexInputBindingDescription const( &bindings )[bds_] = {}, VkVertexInputAttributeDescription const( &layouts )[lys_] = {} ) noexcept :
 			VkPipelineVertexInputStateCreateInfo{
@@ -145,15 +169,57 @@ namespace VK {
 
 	class PipelineViewportStateCreateInfo : public VkPipelineViewportStateCreateInfo
 	{
+	protected:
+		std::vector<VkViewport> vs;
+		std::vector<VkRect2D> ss;
 	public:
+		PipelineViewportStateCreateInfo() noexcept: VkPipelineViewportStateCreateInfo{
+			VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, nullptr, 0,
+			0, nullptr,
+			0, nullptr }{}
 		template< size_t vps_, size_t scs_ >
-		PipelineViewportStateCreateInfo( VkViewport const (& viewports)[vps_], VkRect2D const (& scissors)[scs_] ) noexcept : VkPipelineViewportStateCreateInfo{
+		PipelineViewportStateCreateInfo( VkViewport const (& viewports)[vps_], VkRect2D const (& scissors)[scs_], bool keepCopy = false ) noexcept : VkPipelineViewportStateCreateInfo{
 			VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, nullptr, 0,
 			(uint32_t)vps_, viewports,
 			(uint32_t)scs_, scissors
-		} {}
-		PipelineViewportStateCreateInfo( VkPipelineViewportStateCreateInfo const& other ) noexcept : VkPipelineViewportStateCreateInfo( other ) {}
-		VkPipelineViewportStateCreateInfo* operator&() { return this; }
+		} {
+			if( keepCopy )
+			{
+				vs.insert( vs.end(), &viewports[0], &viewports[vps_] );
+				ss.insert( ss.end(), &scissors[0], &scissors[scs_] );
+				pViewports = vs.data();
+				pScissors = ss.data();
+			}
+		}
+		PipelineViewportStateCreateInfo( PipelineViewportStateCreateInfo const& other ) noexcept : VkPipelineViewportStateCreateInfo( other ) {
+			if( !other.vs.empty() )
+			{
+				vs = other.vs;
+				ss = other.ss;
+			}
+		}
+		PipelineViewportStateCreateInfo( PipelineViewportStateCreateInfo&& other ) noexcept : VkPipelineViewportStateCreateInfo( std::move(other) ) {
+			if( !other.vs.empty() )
+			{
+				vs.swap( other.vs );
+				ss.swap( other.ss );
+			}
+		}
+		PipelineViewportStateCreateInfo( VkPipelineViewportStateCreateInfo const& other, bool keepCopy = false ) noexcept : VkPipelineViewportStateCreateInfo( other ) {
+			if( keepCopy )
+			{
+				vs.insert( vs.end(), &other.pViewports[0], &other.pViewports[other.viewportCount] );
+				ss.insert( ss.end(), &other.pScissors[0], &other.pScissors[other.scissorCount] );
+				pViewports = vs.data();
+				pScissors = ss.data();
+			}
+		}
+		VkPipelineViewportStateCreateInfo* operator&() {
+			return this; 
+		}
+		~PipelineViewportStateCreateInfo() noexcept { 
+			sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+		}
 	};
 
 	class PipelineRasterizationStateCreateInfo : public VkPipelineRasterizationStateCreateInfo
@@ -161,7 +227,7 @@ namespace VK {
 	public:
 		PipelineRasterizationStateCreateInfo( VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL ) noexcept : VkPipelineRasterizationStateCreateInfo{
 			VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, nullptr, 0,
-			FALSE, FALSE, polygonMode, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE,
+			VK_FALSE, FALSE, polygonMode, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE,
 			FALSE, 0.0f, 0.0f, 0.0f, 1.0f
 		} {}
 		PipelineRasterizationStateCreateInfo( VkPipelineRasterizationStateCreateInfo const& other ) noexcept : VkPipelineRasterizationStateCreateInfo( other ) {}
@@ -227,14 +293,18 @@ namespace VK {
 		VkPipelineColorBlendStateCreateInfo* operator&() { return this; }
 	};
 
-	template< size_t dss_ = 0 >
 	class PipelineDynamicStateCreateInfo : public VkPipelineDynamicStateCreateInfo
 	{
 	public:
-		PipelineDynamicStateCreateInfo( VkDynamicState const ( &dynamicStates )[dss_] = {} ) noexcept :
+		template< size_t dss_ = 0 >
+		PipelineDynamicStateCreateInfo( VkDynamicState const ( &dynamicStates )[dss_] ) noexcept :
 			VkPipelineDynamicStateCreateInfo({
 			VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, nullptr, 0,
 			uint32_t( dss_ ), dynamicStates } ) {}
+		PipelineDynamicStateCreateInfo( std::vector<VkDynamicState> const& dynamicStates = {} ) noexcept :
+			VkPipelineDynamicStateCreateInfo({
+			VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, nullptr, 0,
+			uint32_t( dynamicStates.size() ), dynamicStates.data() } ) {}
 		PipelineDynamicStateCreateInfo( VkPipelineDynamicStateCreateInfo const& other ) noexcept : VkPipelineDynamicStateCreateInfo( other ) {}
 		VkPipelineDynamicStateCreateInfo* operator&() { return this; }
 	};
@@ -246,7 +316,7 @@ namespace VK {
 			0, format, samples,
 			VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE,
 			VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+			VK_IMAGE_LAYOUT_UNDEFINED, finalLayout
 																																																													  } ) {}
 		AttachmentDescription( VkAttachmentDescription const& other ) noexcept : VkAttachmentDescription( other ) {}
 		VkAttachmentDescription* operator&() { return this; }
@@ -282,13 +352,20 @@ namespace VK {
 		VkAttachmentReference2* operator&() { return this; }
 	};
 
-	template< size_t ias_ = 0, size_t cas_ = 0>
 	class SubpassDescription : public VkSubpassDescription
 	{
 	public:
+		SubpassDescription() noexcept :
+			VkSubpassDescription{
+			0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, nullptr,
+			0, nullptr,
+			nullptr, nullptr
+		} {}
+		template< size_t ias_ = 0, size_t cas_ = 0>
 		SubpassDescription(
-			VkAttachmentReference const( &inputAttachments )[ias_] = {},
-			VkAttachmentReference const( &colorAttachments )[cas_] = {},
+			VkAttachmentReference const( &inputAttachments )[ias_],
+			VkAttachmentReference const( &colorAttachments )[cas_],
 			VkAttachmentReference* pDepthStencil = nullptr
 		) noexcept :
 			VkSubpassDescription{
@@ -297,28 +374,62 @@ namespace VK {
 			uint32_t( cas_ ), colorAttachments,
 			nullptr, pDepthStencil
 		} {}
+		SubpassDescription(
+			std::vector<VkAttachmentReference> const& inputAttachments,
+			std::vector<VkAttachmentReference> const& colorAttachments,
+			VkAttachmentReference* pDepthStencil = nullptr
+		) noexcept :
+			VkSubpassDescription{
+			0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			uint32_t( inputAttachments.size() ), inputAttachments.data(),
+			uint32_t( colorAttachments.size() ), colorAttachments.data(),
+			nullptr, pDepthStencil
+		} {}
 		SubpassDescription( VkSubpassDescription const& other ) noexcept : VkSubpassDescription( other ) {}
+		SubpassDescription( VkSubpassDescription&& other ) noexcept : VkSubpassDescription( std::move(other) ) {}
 		VkSubpassDescription* operator&() { return this; }
 	};
 
 	class SubpassDescription2 : public VkSubpassDescription2
 	{
 	public:
+		SubpassDescription2():
+			VkSubpassDescription2( {
+			VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2, nullptr, 0,
+			VK_PIPELINE_BIND_POINT_GRAPHICS, 0,
+			0, nullptr,
+			0, nullptr,
+			nullptr, nullptr, 0, nullptr
+		 } ) {}
 		template< size_t ias_ = 0, size_t cas_ = 0>
 		SubpassDescription2(
-			VkAttachmentReference2 const(& inputAttachments)[ias_] = nullptr,
-			VkAttachmentReference2 const(& colorAttachments)[cas_] = nullptr,
+			VkAttachmentReference2 const(& inputAttachments)[ias_],
+			VkAttachmentReference2 const(& colorAttachments)[cas_],
 			VkAttachmentReference2* pDepthStencil = nullptr,
 			VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 			uint32_t viewMask = 0
-			) noexcept :
+		) noexcept :
 			VkSubpassDescription2( {
 			VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2, nullptr, 0,
 			bindPoint, viewMask,
 			uint32_t( ias_ ), inputAttachments,
 			uint32_t( cas_ ), colorAttachments,
 			nullptr, pDepthStencil, 0, nullptr
-			} ) {}
+				} ) {}
+		SubpassDescription2(
+			std::vector<VkAttachmentReference2> const& inputAttachments,
+			std::vector<VkAttachmentReference2> const& colorAttachments,
+			VkAttachmentReference2* pDepthStencil = nullptr,
+			VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			uint32_t viewMask = 0
+		) noexcept :
+			VkSubpassDescription2( {
+			VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2, nullptr, 0,
+			bindPoint, viewMask,
+			uint32_t( inputAttachments.size() ), inputAttachments.data(),
+			uint32_t( colorAttachments.size() ), colorAttachments.data(),
+			nullptr, pDepthStencil, 0, nullptr
+				} ) {}
 		SubpassDescription2( VkSubpassDescription2 const& other ) noexcept : VkSubpassDescription2( other ) {}
 		VkSubpassDescription2* operator&() { return this; }
 	};
@@ -343,16 +454,32 @@ namespace VK {
 		VkSubpassDependency2* operator&() { return this; }
 	};
 
-	template< size_t ats_, size_t sps_, size_t dps_ >
 	class RenderPassCreateInfo : public VkRenderPassCreateInfo
 	{
 	public:
-		RenderPassCreateInfo( VkAttachmentDescription const( &attachments )[ats_], VkSubpassDescription const ( &subpasses )[sps_], VkSubpassDependency const( &dependencies )[dps_] = {} ) noexcept :
+		RenderPassCreateInfo() noexcept :
 			VkRenderPassCreateInfo{
-			VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,nullptr,0,
+			VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, nullptr, 0,
+			0, nullptr,
+			0, nullptr,
+			0, nullptr
+		} {}
+		template< size_t ats_, size_t sps_, size_t dps_ >
+		RenderPassCreateInfo( VkAttachmentDescription const( &attachments )[ats_], VkSubpassDescription const ( &subpasses )[sps_], VkSubpassDependency const( &dependencies )[dps_] ) noexcept :
+			VkRenderPassCreateInfo{
+			VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, nullptr, 0,
 			uint32_t( ats_ ), attachments,
 			uint32_t( sps_ ), subpasses,
 			uint32_t( dps_ ), dependencies
+		} {}
+		RenderPassCreateInfo(std::vector<VkAttachmentDescription> const& attachments = {},
+			std::vector<VkSubpassDescription> const& subpasses = {},
+			std::vector<VkSubpassDependency> const& dependencies = {} ) noexcept:
+			VkRenderPassCreateInfo{
+			VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, nullptr, 0,
+			uint32_t( attachments.size() ), attachments.data(),
+			uint32_t( subpasses.size() ), subpasses.data(),
+			uint32_t( dependencies.size() ), dependencies.data()
 		} {}
 		RenderPassCreateInfo( VkRenderPassCreateInfo const& other ) noexcept : VkRenderPassCreateInfo( other ) {}
 		VkRenderPassCreateInfo* operator&() { return this; }
@@ -374,18 +501,26 @@ namespace VK {
 		VkRenderPassCreateInfo2* operator&() { return this; }
 	};
 
-	template< size_t sls_ = 0, size_t pcs_ = 0 >
 	class PipelineLayoutCreateInfo : public VkPipelineLayoutCreateInfo
 	{
 	public:
+		template< size_t sls_ = 0, size_t pcs_ = 0 >
 		PipelineLayoutCreateInfo(
-			VkDescriptorSetLayout const ( &setLayouts )[sls_] = {},
-			VkPushConstantRange const( &pushConstantRanges )[pcs_] = {} 
+			VkDescriptorSetLayout const ( &setLayouts )[sls_],
+			VkPushConstantRange const( &pushConstantRanges )[pcs_] 
 		) noexcept : VkPipelineLayoutCreateInfo( {
 			VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0,
 			uint32_t( sls_ ), setLayouts,
 			uint32_t( pcs_ ), pushConstantRanges,
 		} ) {}
+		PipelineLayoutCreateInfo(
+			std::vector<VkDescriptorSetLayout> const& setLayouts = {},
+			std::vector<VkPushConstantRange> const& pushConstantRanges = {} 
+		) noexcept : VkPipelineLayoutCreateInfo( {
+			VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0,
+			uint32_t( setLayouts.size() ), setLayouts.data(),
+			uint32_t( pushConstantRanges.size() ), pushConstantRanges.data(),
+			} ) {}
 		PipelineLayoutCreateInfo( VkPipelineLayoutCreateInfo const& other ) noexcept : VkPipelineLayoutCreateInfo( other ) {}
 		VkPipelineLayoutCreateInfo* operator&() { return this; }
 	};
@@ -470,10 +605,10 @@ namespace VK {
 		VkSemaphoreCreateInfo* operator&() { return this; }
 	};
 
-	template< size_t ats_ >
 	class FramebufferCreateInfo : public VkFramebufferCreateInfo
 	{
 	public:
+		template< size_t ats_ >
 		FramebufferCreateInfo( VkRenderPass const& renderPass, VkImageView const(& attachments)[ats_], uint32_t width, uint32_t height, uint32_t layers = 1 ) noexcept :
 			VkFramebufferCreateInfo( {
 			VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, nullptr, 0,

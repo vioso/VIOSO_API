@@ -44,10 +44,16 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="passthrough.vert">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files</Filter>
     </CustomBuild>
     <CustomBuild Include="passthrough.frag">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="triangle.frag">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="triangle.vert">
+      <Filter>Source Files</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

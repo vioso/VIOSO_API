@@ -160,7 +160,6 @@ BOOL CTrackerSimDlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// Set big icon
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
-	// TODO: Add extra initialization here
 	CMenu other;
 	other.LoadMenu( IDC_TRACKERSIM );
 	SetMenu( &other );

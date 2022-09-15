@@ -58,6 +58,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapingLoader", "Examples\Ma
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VulkanExample", "Examples\Vulkan\vulkan.vcxproj", "{9ABBB345-3D48-49A2-9BA5-777C30102F0B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{3ABC932E-A0F3-4F8F-80D9-E5756F57EA64} = {3ABC932E-A0F3-4F8F-80D9-E5756F57EA64}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenGLExample_vwfInfo", "Examples\OpenGL_4_vwfInfo\OpenGL_4_vwfInfo.vcxproj", "{1B009CC4-5C27-4F5F-A828-42D1501A9740}"
 	ProjectSection(ProjectDependencies) = postProject

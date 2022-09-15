@@ -6,11 +6,12 @@
 #define VULKAN_HPP_NO_EXCEPTIONS
 #define VULKAN_HPP_TYPESAFE_CONVERSION
 
-#define VK_MAX_FRAME_LAG 2
+#define VK_MAX_FRAME_LAG 1
 
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_layer.h"
 #include "linmath.h"
+#include <string>
 #include <array>
 #include <vector>
 #include <map>
@@ -41,12 +42,16 @@ namespace VK
 	template< class T >
 	constexpr void _rtc( T const res, T const exp, char const* msg ) {
 		if( res != exp )
-			throw std::runtime_error( std::string("RUNTIME_ERROR: ") + msg );
+			throw std::runtime_error( std::string( "RUNTIME_ERROR: " ) + msg );
 	}
-
+	template< class T >
+	constexpr void _rtc( T const exp, char const* msg ) {
+		if( !exp )
+			throw std::runtime_error( std::string( "RUNTIME_ERROR: " ) + msg );
+	}
 	constexpr VkResult _rts( VkResult const exp, char const* msg ) {
 		if( VK_SUCCESS != exp )
-			throw std::runtime_error( std::string("RUNTIME_ERROR: ") + msg );
+			throw std::runtime_error( std::string( "RUNTIME_ERROR: (" ) + std::to_string(int(exp)) + ") " + msg);
 		return exp;
 	}
 
@@ -64,13 +69,36 @@ namespace VK
 		out_of_date( char const* error ) : std::runtime_error( error ) {}
 	};
 
-	inline VkResult waitForFenceThrow( DeviceH const& dev, FenceH const& f )
+	inline VkResult waitForFenceThrow( DeviceH const& dev, FenceH const& f, uint64_t timeout = -1 )
 	{
 		VkResult res = vkWaitForFences( dev, 1, &f.hnd, VK_TRUE, -1 );
 		if( VK_ERROR_DEVICE_LOST == res )
 			throw device_lost( "Device lost while waiting for fence." );
 		return res;
 	}
+
+	template< class IT >
+    inline VkResult waitForFencesThrow( DeviceH const& dev, IT _first, IT _last, bool bAll = true, uint64_t timeout = -1 )
+	{
+		//auto dd = std::iterator_traits<IT>::iterator_category();
+		//if(  
+		std::vector<VkFence> rawFences( _first, _last );
+		VkResult res = vkWaitForFences( dev, uint32_t( rawFences.size() ), rawFences.data(), bAll ? VK_TRUE : VK_FALSE, timeout );
+		if( VK_ERROR_DEVICE_LOST == res )
+			throw device_lost( "Device lost while waiting for fence." );
+		res = vkResetFences( dev, uint32_t( rawFences.size() ), rawFences.data() );
+		return res;
+	}
+
+	template< class T >
+	struct atomicRef
+	{
+		T tmp;
+		std::atomic<T>& v;
+		atomicRef( std::atomic<T>& val ) : tmp( val ), v( val ) {}
+		operator T* ( ) { return &tmp; }
+		~atomicRef() { v = tmp; }
+	};
 
 	template< class T >
 	std::vector< T > vectorize( VkResult( *fn )( uint32_t* cnt, T* p ) )
@@ -158,8 +186,8 @@ namespace VK
 		return res;
 	}
 
-	constexpr VkExtent3D ext2Dto3D( VkExtent2D const& e2 ) { return VkExtent3D{ e2.width, e2.height, 1 }; }
-	constexpr VkExtent2D ext3Dto2D( VkExtent3D const& e3 ) { return VkExtent2D{ e3.width, e3.height }; }
+	constexpr VkExtent3D to_3D( VkExtent2D const& e2 ) { return VkExtent3D{ e2.width, e2.height, 1 }; }
+	constexpr VkExtent2D to_2D( VkExtent3D const& e3 ) { return VkExtent2D{ e3.width, e3.height }; }
 
 	/////////////////////////////////////////////////////////////////////////
 	// High level
@@ -175,27 +203,33 @@ namespace VK
 		ImageViewH m_view;
 		SemaphoreH m_sema; // use this to avoide resource conflicts, this way we can wait for availability on a command
 		ImageCreateInfo m_ci;
+		VkImageLayout m_finalLayout;
 	public:
-		Image() {}
+		Image( VkImageLayout finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL ) : m_finalLayout( finalLayout ) {}
 		Image( Image const& ) = delete;
 		Image( Image&& other ) noexcept :
 			m_view( std::move( other.m_view )),
 			m_sema( std::move( other.m_sema )),
-			m_ci(   std::move( other.m_ci ))
+			m_ci(   std::move( other.m_ci )),
+			m_finalLayout( std::move( other.m_finalLayout ))
 		{}
 		virtual ~Image();
 		virtual operator VkImage const& () const = 0;
-		//virtual ImageViewH const& getView() const { return m_view; }
-		virtual operator VkImageView const& () const { return m_view; }
-		virtual SemaphoreH const& getSema() const { return m_sema; }
-		virtual ImageCreateInfo const& getCI() const { return m_ci; }
-		VkViewport getViewport() const
+		operator VkImageView const& () const { return m_view; }
+		SemaphoreH const& getSema() const { return m_sema; }
+		ImageCreateInfo const& getCI() const { return m_ci; }
+		VkImageLayout const& getFinalLayout() const { return m_finalLayout;	}
+		PipelineViewportStateCreateInfo getPipelineViewportStateCreateInfo() const
 		{
-			return VkViewport{ float( 0 ), float( 0 ), float( m_ci.extent.width ), float( m_ci.extent.height ), float( 0 ), float( 1 ) };
+			return PipelineViewportStateCreateInfo(
+				{ { float( 0 ), float( 0 ), float( m_ci.extent.width ), float( m_ci.extent.height ), float( 0 ), float( 1 ) }	},
+				{ { int32_t( m_ci.extent.width ), int32_t( m_ci.extent.height ) } },
+				true
+			);
 		}
-		VkRect2D getScissor() const
+		VkAttachmentDescription getAttachmentDescription() const
 		{
-			return VkRect2D{ 0, 0, m_ci.extent.width, m_ci.extent.height };
+			return AttachmentDescription( m_ci.format, m_finalLayout, m_ci.samples );
 		}
 	};
 
@@ -220,6 +254,29 @@ namespace VK
 			, m_staging( std::move( other.m_staging))
 		{};
 		virtual ~TextureImage() {};
+		virtual operator VkImage const&() const { return m_image; }
+		virtual DeviceMemoryAH const& getMem() const { return m_mem; }
+	};
+
+	/// <summary>
+	/// TextureImage, some texture
+	/// </summary>
+	class DepthBuffer : public Image {
+	protected:
+		ImageH m_image;
+		DeviceMemoryAH m_mem;
+	public:
+		DepthBuffer(
+			GFX const& gfx,
+			VkImageCreateInfo const& ci = ImageCreateInfo(),
+			VkMemoryAllocateFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+		DepthBuffer( DepthBuffer const&  ) = delete;
+		DepthBuffer( DepthBuffer && other ) noexcept 
+			: Image( std::move( other ))
+			, m_image( std::move( other.m_image ))
+			, m_mem( std::move( other.m_mem ))
+		{};
+		virtual ~DepthBuffer() {};
 		virtual operator VkImage const&() const { return m_image; }
 		virtual DeviceMemoryAH const& getMem() const { return m_mem; }
 	};
@@ -254,8 +311,7 @@ namespace VK
 	{
 	protected:
 		std::vector< std::unique_ptr<Image> > m_images;
-		std::vector<TextureImage> m_depthBuffers;
-		std::vector<SemaphoreH> m_imageAcquire;
+		std::vector<DepthBuffer> m_depthBuffers;
 
 		DeviceWH m_dev;
 
@@ -279,7 +335,6 @@ namespace VK
 		RenderTarget( RenderTarget&& other ) noexcept
 			: m_images( std::move( other.m_images ))
 			, m_depthBuffers( std::move( other.m_depthBuffers ))
-			, m_imageAcquire( std::move( other.m_imageAcquire ))
 
 			, m_dev( std::move( other.m_dev ))
 
@@ -291,8 +346,11 @@ namespace VK
 			, m_currentBuffer( m_currentBuffer.load() )
 		{}
 
-		static const VkClearValue s_black;
-		static const VkClearValue s_sky;
+		static const VkClearColorValue s_black;
+		static const VkClearColorValue s_sky;
+		static const VkClearDepthStencilValue s_clearDepth;
+
+		std::map< VkImage, FramebufferH > createFramebufferMap( RenderPassH const& renderPass ) const;
 
 		VkExtent3D const& getExtent() const { return m_extent; }
 		uint32_t const& getMipLevels() const { return m_mipLevels; }
@@ -325,12 +383,35 @@ namespace VK
 		}
 
 		uint32_t getCurrentIndex() const { return m_currentBuffer; }
-		virtual VkAttachmentDescription getAttachmentDescription() const = 0;
-		std::vector<std::unique_ptr<Image>> const& getAttachments() const { return m_images; }
-		std::vector<TextureImage> const& getDepthBuffers() const { return m_depthBuffers; }
+		size_t getNumBuffers() const { return m_images.size(); }
+		std::vector<VkAttachmentDescription> getAttachmentDescriptions() const
+		{
+			std::vector<VkAttachmentDescription> descs;
+			if( !m_images.empty() )
+				descs.emplace_back( m_images.front()->getAttachmentDescription() );
+			if( !m_depthBuffers.empty() )
+				descs.emplace_back( m_depthBuffers.front().getAttachmentDescription() );
+			return descs;
+		};
+		std::vector<VkAttachmentReference> getColorAttachmentReferences( uint32_t offs = 0 ) const
+		{
+			std::vector<VkAttachmentReference> descs;
+			if( !m_images.empty() )
+				descs.emplace_back( AttachmentReference( offs + uint32_t(descs.size()), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL ) );
+			return descs;
+		};
+		std::unique_ptr<AttachmentReference> getDepthStencilAttachmentReference( uint32_t offs = 0 ) const
+		{
+			return m_depthBuffers.empty() ? nullptr : std::make_unique<AttachmentReference>( offs, m_depthBuffers.front().getFinalLayout() );
+		};
+		std::unique_ptr<VkPipelineDepthStencilStateCreateInfo> getPipelineDepthStencilStateCreateInfo() const
+		{
+			return m_depthBuffers.empty() ? nullptr : std::make_unique<PipelineDepthStencilStateCreateInfo>();
+		};
 
-		SemaphoreH const& getCurrentImageAquire() {
-			return m_imageAcquire[m_currentBuffer];
+		PipelineViewportStateCreateInfo getPipelineViewportStateCreateInfo() const
+		{
+			return m_images.empty() ? PipelineViewportStateCreateInfo() : m_images.front()->getPipelineViewportStateCreateInfo();
 		}
 	};
 
@@ -339,7 +420,7 @@ namespace VK
 	/// </summary>
 	class BackBuffer : public RenderTarget
 	{
-		std::vector<SemaphoreH> m_presentComplete;
+		SemaphoreH m_presentComplete;
 		SwapchainKHRWH m_sc;
 	public:
 		/// <summary>
@@ -348,7 +429,7 @@ namespace VK
 		/// <param name="gfx"></param>
 		/// <param name="sc"></param>
 		/// <param name="hDepth"></param>
-		BackBuffer(GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat = VK_FORMAT_D16_UNORM);
+		BackBuffer(GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat = VK_FORMAT_UNDEFINED);
 		virtual Image const& getNextBuffer();
 		virtual VkAttachmentDescription getAttachmentDescription() const {
 			return AttachmentDescription( m_format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR );
@@ -366,6 +447,11 @@ namespace VK
 		virtual VkAttachmentDescription getkAttachmentDescription() const {
 			return AttachmentDescription( m_format );
 		};
+	};
+
+	class Sampler : public Image
+	{
+	public:
 	};
 
 	class GPUBuffer
@@ -415,115 +501,144 @@ namespace VK
 
 	};
 
-	// vertex buffer that lives on the GPU, updatable by staging texture
-	template< class V >
-	class VertexBufferLoc : public GPUBuffer {
+	class VertexBuffer : public GPUBuffer
+	{
 	protected:
-		uint32_t m_size;
+		uint32_t m_num;
+		uint32_t m_stride;
+	public:
+		VertexBuffer( GFX const& gfx, uint32_t num, uint32_t stride )
+			: GPUBuffer( gfx, size_t(num) * stride, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ) 
+			, m_num( num )
+			, m_stride( stride )
+		{}
+		VertexBuffer( VertexBuffer const& ) = delete;
+		VertexBuffer( VertexBuffer&& other ) noexcept : GPUBuffer( ( GPUBuffer&& )other )
+		{
+			m_num = other.m_num; 
+			m_stride = other.m_stride;
+		}
+
+		uint32_t getVertexCount() const { return m_num; }
+
+		virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const = 0;
+	};
+
+	// vertex buffer that lives on the GPU, updatable by a staging buffer
+	template< class V >
+	class VertexBufferLoc : public VertexBuffer {
 		using type = V;
 	public:
 		VertexBufferLoc( GFX const& gfx, uint32_t n, V const* pv = nullptr )
-		: GPUBuffer( gfx, sizeof( V ) * n, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
-		, m_size( n )
+		: VertexBuffer( gfx, n, sizeof( V ) )
 		{
 			if( pv )
 				updateStaging( gfx, pv, n * sizeof( V ) );
 		}
 
 		VertexBufferLoc( GFX const& gfx, std::vector<V> const& v )
-			: GPUBuffer( gfx, v.size() * sizeof( V ), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
-			, m_size( uint32_t( v.size() ) )
+			: VertexBuffer( gfx, v.size(), sizeof( V ))
 		{
 			updateStaging( gfx, v.data(), uint32_t( v.size() ) );
 		}
 
 		template< uint32_t n >
 		VertexBufferLoc( GFX const& gfx, V const (&v)[n] = {} )
-		: GPUBuffer( gfx, sizeof( V ) * n, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
-		, m_size( n )
+		: VertexBuffer( gfx, n, sizeof( V ) )
 		{
 			updateStaging( gfx, v, n );
 		}
 		VertexBufferLoc( VertexBufferLoc const& ) = delete;
-		VertexBufferLoc( VertexBufferLoc&& other ) noexcept : GPUBuffer( (GPUBuffer&&)other ) { m_size = other.m_size; }
 
 		template< int32_t n>
-		void updateStaging( GFX const& gfx, V const ( &v )[n] )
+		void update( GFX const& gfx, V const ( &v )[n] )
 		{
 			__super::updateStaging( gfx, v, sizeof( V ) * n );
 		}
-		void updateStaging( GFX const& gfx, V const* pv, uint32_t n )
+		void update( GFX const& gfx, V const* pv, uint32_t n )
 		{
-			assert( m_size >= n );
+			assert( m_num >= n );
 			__super::updateStaging( gfx, pv, sizeof( V ) * n );
 		}
+		void update( GFX const& gfx, std::vector<V> v )
+		{
+			assert( size_t(m_num) >= v.size() );
+			__super::updateStaging( gfx, v.data(), v.size() * sizeof( V ) );
+		}
 
-		static VkPipelineVertexInputStateCreateInfo getInputLayout() { return V::getInputLayout(); }
-
-		uint32_t getVertexCount() const { return m_size; }
+		virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const { return V::getInputLayout(); }
 	};
 
 	// host visible vertex buffer, can be mapped and updated
 	template< class V >
-	class VertexBufferUpd : public GPUBuffer {
-	protected:
-		size_t m_size;
+	class VertexBufferUpd : public VertexBuffer {
 	public:
 		template< size_t n >
 		VertexBufferUpd( GFX const& gfx, V const( &v )[n] )
-		: GPUBuffer( gfx, n * sizeof( V ), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-		, m_size( n )
+		: VertexBuffer( gfx, n, sizeof( V ) )
 		{
 			updateMapped( v, n * sizeof( V ) );
 		}
 
 		VertexBufferUpd( GFX const& gfx, std::vector<V> const& v )
-			: GPUBuffer( gfx, v.size() * sizeof( V ), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-			, m_size( v.size() )
+		: VertexBuffer( gfx, v.size(), sizeof( V ) )
 		{
 			updateMapped( v.data(), v.size() * sizeof( V ) );
 		}
 		
 		VertexBufferUpd( GFX const& gfx, V const* pv, size_t n )
-		: GPUBuffer( gfx, n * sizeof( V ), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-		, m_size( n )
+		: VertexBuffer( gfx, n, sizeof( V ) )
 		{
 			if( pv )
 				updateMapped( pv, n * sizeof( V ) );
 		}
 
 		VertexBufferUpd( VertexBufferUpd const& ) = delete;
-		VertexBufferUpd( VertexBufferUpd&& other ) noexcept : GPUBuffer( std::move(other) ) { m_size = other.m_size; }
 
 		template< size_t n>
-		void updateMapped( V const ( &v )[n] )
+		void update( V const ( &v )[n] )
 		{
-			static_assert( m_size >= n );
+			static_assert( m_num >= n );
 			__super::updateMapped( v, n * sizeof( V ) );
 		}
-		void updateMapped( V const* pv, size_t n )
+		void update( V const* pv, size_t n )
 		{
-			static_assert( m_size >= n );
+			static_assert( m_num >= n );
 			__super::updateMapped( pv, n * sizeof( V ) );
 		}
+		void update( std::vector<V> const& v )
+		{
+			static_assert( size_t(m_num) >= v.size() );
+			__super::updateMapped( v.data(), v.size() * sizeof( V ) );
+		}
 
-		VkPipelineVertexInputStateCreateInfo getInputLayout() { return V::getInputLayout(); }
+		virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const { return V::getInputLayout(); }
+	};
+
+	class UniformBuffer : public GPUBuffer 
+	{
+	public:
+		UniformBuffer( GFX const& gfx, size_t size )
+			: GPUBuffer( gfx, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
+		{}
+		UniformBuffer( UniformBuffer const& ) = delete;
+		UniformBuffer( UniformBuffer&& other) : GPUBuffer( std::move(other)){}
 	};
 
 	template<class T>
-	struct MappedUniformBuffer : GPUBuffer // this is intended to be used as GPU resource handle, as we have a constant buffer for each queue/backbuffer 
+	struct MappedUniformBuffer : public UniformBuffer // this is intended to be used as GPU resource handle, as we have a constant buffer for each queue/backbuffer 
 	{
 		T* mapped;
 
 		MappedUniformBuffer( GFX const& gfx, T const& init = T{} ) 
-		: GPUBuffer( gfx, sizeof( T), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
+		: UniformBuffer( gfx, sizeof( T))
 		{
 			mapped = (T*)map();
 			*mapped = init;
 		}
 		MappedUniformBuffer( MappedUniformBuffer const& ) = delete;
 
-		MappedUniformBuffer( MappedUniformBuffer&& other ) : GPUBuffer( (GPUBuffer&&)other )
+		MappedUniformBuffer( MappedUniformBuffer&& other ) : UniformBuffer( std::move(other) )
 		{
 			mapped = other.mapped;
 			other.mapped = nullptr;
@@ -534,8 +649,10 @@ namespace VK
 				unmap();
 		}
 
-		operator T& ( ) { return *mapped; }
-		operator T const& ( ) const { return *mapped; }
+		operator T& () { return *mapped; }
+		operator T const& () const { return *mapped; }
+		T& operator->() { return *mapped; }
+		T const& operator ->() const { return *mapped; }
 	};
 
 	class ShaderModule
@@ -543,12 +660,19 @@ namespace VK
 		PipelineShaderStageCreateInfo m_ci;
 		ShaderModuleH m_h;
 	public:
-		ShaderModule( DeviceH const& dev, uint32_t const* byteCode, size_t size, VkShaderStageFlagBits stage = VK_SHADER_STAGE_VERTEX_BIT, char const* entry = "main" )
+		ShaderModule( 
+			DeviceH const& dev, 
+			uint32_t const* byteCode,
+			size_t size,
+			VkShaderStageFlagBits stage = VK_SHADER_STAGE_VERTEX_BIT,
+			char const* entry = "main" )
 		{
 			ShaderModuleCreateInfo ci( byteCode, size );
 			_rts( vkCreateShaderModule( dev, &ci, VK::_defAlloc, m_h.set( dev ) ), "failed to create shader module." );
 			m_ci = PipelineShaderStageCreateInfo( m_h, stage, entry );
 		}
+		ShaderModule( ShaderModule const& ) = delete;
+		ShaderModule( ShaderModule&& other ) noexcept : m_h( std::move( other.m_h ) ), m_ci( other.m_ci ) {}
 		operator VkShaderModule const& ( ) const { return m_h; }
 		PipelineShaderStageCreateInfo const& getCI() const { return m_ci; }
 	};
@@ -559,26 +683,49 @@ namespace VK
 	class Renderer
 	{
 	public:
-		struct __declspec( align( 4 ) ) VertexWTex {
-			float x, y, z, _padding;
-			float u, v;
-			static VkPipelineVertexInputStateCreateInfo getInputLayout();
+		struct Vertex {
+			__declspec( align( 4 ) ) float x, y, z, _padding;
+			static const PipelineVertexInputStateCreateInfo _layout;
+			Vertex( float _x, float _y, float _z ): x( _x ), y( _y ), z( _z ) {}
+			virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const { return _layout; }
 		};
-		struct __declspec( align( 4 ) ) VertexWColTex {
-			float x, y, z, _padding;
-			float r, g, b, a;
-			float u, v;
-			static VkPipelineVertexInputStateCreateInfo getInputLayout();
+		struct VertexWCol : Vertex {
+			__declspec( align( 4 ) ) float r, g, b, a;
+			static const PipelineVertexInputStateCreateInfo _layout;
+			VertexWCol( float _x, float _y, float _z, float _r, float _g, float _b, float _a ): Vertex( _x , _y, _z ), r(_r), g(_g), b(_b), a(_a) {}
+			virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const { return _layout; }
 		};
+		struct VertexWTex : Vertex {
+			__declspec( align( 4 ) )float u, v;
+			static const PipelineVertexInputStateCreateInfo _layout;
+			VertexWTex( float _x, float _y, float _z, float _u, float _v ): Vertex( _x , _y, _z ), u(_u), v(_v) {}
+			virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const { return _layout; }
+		};
+		struct VertexWColTex : VertexWCol {
+			__declspec( align( 4 ) ) float u, v;
+			static const PipelineVertexInputStateCreateInfo _layout;
+			VertexWColTex( float _x, float _y, float _z, float _r, float _g, float _b, float _a, float _u, float _v  ) : VertexWCol( _x , _y, _z, _r, _g, _b, _a ), u(_u), v(_v) {}
+			virtual VkPipelineVertexInputStateCreateInfo const& getInputLayout() const { return _layout; }
+		};
+
 	protected:
 		static uint64_t s_freeID;
 		
 		uint64_t m_id;
+
 		DeviceWH m_dev;
-		std::vector<CommandBufferH> m_cbs; // normally one, reusable
-		std::vector<ShaderModule> m_sss; // shader stages
-		SemaphoreH m_sema;
-		RenderPassH m_renderPass;
+		std::array<CommandBufferH, VK_MAX_FRAME_LAG> m_cbs; // according to allowed "ahead" frames
+		uint32_t m_iFrame; // the current command buffer
+		std::array < SemaphoreH, VK_MAX_FRAME_LAG> m_finishedSemas; // rendering of this pipeline has finished, 
+		std::array < FenceH, VK_MAX_FRAME_LAG> m_finishedFences; // rendering of this pipeline has finished, 
+
+		// attachements don't live here, these get only referenced
+		std::vector<std::shared_ptr<ShaderModule>> m_sss; // shader stages
+		std::vector<std::shared_ptr<Sampler>> m_sms; // samplers stages
+		std::shared_ptr<UniformBuffer> m_ub; // uniform buffer
+		std::shared_ptr<VertexBuffer> m_vb;
+		RenderPassH m_renderPass; // 
+
 		DescriptorSetLayoutH m_descriptorSetLayout;
 		PipelineLayoutH m_pipelineLayout;
 		PipelineH m_pipeline;
@@ -586,25 +733,37 @@ namespace VK
 	public:
 		Renderer( 
 			GFX const& gfx,
-			std::vector<std::unique_ptr<Image>> const& attachments,
-			AttachmentDescription const& desc,
-			std::vector<ShaderModule> const& shaderStages,
-			VkPipelineVertexInputStateCreateInfo const& inputLayout,
-			bool withSignal = false );
+			std::vector<VkDynamicState> const& dynamicStates,
+			std::vector<std::shared_ptr<ShaderModule>>&& shaderStages,
+			RenderTarget const& rt,
+			std::shared_ptr <UniformBuffer>&& uniformBuffer,
+			std::shared_ptr <VertexBuffer>&& vertexBuffer,
+			std::vector<std::shared_ptr<Sampler>>&& samplers );
 		Renderer( Renderer const& ) = delete;
 		Renderer( Renderer&& other ) noexcept
 		: m_id( other.m_id )
-		, m_dev( std::move( other.m_dev ))
-		, m_sema( std::move( other.m_sema ))
-		, m_cbs( std::move( other.m_cbs ))
+		, m_dev( std::move( other.m_dev ) )
+		, m_cbs( std::move( other.m_cbs ) )
+		, m_finishedSemas( std::move( other.m_finishedSemas ) )
+		, m_finishedFences( std::move( other.m_finishedFences ) )
+		, m_iFrame( other.m_iFrame )
+		, m_sss( std::move( other.m_sss ))
+		, m_sms( std::move( other.m_sms ))
+		, m_ub( std::move( other.m_ub ))
+		, m_vb( std::move( other.m_vb ))
+		, m_renderPass( std::move( other.m_renderPass))
+		, m_descriptorSetLayout( std::move( other.m_descriptorSetLayout ))
+		, m_pipelineLayout( std::move( other.m_pipelineLayout ))
+		, m_pipeline( std::move( other.m_pipeline ))
+		, m_framebuffers( std::move( other.m_framebuffers ))
 		{}
 
-		VkResult submit( GFX const& gfx, std::vector<SemaphoreH> const wait = {} ); // call this base class function last or put semaphore in queue in derived class
+		//VkResult submit( GFX const& gfx, std::vector<SemaphoreH> const wait = {} ); // call this base class function last or put semaphore in queue in derived class
 		virtual void preRender( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
 		virtual void render( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
 		virtual void postRender( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection );
 
-		virtual SemaphoreH const& getFinishSignal() const;
+		virtual SemaphoreH const& getFinishSignal() const { return m_finishedSemas[m_iFrame]; }
 	};
 
 
@@ -630,8 +789,6 @@ namespace VK
 		std::vector< char const* > m_enabledDeviceExtensions; // used in derived class
 
 		std::vector< std::shared_ptr<Renderer> > m_renderers;
-
-		std::array<FenceH, VK_MAX_FRAME_LAG> m_fences; // initialized in deriving class
 
 		std::unique_ptr< RenderTarget > m_rt;
 

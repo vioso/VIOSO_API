@@ -17,16 +17,6 @@
 #include <string>
 using namespace std;
 
-// do not move to header, these are too short names not to clash, rather do copy-paste, if you need in another module
-#define RTCR( res, exp, msg ) if( res != (exp) )\
-        throw runtime_error( "RUNTIME_ERROR: "##msg )
-
-#define RTCS( exp, msg ) if( VK_SUCCESS != (exp) )\
-        throw runtime_error( "RUNTIME_ERROR: "##msg )
-
-#define RTC( exp, msg ) if( !(exp)  )\
-        throw runtime_error( "RUNTIME_ERROR: "##msg )
-
 namespace VK
 {
 
@@ -59,11 +49,12 @@ namespace VK
     //--------------------------------------------------------------------------------------
 
     TextureImage::TextureImage( GFX const& gfx, VkImageCreateInfo const& ci, VkMemoryAllocateFlags memFlags )
+    : Image( VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
     {
         m_ci = ci;
         if( ci.extent.width * ci.extent.height * ci.extent.depth )
         {
-            RTCS( vkCreateImage( gfx.getDevice(), &ci, _defAlloc, m_image.set( gfx.getDevice() ) ), "Failed to create image." );
+            _rts( vkCreateImage( gfx.getDevice(), &ci, _defAlloc, m_image.set( gfx.getDevice() ) ), "Failed to create image." );
 
             VkMemoryRequirements mem_reqs;
             vkGetImageMemoryRequirements( gfx.getDevice(), m_image, &mem_reqs );
@@ -71,32 +62,63 @@ namespace VK
             VkMemoryAllocateInfo mem_alloc{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, 0 };
             mem_alloc.allocationSize = mem_reqs.size;
             mem_alloc.memoryTypeIndex = gfx.findMemTypeFromProps( mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-            RTC( mem_alloc.memoryTypeIndex < VK_MAX_MEMORY_TYPES, "required memory type for depth buffer not available." );
+            _rtc( mem_alloc.memoryTypeIndex < VK_MAX_MEMORY_TYPES, "required memory type for depth buffer not available." );
 
-            RTCS( vkAllocateMemory( gfx.getDevice(), &mem_alloc, _defAlloc, m_mem.set( gfx.getDevice() ) ), "failed to allocate image memory for depth buffer." );
+            _rts( vkAllocateMemory( gfx.getDevice(), &mem_alloc, _defAlloc, m_mem.set( gfx.getDevice() ) ), "failed to allocate image memory for depth buffer." );
 
-            RTCS( vkBindImageMemory( gfx.getDevice(), m_image, m_mem, 0 ), "failed to bind image memory to depth buffer." );
+            _rts( vkBindImageMemory( gfx.getDevice(), m_image, m_mem, 0 ), "failed to bind image memory to depth buffer." );
 
             ImageViewCreateInfo ivCI(
                 m_image,
                 { VkImageAspectFlags( ( ci.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT ), 0, ci.mipLevels, 0, 1 },
                 ci.format );
-            RTCS( vkCreateImageView( gfx.getDevice(), &ivCI, _defAlloc, m_view.set( gfx.getDevice() ) ), "failed to create view for deth buffer." );
+            _rts( vkCreateImageView( gfx.getDevice(), &ivCI, _defAlloc, m_view.set( gfx.getDevice() ) ), "failed to create view for deth buffer." );
         }
     }
 
+    //--------------------------------------------------------------------------------------
+    // DepthBuffer
+    //--------------------------------------------------------------------------------------
+
+    DepthBuffer::DepthBuffer( GFX const& gfx, VkImageCreateInfo const& ci, VkMemoryAllocateFlags )
+    : Image( VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL )
+    {
+        m_ci = ci;
+        if( ci.extent.width * ci.extent.height * ci.extent.depth )
+        {
+            _rts( vkCreateImage( gfx.getDevice(), &ci, _defAlloc, m_image.set( gfx.getDevice() ) ), "Failed to create image." );
+
+            VkMemoryRequirements mem_reqs;
+            vkGetImageMemoryRequirements( gfx.getDevice(), m_image, &mem_reqs );
+
+            VkMemoryAllocateInfo mem_alloc{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, 0 };
+            mem_alloc.allocationSize = mem_reqs.size;
+            mem_alloc.memoryTypeIndex = gfx.findMemTypeFromProps( mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+            _rtc( mem_alloc.memoryTypeIndex < VK_MAX_MEMORY_TYPES, "required memory type for depth buffer not available." );
+
+            _rts( vkAllocateMemory( gfx.getDevice(), &mem_alloc, _defAlloc, m_mem.set( gfx.getDevice() ) ), "failed to allocate image memory for depth buffer." );
+
+            _rts( vkBindImageMemory( gfx.getDevice(), m_image, m_mem, 0 ), "failed to bind image memory to depth buffer." );
+
+            ImageViewCreateInfo ivCI(
+                m_image,
+                { VkImageAspectFlags( ( ci.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT ), 0, ci.mipLevels, 0, 1 },
+                ci.format );
+            _rts( vkCreateImageView( gfx.getDevice(), &ivCI, _defAlloc, m_view.set( gfx.getDevice() ) ), "failed to create view for deth buffer." );
+        }
+    }
 
     //--------------------------------------------------------------------------------------
     // SwapChainImage
     //--------------------------------------------------------------------------------------
     SwapchainImage::SwapchainImage( GFX const& gfx, VkImage image, VkFormat format, uint32_t width, uint32_t height )
+    : Image( VK_IMAGE_LAYOUT_PRESENT_SRC_KHR )
+    , m_image(image)
     {
         m_ci = ImageCreateInfo( width, height, format, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT );
         ImageViewCreateInfo ivCI( image, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }, format );
 
-        m_image.reset( image );
-
-        RTCS( vkCreateImageView( gfx.getDevice(), &ivCI, _defAlloc, m_view.set( gfx.getDevice() ) ), "could not create image view." );
+        _rts( vkCreateImageView( gfx.getDevice(), &ivCI, _defAlloc, m_view.set( gfx.getDevice() ) ), "could not create image view." );
     }
 
     SwapchainImage::~SwapchainImage()
@@ -106,8 +128,27 @@ namespace VK
     //--------------------------------------------------------------------------------------
    // RenderTarget
    //--------------------------------------------------------------------------------------
-    const VkClearValue RenderTarget::s_black{ { { 0.0f, 0.0f, 0.0f, 0.0f } } };
-    const VkClearValue RenderTarget::s_sky{ { { 0.59f, 0.86f, 1.0f, 1.0f } } };
+    const VkClearColorValue RenderTarget::s_black{};
+    const VkClearColorValue RenderTarget::s_sky{ { 0.59f, 0.86f, 1.0f, 1.0f } };
+    const VkClearDepthStencilValue RenderTarget::s_clearDepth{ 1.0f, 0 };
+
+    std::map<VkImage, FramebufferH> RenderTarget::createFramebufferMap( RenderPassH const& renderPass ) const
+    {
+        std::map<VkImage, FramebufferH> fbm;
+        for( size_t i = 0; i != m_images.size(); i++ )
+        {
+            _rts( vkCreateFramebuffer(
+                m_dev,
+                &FramebufferCreateInfo(
+                    renderPass,
+                    { VkImageView(*m_images[i]), VkImageView(m_depthBuffers[i]) },
+                    m_images[i]->getCI().extent.width, m_images[i]->getCI().extent.height, m_images[i]->getCI().extent.depth ),
+                _defAlloc,
+                fbm[*m_images[i]].set( m_dev )
+            ), "failed to create framebuffer." );
+        }
+        return fbm;
+    }
 
     void RenderTarget::resize( int width, int height, DeviceH& dev, SwapchainKHRH& sc )
     {
@@ -123,20 +164,20 @@ namespace VK
         ci.size = size;
         ci.sharingMode = sharingMode;
         ci.usage = usage;
-        RTCS( vkCreateBuffer( gfx.getDevice(), &ci, _defAlloc, m_hBuf.set( gfx.getDevice() ) ), "Failed to vkCreateBuffer.");
+        _rts( vkCreateBuffer( gfx.getDevice(), &ci, _defAlloc, m_hBuf.set( gfx.getDevice() ) ), "Failed to vkCreateBuffer.");
 
         VkMemoryRequirements mr;
         BufferMemoryRequirementsInfo2 mri( m_hBuf );
         vkGetBufferMemoryRequirements( gfx.getDevice(), m_hBuf, &mr );
-   	    RTC( size <= mr.size, "Constant buffer GPU memory size differs." );
+   	    _rtc( size <= mr.size, "Constant buffer GPU memory size differs." );
 
         MemoryAllocateInfo mi; mi.allocationSize = mr.size;
         mi.memoryTypeIndex = -1;
-        RTC( -1 != ( mi.memoryTypeIndex = gfx.findMemTypeFromProps( mr.memoryTypeBits, memFlags ) ), "Could not find requested GPU heap for buffer." );
+        _rtc( -1 != ( mi.memoryTypeIndex = gfx.findMemTypeFromProps( mr.memoryTypeBits, memFlags ) ), "Could not find requested GPU heap for buffer." );
 
-        RTCS( vkAllocateMemory( gfx.getDevice(), &mi, _defAlloc, m_hMem.set( gfx.getDevice() ) ), "Could not allocate GPU memory for buffer." );
+        _rts( vkAllocateMemory( gfx.getDevice(), &mi, _defAlloc, m_hMem.set( gfx.getDevice() ) ), "Could not allocate GPU memory for buffer." );
 
-        RTCS( vkBindBufferMemory( gfx.getDevice(), m_hBuf, m_hMem, 0 ), "Failed to bind GPU memory to buffer.");
+        _rts( vkBindBufferMemory( gfx.getDevice(), m_hBuf, m_hMem, 0 ), "Failed to bind GPU memory to buffer.");
     }
 
     void GPUBuffer::updateStaging( GFX const& gfx, void const* data, size_t size )
@@ -158,14 +199,14 @@ namespace VK
         m_depthFormat = depthFormat;
 
         auto images = vectorize<VkImage, VkDevice, VkSwapchainKHR>(vkGetSwapchainImagesKHR, gfx.getDevice(), sc);
-        RTC( !images.empty(), "could not get images from swapchain." );
+        _rtc( !images.empty(), "could not get images from swapchain." );
 
         m_images.clear();
 
-        SemaphoreCreateInfo scI;
+        _rts( vkCreateSemaphore( gfx.getDevice(), &SemaphoreCreateInfo(), _defAlloc, m_presentComplete.set( gfx.getDevice() ) ), "ERROR failed to crate present complete semahore." );
         for( auto& image : images ) {
             m_images.emplace_back( make_unique<SwapchainImage>( gfx, image, m_format, extent.width, extent.height ) );
-            RTCR( VK_SUCCESS, vkCreateSemaphore( gfx.getDevice(), &scI, _defAlloc, m_presentComplete.emplace_back().set( gfx.getDevice() ) ), "ERROR failed to crate image acquire semahore." );
+            //_rts( vkCreateSemaphore( gfx.getDevice(), &SemaphoreCreateInfo(), _defAlloc, m_imageAcquire.emplace_back().set( gfx.getDevice() ) ), "ERROR failed to crate image acquire semahore." );
 
             if( VK_FORMAT_UNDEFINED != depthFormat )
             {
@@ -194,7 +235,8 @@ namespace VK
 
     Image const& BackBuffer::getNextBuffer()
     {
-        VkResult res = vkAcquireNextImageKHR( m_dev, m_sc, UINT64_MAX, m_presentComplete[m_currentBuffer], 0, (uint32_t*)&m_currentBuffer._Storage );
+        VkResult res = vkAcquireNextImageKHR( m_dev, m_sc, UINT64_MAX, m_presentComplete, 0, atomicRef(m_currentBuffer) );
+        
         if( VK_ERROR_OUT_OF_DATE_KHR == res )
             throw out_of_date( "Need resize while acquireing backbuffer image" );
         else if( VK_ERROR_DEVICE_LOST == res )
@@ -208,10 +250,10 @@ namespace VK
     // RenderTexture
     //--------------------------------------------------------------------------------------
 
-
     //--------------------------------------------------------------------------------------
     // Renderer
     //--------------------------------------------------------------------------------------
+
     uint64_t Renderer::s_freeID = 0;
 
     #pragma warning( push )
@@ -227,152 +269,129 @@ namespace VK
     // somewhere in memory, it does not work filling with initializer list, as it gets
     // unallocated as soon as we leave the constructor, thus invalidates the pointer to
     // the lists
-    VkPipelineVertexInputStateCreateInfo Renderer::VertexWTex::getInputLayout()
-    {
-        static const VkVertexInputBindingDescription _b[] =
-        {
-            VkVertexInputBindingDescription{ 0, sizeof( VertexWTex ), VK_VERTEX_INPUT_RATE_VERTEX }
-        };
-        static const VkVertexInputAttributeDescription _a[] =
-        {
-            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( VertexWTex, x ) },
-            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof( VertexWTex, u ) }
-        };
+    const PipelineVertexInputStateCreateInfo Renderer::Vertex::_layout( 
+        { VkVertexInputBindingDescription{0, sizeof( Vertex ), VK_VERTEX_INPUT_RATE_VERTEX} },
+        { VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( Vertex, x )} } );
 
-        return PipelineVertexInputStateCreateInfo( _b, _a );
-    }
-
-    VkPipelineVertexInputStateCreateInfo Renderer::VertexWColTex::getInputLayout()
-    {
-        static const VkVertexInputBindingDescription _b[] =
+    const PipelineVertexInputStateCreateInfo Renderer::VertexWCol::_layout(
+        { VkVertexInputBindingDescription{0, sizeof( VertexWCol ), VK_VERTEX_INPUT_RATE_VERTEX} },
+        { 
+            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( VertexWCol, x )},
+            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof( VertexWCol, r )},
+        } );
+    const PipelineVertexInputStateCreateInfo Renderer::VertexWTex::_layout(
+        { VkVertexInputBindingDescription{0, sizeof( VertexWTex ), VK_VERTEX_INPUT_RATE_VERTEX} },
         {
-            VkVertexInputBindingDescription{ 0, sizeof( VertexWColTex ), VK_VERTEX_INPUT_RATE_VERTEX }
-        };
-        static const VkVertexInputAttributeDescription _a[] =
+            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( VertexWTex, x )},
+            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( VertexWTex, u )},
+        } );
+    const PipelineVertexInputStateCreateInfo Renderer::VertexWColTex::_layout(
+        { VkVertexInputBindingDescription{0, sizeof( VertexWColTex ), VK_VERTEX_INPUT_RATE_VERTEX} },
         {
-            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( VertexWColTex, x ) },
-            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof( VertexWColTex, r ) },
-            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof( VertexWColTex, u ) }
-        };
-        return PipelineVertexInputStateCreateInfo( _b, _a );
-    }
+            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof( VertexWColTex, x )},
+            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof( VertexWCol, r )},
+            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof( VertexWColTex, u )},
+        } );
 
     Renderer::Renderer( 
         GFX const& gfx,
-        std::vector<std::unique_ptr<Image>> const& attachments,
-        AttachmentDescription const& desc,
-        std::vector<ShaderModule> const& shaderStages,
-        VkPipelineVertexInputStateCreateInfo const& inputLayout,
-        bool withSignal )
+        vector<VkDynamicState> const& dynamicStates,
+        vector<shared_ptr<ShaderModule>>&& shaderStages,
+        RenderTarget const& rt,
+        shared_ptr <UniformBuffer>&& uniformBuffer,
+        shared_ptr <VertexBuffer>&& vertexBuffer,
+        vector<shared_ptr<Sampler>>&& samplers )
     : m_id( ++s_freeID )
     , m_dev( gfx.getDevice() )
-    , m_cbs( {gfx.createCommandBuffer()})
-    , m_sss( shaderStages )
+    , m_cbs( *reinterpret_cast<array< VK::CommandBufferH, VK_MAX_FRAME_LAG >*>(gfx.createCommandBuffers( VK_MAX_FRAME_LAG ).data()) )
+    , m_iFrame(0)
+    , m_sss( std::move( shaderStages ))
+    , m_sms( std::move( samplers ))
+    , m_ub( std::move( uniformBuffer ))
+    , m_vb( std::move( vertexBuffer ))
     {
-        assert( !attachments.empty() );
-        
-         _rts( vkCreateRenderPass( 
-            gfx.getDevice(),
-            &RenderPassCreateInfo<1, 1, 0>( 
-                { desc },
-                { SubpassDescription<0, 1>( {}, { AttachmentReference() } ) } ),
-            _defAlloc, 
-            m_renderPass.set( gfx.getDevice() )
-        ), "Failed to create renderPass." );
+        PipelineVertexInputStateCreateInfo pvisCI;
+        if(m_vb)
+            pvisCI = m_vb->getInputLayout();
+        auto colAttRefs = rt.getColorAttachmentReferences();
+		_rts( vkCreateRenderPass(
+			gfx.getDevice(),
+			&RenderPassCreateInfo(
+                rt.getAttachmentDescriptions(),
+                { SubpassDescription( {}, colAttRefs, rt.getDepthStencilAttachmentReference( uint32_t(colAttRefs.size()) ).get() ) } ),
+			_defAlloc,
+			m_renderPass.set( gfx.getDevice() )
+		), "Failed to create renderPass." );
 
-        _rts( vkCreateDescriptorSetLayout(
-            gfx.getDevice(),
-            &DescriptorSetLayoutCreateInfo( { DescriptorSetLayoutBinding() } ),
-            _defAlloc,
-            m_descriptorSetLayout.set( gfx.getDevice() )
-        ), "failed to vkCreateDescriptorSetLayout." );
+		//_rts( vkCreateDescriptorSetLayout(
+		//	gfx.getDevice(),
+		//	&DescriptorSetLayoutCreateInfo( { DescriptorSetLayoutBinding() } ),
+		//	_defAlloc,
+		//	m_descriptorSetLayout.set( gfx.getDevice() )
+		//), "failed to vkCreateDescriptorSetLayout." );
 
-        _rts( vkCreatePipelineLayout(
-            gfx.getDevice(),
-            &PipelineLayoutCreateInfo<1>( { m_descriptorSetLayout } ),
-            _defAlloc,
+		_rts( vkCreatePipelineLayout(
+			gfx.getDevice(),
+			&PipelineLayoutCreateInfo(), // TODO: create from uniformBuffer and Samplers
+			_defAlloc,
             m_pipelineLayout.set( gfx.getDevice() )
         ), "failed to vkCreatePipelineLayout." );
 
         vector< VkPipelineShaderStageCreateInfo > pssCIs;
         for( auto& sm : m_sss )
-            pssCIs.push_back( sm.getCI() );
+            pssCIs.push_back( sm->getCI() );
 
-        PipelineInputAssemblyStateCreateInfo piasci;
-        PipelineRasterizationStateCreateInfo prsci;
-        PipelineMultisampleStateCreateInfo pmsci;
-        PipelineColorBlendStateCreateInfo pcbsci( { PipelineColorBlendAttachmentState( false ) } );
-        PipelineDynamicStateCreateInfo<0> pdsci;
-        VkViewport vp = attachments.front()->getViewport();
-        VkRect2D sc = attachments.front()->getScissor();
-        PipelineViewportStateCreateInfo pvsci( { vp }, { sc } );
-        GraphicsPipelineCreateInfo gpci(
-            m_renderPass, 0, m_pipelineLayout,
-            uint32_t( pssCIs.size() ), pssCIs.data(),
-            &inputLayout, &piasci,
-            nullptr,
-            &pvsci,
-            &prsci,
-            &pmsci,
-            nullptr,
-            &pcbsci,
-            &pdsci
-        );
-        _rts( vkCreateGraphicsPipelines(
+        _rts( vkCreateGraphicsPipelines( 
             gfx.getDevice(), 0, 1,
-            &gpci,
+            &GraphicsPipelineCreateInfo(
+                m_renderPass, 0, m_pipelineLayout,
+                uint32_t( pssCIs.size() ), pssCIs.data(),
+                m_vb ? &m_vb->getInputLayout() : &PipelineVertexInputStateCreateInfo(), 
+                &PipelineInputAssemblyStateCreateInfo(),
+                nullptr,
+                &rt.getPipelineViewportStateCreateInfo(),
+                &PipelineRasterizationStateCreateInfo(),
+                &PipelineMultisampleStateCreateInfo(),
+                rt.getPipelineDepthStencilStateCreateInfo().get(),
+                &PipelineColorBlendStateCreateInfo( { PipelineColorBlendAttachmentState( false ) } ),
+                &PipelineDynamicStateCreateInfo(dynamicStates)
+            ),
             _defAlloc, m_pipeline.set( gfx.getDevice() )
         ), "Failed to create pipeline for Cubes Renderer." );
 
-        for( auto& image : attachments )
-        {
-            _rts( vkCreateFramebuffer(
-                m_dev,
-                &FramebufferCreateInfo<1>(
-                    m_renderPass,
-                    { *image },
-                    attachments.front()->getCI().extent.width, attachments.front()->getCI().extent.height, attachments.front()->getCI().extent.depth ),
-                _defAlloc,
-                m_framebuffers[*image].set( m_dev )
-            ), "failed to create framebuffer." );
-        }
+        m_framebuffers = rt.createFramebufferMap( m_renderPass );
 
-        if( withSignal )
+        const SemaphoreCreateInfo semaphoreCI;
+        const FenceCreateInfo fenceCI( VK_FENCE_CREATE_SIGNALED_BIT);
+        for( uint32_t i = 0; i != VK_MAX_FRAME_LAG; i++ )
         {
-            const SemaphoreCreateInfo semaphoreCI;
-            _rts( vkCreateSemaphore( gfx.getDevice(), &semaphoreCI, _defAlloc, m_sema.set( gfx.getDevice() ) ), "ERROR failed to crate render complete semahore." );
+            _rts( vkCreateSemaphore( gfx.getDevice(), &semaphoreCI, _defAlloc, m_finishedSemas[i].set( gfx.getDevice() ) ), "ERROR failed to crate render finished semahore." );
+            _rts( vkCreateFence( gfx.getDevice(), &fenceCI, _defAlloc, m_finishedFences[i].set( gfx.getDevice() ) ), "ERROR failed to crate render finished fence." );
         }
 
     }
 
-    VkResult Renderer::submit( GFX const& gfx, std::vector<SemaphoreH> const wait )
+   void Renderer::preRender( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
     {
-        if( m_sema )
-            return gfx.submit( m_cbs, 0, wait, { m_sema } );
-        else
-            return gfx.submit( m_cbs, 0, wait, {} );
-    }
-
-    void Renderer::preRender( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
-    {
+        waitForFenceThrow( gfx.getDevice(), m_finishedFences[m_iFrame] );
         const CommandBufferBeginInfo cmdBI( VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT );
-        for( auto& cb : m_cbs )
-        {
-            vkResetCommandBuffer( cb, 0 );
-            _rts( vkBeginCommandBuffer( m_cbs[0], &cmdBI ), "beginCommandBuffer failed." );
-        }
+        _rts( vkResetCommandBuffer( m_cbs[m_iFrame], 0 ), "vkResetCommandBuffer failed" );
+        _rts( vkBeginCommandBuffer( m_cbs[m_iFrame], &cmdBI ), "beginCommandBuffer failed." );
 
         vkCmdBeginRenderPass(
-            m_cbs[0],
+            m_cbs[m_iFrame],
             &VK::RenderPassBeginInfo(
                 m_renderPass,
                 m_framebuffers[gfx.getRT().getCurrentBuffer()],
-                { {0,0}, VK::ext3Dto2D( gfx.getRT().getExtent() ) },
-                { VK::RenderTarget::s_sky }
+                { {0,0}, VK::to_2D( gfx.getRT().getExtent() ) },
+                { VkClearValue{ VK::RenderTarget::s_sky }, VkClearValue{ .depthStencil{ VK::RenderTarget::s_clearDepth } } }
             ),
             VK_SUBPASS_CONTENTS_INLINE
         );
-        vkCmdBindPipeline( m_cbs[0], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline );
+        vkCmdBindPipeline( m_cbs[m_iFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline );
+        auto vp = gfx.getRT().getPipelineViewportStateCreateInfo();
+        vkCmdSetViewport( m_cbs[m_iFrame], 0, vp.viewportCount, vp.pViewports );
+        vkCmdSetScissor( m_cbs[m_iFrame], 0, vp.scissorCount, vp.pScissors );
     }
 
     void Renderer::render( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
@@ -381,17 +400,17 @@ namespace VK
 
     void Renderer::postRender( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
     {
-        for( auto& cb : m_cbs )
-            _rts( vkEndCommandBuffer( cb ), "endCommandBuffer failed." );
+        vkCmdEndRenderPass( m_cbs[m_iFrame] );
+        _rts( vkEndCommandBuffer( m_cbs[m_iFrame] ), "endCommandBuffer failed." );
 
-        gfx.submit( m_cbs );
+
+        gfx.submit( { m_cbs[m_iFrame] }, 0, {}, { m_finishedSemas[m_iFrame] } );
+
+        // increment current cb
+        m_iFrame++;
+        if( m_iFrame == VK_MAX_FRAME_LAG )
+            m_iFrame = 0;
     }
-
-    SemaphoreH const& Renderer::getFinishSignal() const
-    {
-	    return m_sema;
-    }
-
 
     //--------------------------------------------------------------------------------------
     // GFXPipeline
@@ -411,7 +430,7 @@ namespace VK
             m_enabledLayers = filter( vectorize( vkEnumerateInstanceLayerProperties ), &VkLayerProperties::layerName, array{ "VK_LAYER_KHRONOS_validation" } );
             m_validation = !m_enabledLayers.empty();
 
-            RTC( m_validation, "vkEnumerateInstanceLayerProperties failed to find required validation layer.\n\n"
+            _rtc( m_validation, "vkEnumerateInstanceLayerProperties failed to find required validation layer.\n\n"
                     "Please look at the Getting Started guide for additional information.\n"
                     "GFXPipeline Failure" );
         }
@@ -430,7 +449,7 @@ namespace VK
                 VK_EXT_DIRECT_MODE_DISPLAY_EXTENSION_NAME
             } );
 
-            RTC( m_enabledInstanceExtensions.size() >= 5,
+            _rtc( m_enabledInstanceExtensions.size() >= 5,
                     "enumerateInstanceExtensionProperties failed to find required extensions.\n\n"
                     "Please look at the Getting Started guide for additional information.\n"
                     "GFXPipeline Failure" );
@@ -493,7 +512,7 @@ namespace VK
         // determine GPU
         {
             auto gpus = vectorize<VkPhysicalDevice,VkInstance>( vkEnumeratePhysicalDevices, m_inst );
-            RTC( int(gpus.size()) > iGPU,
+            _rtc( int(gpus.size()) > iGPU,
                     "Requested GPU not found?\n"
                     "GFXPipeline Failure" );
             decltype(gpus) matches;
@@ -571,7 +590,7 @@ namespace VK
                 }
             }
 
-            RTC( m_gpu, "Could not find a dedicated or integrated GPU." );
+            _rtc( (bool)m_gpu, "Could not find a dedicated or integrated GPU." );
 
             for( int i = 0; i != gpus.size(); i++ )
             {
@@ -639,7 +658,7 @@ namespace VK
             n
         };
         vector<VkCommandBuffer> raw( n,0 );
-        RTCS( vkAllocateCommandBuffers( m_dev, &cmdAI, raw.data() ), "ERROR failed to crate command buffer." );
+        _rts( vkAllocateCommandBuffers( m_dev, &cmdAI, raw.data() ), "ERROR failed to crate command buffer." );
 
         vector<CommandBufferH> cbs( n, 0 );
         for( size_t i = 0; i != n; i++ )
@@ -720,6 +739,8 @@ namespace VK
 
     void GFX::preRender( mat4x4 const& world )
     {
+        // let previous frame finish
+        VK::waitForFencesThrow( m_dev, m_fences.begin(), m_fences.end() );
         for( auto& renderer : m_renderers )
             renderer->preRender( *this, world, m_mView, m_mProjection );
     }
@@ -794,7 +815,7 @@ namespace VK
         , m_alphaMode( alphaMode )
         , m_presentMode( presentMode )
       {
-        RTC( gpuCan( VK_KHR_SWAPCHAIN_EXTENSION_NAME ), "ERROR: GPU does not support swapchain." );
+        _rtc( gpuCan( VK_KHR_SWAPCHAIN_EXTENSION_NAME ), "ERROR: GPU does not support swapchain." );
         m_enabledDeviceExtensions.push_back( VK_KHR_SWAPCHAIN_EXTENSION_NAME );
         //m_enabledDeviceExtensions.push_back( "VK_KHR_portability_subset" ); // try for portability
 
@@ -839,7 +860,7 @@ namespace VK
             dwExStyle, "OutputWindowClass", windowName, dwStyle,
             rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
             NULL, NULL, hInstance, NULL ) );
-        RTC( m_hWnd, "failed to create window" );
+        _rtc( 0 != m_hWnd, "failed to create window" );
 
         SetWindowLongPtr( reinterpret_cast<HWND>(m_hWnd), GWLP_USERDATA, (LONG_PTR)this );
 
@@ -855,7 +876,7 @@ namespace VK
                 (HWND)m_hWnd
             };
 
-            RTCR( VK_SUCCESS, vkCreateWin32SurfaceKHR( m_inst, &createInfo, _defAlloc, m_surface.set(m_inst) ), "ERROR: Could not create surface." );
+            _rts( vkCreateWin32SurfaceKHR( m_inst, &createInfo, _defAlloc, m_surface.set(m_inst) ), "ERROR: Could not create surface." );
         }
 
         // create swapchain
@@ -874,9 +895,9 @@ namespace VK
                    ( qProps[iQueueFamily].queueFlags & VK_QUEUE_TRANSFER_BIT ) )
                     break;
             }
-            RTC( qProps.size() != iQueueFamily, "ERROR: Surface has no queue family, that can render and swap." );
+            _rtc( qProps.size() != iQueueFamily, "ERROR: Surface has no queue family, that can render and swap." );
 
-            float const priorities[1] = { 0.0 };
+            float const priorities[1] = { 1.0f };
 
             VkDeviceQueueCreateInfo queues[]{ {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, nullptr, 0, iQueueFamily, 1, priorities } };
 
@@ -893,7 +914,7 @@ namespace VK
                 nullptr
             };
 
-            RTCR( VK_SUCCESS, vkCreateDevice( m_gpu, &deviceInfo, _defAlloc, m_dev.set() ), "ERROR: failed to create device." );
+            _rts( vkCreateDevice( m_gpu, &deviceInfo, _defAlloc, m_dev.set() ), "ERROR: failed to create device." );
 
             vkGetDeviceQueue( m_dev, iQueueFamily, 0, m_cq.set() );
 
@@ -901,7 +922,7 @@ namespace VK
     
         VkPhysicalDeviceSurfaceInfo2KHR pdsI{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR, nullptr, m_surface };
         auto surfaceFormats = vectorizeI<VkSurfaceFormat2KHR, VkPhysicalDevice, VkPhysicalDeviceSurfaceInfo2KHR const*>( vkGetPhysicalDeviceSurfaceFormats2KHR, m_gpu, &pdsI, VkSurfaceFormat2KHR{ VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR, nullptr } );
-        RTC( !surfaceFormats.empty(), "ERROR: failed to create device." );
+        _rtc( !surfaceFormats.empty(), "ERROR: failed to create device." );
 
         VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
 
@@ -913,8 +934,7 @@ namespace VK
 
         // create command pool
         {
-            const VkCommandPoolCreateInfo cpI{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr, 0, iQueueFamily };
-            RTCR( VK_SUCCESS, vkCreateCommandPool( m_dev, &cpI, _defAlloc, m_cp.set( m_dev ) ), "ERROR failed to crate command pool." );
+            _rts( vkCreateCommandPool( m_dev, &CommandPoolCreateInfo( VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, iQueueFamily), _defAlloc, m_cp.set( m_dev ) ), "ERROR failed to crate command pool." );
         }
 
         // prepare_swapchain
@@ -923,10 +943,10 @@ namespace VK
 
             // Check the surface capabilities and formats
             SurfaceCapabilities2KHR surfCaps;
-            RTCR( VK_SUCCESS, vkGetPhysicalDeviceSurfaceCapabilities2KHR( m_gpu, &pdsI, &surfCaps ), "ERROR: failed to getSurfaceCapabilities." );
+            _rts( vkGetPhysicalDeviceSurfaceCapabilities2KHR( m_gpu, &pdsI, &surfCaps ), "ERROR: failed to getSurfaceCapabilities." );
 
             auto presentModes = vectorize<VkPresentModeKHR, VkPhysicalDevice, VkSurfaceKHR>( vkGetPhysicalDeviceSurfacePresentModesKHR, m_gpu, m_surface );
-            RTC( presentModes.end() != find( presentModes.begin(), presentModes.end(), m_presentMode ), "ERROR: falied to getSurfacePresentModesKHR or unsupported present mode." );
+            _rtc( presentModes.end() != find( presentModes.begin(), presentModes.end(), m_presentMode ), "ERROR: falied to getSurfacePresentModesKHR or unsupported present mode." );
 
             VkExtent2D swapchainExtent;
             // width and height are either both -1, or both not -1.
@@ -939,8 +959,8 @@ namespace VK
             else {
                 // If the surface size is defined, the swap chain size must match
                 swapchainExtent = surfCaps.surfaceCapabilities.currentExtent;
-                RTC( width == surfCaps.surfaceCapabilities.currentExtent.width, "ERROR: surface size mismatch." );
-                RTC( height == surfCaps.surfaceCapabilities.currentExtent.height, "ERROR: surface size mismatch." );
+                _rtc( width == surfCaps.surfaceCapabilities.currentExtent.width, "ERROR: surface size mismatch." );
+                _rtc( height == surfCaps.surfaceCapabilities.currentExtent.height, "ERROR: surface size mismatch." );
                 width = swapchainExtent.width;
                 height = swapchainExtent.height;
             }
@@ -971,7 +991,7 @@ namespace VK
                 m_preTransform = surfCaps.surfaceCapabilities.currentTransform;
             }
 
-            RTC( ( m_alphaMode & surfCaps.surfaceCapabilities.supportedCompositeAlpha ), "compositeAlpha mode not supported." );
+            _rtc( 0 != ( m_alphaMode & surfCaps.surfaceCapabilities.supportedCompositeAlpha ), "compositeAlpha mode not supported." );
 
             const VkSwapchainCreateInfoKHR swapchainCI{
                 VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -994,19 +1014,23 @@ namespace VK
                 oldSwapchain
             };
 
-            RTCS( vkCreateSwapchainKHR( m_dev, &swapchainCI, nullptr, m_sc.set( m_dev ) ), "could not create swapchain." );
+            _rts( vkCreateSwapchainKHR( m_dev, &swapchainCI, nullptr, m_sc.set( m_dev ) ), "could not create swapchain." );
 
         }
 
-        m_rt = make_unique<BackBuffer>(*this, m_sc, format, VkExtent2D{ uint32_t(width), uint32_t(height) });
+        m_rt = make_unique<BackBuffer>(*this, m_sc, format, VkExtent2D{ uint32_t(width), uint32_t(height) }, withDepth ? VK_FORMAT_D16_UNORM : VK_FORMAT_UNDEFINED);
+
+        // create frame fence
+        for( auto& fence : m_fences )
+            _rts( vkCreateFence( m_dev, &FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT), _defAlloc, fence.set( m_dev ) ), "Failed to create frame fence" );
 
         mat4x4_frustum( m_mProjection, -0.5f, 0.5f, -0.5f * float(height) / float(width), 0.5f * float(height) / float(width), 0.25f, 1024.25f );
    }
 
     void OutputWindow::preRender( mat4x4 const& world )
     {
-        uint32_t imageIndex;
-        vkAcquireNextImageKHR( m_dev, m_sc, UINT64_MAX, m_rt.get()->getCurrentImageAquire(), VK_NULL_HANDLE, &imageIndex );
+        m_rt->getNextBuffer();
+        uint32_t imageIndex = m_rt->getCurrentIndex();
         __super::preRender( world );
     }
 
@@ -1018,19 +1042,22 @@ namespace VK
         PresentInfoKHR pI;
         // get last finish handle
         auto it = m_renderers.rbegin();
+        vector< VkSemaphore > fs;
         while( m_renderers.rend() != it )
         {
             SemaphoreH const& h = it->get()->getFinishSignal();
             if( h )
             {
-                pI.waitSemaphoreCount = 1;
-                pI.pWaitSemaphores = &h.hnd;
-                break;
+                fs.emplace_back( h.hnd );
             }
             it++;
         }
+        pI.waitSemaphoreCount = uint32_t( fs.size() );
+        pI.pWaitSemaphores = fs.data();
         pI.swapchainCount = 1;
         pI.pSwapchains = &m_sc.hnd;
+        uint32_t ii = m_rt->getCurrentIndex();
+        pI.pImageIndices = &ii;
 
         VkResult result = vkQueuePresentKHR( m_cq, &pI );
         m_frame++;
