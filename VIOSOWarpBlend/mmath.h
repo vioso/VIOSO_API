@@ -65,9 +65,9 @@ struct VWB_VECTOR3
 	template< class _T2 >
 	_inline_ explicit VWB_VECTOR3( VWB_VECTOR3<_T2> const& other ) : x( (T)other.x ), y( (T)other.y ), z( (T)other.z ) {}
 	template< class _T2 >
-	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other ) : x( (T)( other.x ) ), y( (T)( other.y ) ), z( (T)( other.z ) )
+	_inline_ explicit VWB_VECTOR3( VWB_VECTOR4<_T2> const& other, bool divideByW = false ) : x( (T)( other.x ) ), y( (T)( other.y ) ), z( (T)( other.z ) )
 	{
-		if( other.w )
+		if( divideByW && T(0) != other.w )
 		{
 			T w = T(1) / (T)other.w;
 			x *= w;
