@@ -11,35 +11,26 @@ using namespace std;
 // ----------------------------------------------------------------------------------
 
 SocketAddress::SocketAddress(unsigned long addr, unsigned short port)
+	: sockaddr_in{ AF_INET, Socket::hton( port )}
 {
-	sin_family = AF_INET;
-	sin_port = Socket::hton(port);
-	sin_addr.s_addr = (unsigned long)Socket::hton((u_int)addr); // problem?? works on win
+	sin_addr.S_un.S_addr = addr;
 }; 
 
 SocketAddress::SocketAddress(char const* url, unsigned short port)
+	: sockaddr_in{ AF_INET, Socket::hton( port ) }
 {
-	sin_family=AF_INET;
-	do
+	if(!port)
 	{
-		if(!port)
+		char* pC=strrchr( (char*)url, ':' );
+		if( pC && (sscanf_s( pC, ":%hu", &port)>0) )
 		{
-			char* pC=strrchr( (char*)url, ':' );
-			if( pC && (sscanf_s( pC, ":%hu", &port)>0) )
-			{
-				*pC=0x0;
-				sin_port=Socket::hton(port);
-				inet_pton(AF_INET, url, &sin_addr);
-				*pC=':';
-				break;
-			}
+			*pC=0x0;
+			sin_port=Socket::hton(port);
+			*pC=':';
 		}
+	}
 
-		sin_port=Socket::hton(port);
-		inet_pton(AF_INET, url, &sin_addr);
-	}while(0);
-
-	if( INADDR_NONE == sin_addr.s_addr )
+	if( !inet_pton( AF_INET, url, &sin_addr ) )
 	{
 		addrinfo* pai = NULL;
 		char portStr[6]; _itoa_s( port, portStr, 10 );

@@ -6,8 +6,6 @@
 #define VULKAN_HPP_NO_EXCEPTIONS
 #define VULKAN_HPP_TYPESAFE_CONVERSION
 
-#define VK_MAX_FRAME_LAG 1
-
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_layer.h"
 #include "linmath.h"
@@ -80,13 +78,10 @@ namespace VK
 	template< class IT >
     inline VkResult waitForFencesThrow( DeviceH const& dev, IT _first, IT _last, bool bAll = true, uint64_t timeout = -1 )
 	{
-		//auto dd = std::iterator_traits<IT>::iterator_category();
-		//if(  
-		std::vector<VkFence> rawFences( _first, _last );
-		VkResult res = vkWaitForFences( dev, uint32_t( rawFences.size() ), rawFences.data(), bAll ? VK_TRUE : VK_FALSE, timeout );
+		VkResult res = vkWaitForFences( dev, uint32_t( _last - _first ), _first, bAll ? VK_TRUE : VK_FALSE, timeout );
 		if( VK_ERROR_DEVICE_LOST == res )
 			throw device_lost( "Device lost while waiting for fence." );
-		res = vkResetFences( dev, uint32_t( rawFences.size() ), rawFences.data() );
+		res = vkResetFences( dev, uint32_t( _last - _first ), _first );
 		return res;
 	}
 
@@ -217,6 +212,7 @@ namespace VK
 		virtual operator VkImage const& () const = 0;
 		operator VkImageView const& () const { return m_view; }
 		SemaphoreH const& getSema() const { return m_sema; }
+		void swapSema( SemaphoreH& other ) { m_sema.swap( other ); }
 		ImageCreateInfo const& getCI() const { return m_ci; }
 		VkImageLayout const& getFinalLayout() const { return m_finalLayout;	}
 		PipelineViewportStateCreateInfo getPipelineViewportStateCreateInfo() const
@@ -311,6 +307,7 @@ namespace VK
 	{
 	protected:
 		std::vector< std::unique_ptr<Image> > m_images;
+		std::vector< SemaphoreH > m_imageAcquireSemas;
 		std::vector<DepthBuffer> m_depthBuffers;
 
 		DeviceWH m_dev;
@@ -323,18 +320,12 @@ namespace VK
 		std::atomic<uint32_t> m_currentBuffer;
 	public:
 
-		RenderTarget(DeviceH const& dev, std::vector<VkImage> const& images, VkExtent3D const& extent = { 0 }, VkFormat format = VK_FORMAT_UNDEFINED, VkFormat depthFormat = VK_FORMAT_UNDEFINED, uint32_t mipLevels = 1)
-			: m_currentBuffer( 0 )
-			, m_extent( extent )
-			, m_mipLevels( mipLevels )
-			, m_format( format )
-			, m_depthFormat( depthFormat )
-			, m_dev( dev )
-		{}
+		RenderTarget( DeviceH const& dev, std::vector<VkImage> const& images, VkExtent3D const& extent = { 0 }, VkFormat format = VK_FORMAT_UNDEFINED, VkFormat depthFormat = VK_FORMAT_UNDEFINED, uint32_t mipLevels = 1 );
 		RenderTarget( RenderTarget const& ) = delete;
 		RenderTarget( RenderTarget&& other ) noexcept
 			: m_images( std::move( other.m_images ))
 			, m_depthBuffers( std::move( other.m_depthBuffers ))
+			, m_imageAcquireSemas( std::move( other.m_imageAcquireSemas ))
 
 			, m_dev( std::move( other.m_dev ))
 
@@ -356,36 +347,12 @@ namespace VK
 		uint32_t const& getMipLevels() const { return m_mipLevels; }
 		VkFormat const& getColorFormat() const { return m_format; }
 		VkFormat const& getDepthFormat() const { return m_depthFormat; }
-
-		VkViewport getFullViewport() const {
-			return VkViewport{ 0, 0, (float)m_extent.width, (float)m_extent.height, 0, 1 };
-		}
-
-		VkRect2D getFullScissorRect() const {
-			return VkRect2D{ { 0, 0 }, { m_extent.width, m_extent.height } };
-		};
-
-		virtual void resize( int width, int height, DeviceH& dev, SwapchainKHRH& sc );
-
-		virtual Image const& getNextBuffer()
-		{
-			assert( !m_images.empty() );
-			m_currentBuffer++;
-			if( uint32_t( m_images.size() ) <= m_currentBuffer )
-				m_currentBuffer = 0;
-			return *m_images[m_currentBuffer];
-		}
-
-		virtual Image const& getCurrentBuffer() const
-		{
-			assert( !m_images.empty() );
-			return *m_images[m_currentBuffer];
-		}
-
 		uint32_t getCurrentIndex() const { return m_currentBuffer; }
 		size_t getNumBuffers() const { return m_images.size(); }
-		std::vector<VkAttachmentDescription> getAttachmentDescriptions() const
-		{
+		VkViewport getFullViewport() const { return VkViewport{ 0, 0, ( float )m_extent.width, ( float )m_extent.height, 0, 1 }; }
+		VkRect2D getFullScissorRect() const { return VkRect2D{ { 0, 0 }, { m_extent.width, m_extent.height } };	}
+
+		std::vector<VkAttachmentDescription> getAttachmentDescriptions() const {
 			std::vector<VkAttachmentDescription> descs;
 			if( !m_images.empty() )
 				descs.emplace_back( m_images.front()->getAttachmentDescription() );
@@ -393,26 +360,45 @@ namespace VK
 				descs.emplace_back( m_depthBuffers.front().getAttachmentDescription() );
 			return descs;
 		};
-		std::vector<VkAttachmentReference> getColorAttachmentReferences( uint32_t offs = 0 ) const
-		{
+
+		std::vector<VkAttachmentReference> getColorAttachmentReferences( uint32_t offs = 0 ) const {
 			std::vector<VkAttachmentReference> descs;
 			if( !m_images.empty() )
 				descs.emplace_back( AttachmentReference( offs + uint32_t(descs.size()), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL ) );
 			return descs;
 		};
-		std::unique_ptr<AttachmentReference> getDepthStencilAttachmentReference( uint32_t offs = 0 ) const
-		{
+
+		std::unique_ptr<AttachmentReference> getDepthStencilAttachmentReference( uint32_t offs = 0 ) const {
 			return m_depthBuffers.empty() ? nullptr : std::make_unique<AttachmentReference>( offs, m_depthBuffers.front().getFinalLayout() );
 		};
-		std::unique_ptr<VkPipelineDepthStencilStateCreateInfo> getPipelineDepthStencilStateCreateInfo() const
-		{
+
+		std::unique_ptr<VkPipelineDepthStencilStateCreateInfo> getPipelineDepthStencilStateCreateInfo() const {
 			return m_depthBuffers.empty() ? nullptr : std::make_unique<PipelineDepthStencilStateCreateInfo>();
 		};
 
-		PipelineViewportStateCreateInfo getPipelineViewportStateCreateInfo() const
-		{
+		PipelineViewportStateCreateInfo getPipelineViewportStateCreateInfo() const {
 			return m_images.empty() ? PipelineViewportStateCreateInfo() : m_images.front()->getPipelineViewportStateCreateInfo();
 		}
+
+		SemaphoreH getCurrentImageAquire() const {
+			return m_images.size() > m_currentBuffer.load() ? m_images[m_currentBuffer]->getSema() : SemaphoreH();
+		}
+
+		virtual Image const& getNextBuffer() {
+			assert( !m_images.empty() );
+			m_currentBuffer++;
+			if( uint32_t( m_images.size() ) <= m_currentBuffer )
+				m_currentBuffer = 0;
+			return *m_images[m_currentBuffer];
+		}
+
+		Image const& getCurrentBuffer() const {
+			assert( !m_images.empty() );
+			return *m_images[m_currentBuffer];
+		}
+
+		virtual void resize( int width, int height, DeviceH& dev, SwapchainKHRH& sc );
+		virtual void finish() = 0;
 	};
 
 	/// <summary>
@@ -420,7 +406,6 @@ namespace VK
 	/// </summary>
 	class BackBuffer : public RenderTarget
 	{
-		SemaphoreH m_presentComplete;
 		SwapchainKHRWH m_sc;
 	public:
 		/// <summary>
@@ -431,9 +416,10 @@ namespace VK
 		/// <param name="hDepth"></param>
 		BackBuffer(GFX const& gfx, SwapchainKHRH const& sc, VkFormat format, VkExtent2D extent, VkFormat depthFormat = VK_FORMAT_UNDEFINED);
 		virtual Image const& getNextBuffer();
-		virtual VkAttachmentDescription getAttachmentDescription() const {
-			return AttachmentDescription( m_format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR );
-		};
+		virtual void finish() {};
+		//virtual VkAttachmentDescription getAttachmentDescription() const {
+		//	return AttachmentDescription( m_format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR );
+		//};
 	};
 
 	/// <summary>
@@ -447,6 +433,7 @@ namespace VK
 		virtual VkAttachmentDescription getkAttachmentDescription() const {
 			return AttachmentDescription( m_format );
 		};
+		virtual void finish() {};
 	};
 
 	class Sampler : public Image
@@ -713,23 +700,27 @@ namespace VK
 		
 		uint64_t m_id;
 
-		DeviceWH m_dev;
-		std::array<CommandBufferH, VK_MAX_FRAME_LAG> m_cbs; // according to allowed "ahead" frames
-		uint32_t m_iFrame; // the current command buffer
-		std::array < SemaphoreH, VK_MAX_FRAME_LAG> m_finishedSemas; // rendering of this pipeline has finished, 
-		std::array < FenceH, VK_MAX_FRAME_LAG> m_finishedFences; // rendering of this pipeline has finished, 
+		DeviceWH m_dev; // a weak ref to the device, not really used at the moment TODO check, if that can be removed
 
-		// attachements don't live here, these get only referenced
+		uint32_t m_iFrame; // the current frame resource
+		// following attributes must be there per ahead frame
+		std::vector<CommandBufferH> m_cbs; // the command buffers
+		std::vector<SemaphoreH> m_finishedSemas; // rendering of this pipeline has finished, 
+		std::vector<FenceH> m_finishedFences; // rendering of this pipeline has finished, 
+
+		// attachements don't live here, these get only referenced from render target via frame buffers
+		std::map< VkImage, FramebufferH > m_framebuffers;
+
 		std::vector<std::shared_ptr<ShaderModule>> m_sss; // shader stages
 		std::vector<std::shared_ptr<Sampler>> m_sms; // samplers stages
-		std::shared_ptr<UniformBuffer> m_ub; // uniform buffer
-		std::shared_ptr<VertexBuffer> m_vb;
-		RenderPassH m_renderPass; // 
+		std::shared_ptr<UniformBuffer> m_ub; // uniform buffer, TODO check if that must be also there per ahead frame
+		std::shared_ptr<VertexBuffer> m_vb; // vertex buffer
 
-		DescriptorSetLayoutH m_descriptorSetLayout;
-		PipelineLayoutH m_pipelineLayout;
-		PipelineH m_pipeline;
-		std::map< VkImage, FramebufferH > m_framebuffers;
+		RenderPassH m_renderPass; // the render pass
+
+		DescriptorSetLayoutH m_descriptorSetLayout; // this is the final layout of resources
+		PipelineLayoutH m_pipelineLayout; // this is the layout of the (vertex-) input
+		PipelineH m_pipeline; // the pipeline, this has to be activated when a renderer submits
 	public:
 		Renderer( 
 			GFX const& gfx,
@@ -738,15 +729,17 @@ namespace VK
 			RenderTarget const& rt,
 			std::shared_ptr <UniformBuffer>&& uniformBuffer,
 			std::shared_ptr <VertexBuffer>&& vertexBuffer,
-			std::vector<std::shared_ptr<Sampler>>&& samplers );
+			std::vector<std::shared_ptr<Sampler>>&& samplers,
+			uint32_t nFramesAhed = 1 );
 		Renderer( Renderer const& ) = delete;
 		Renderer( Renderer&& other ) noexcept
 		: m_id( other.m_id )
 		, m_dev( std::move( other.m_dev ) )
+		, m_iFrame( other.m_iFrame )
 		, m_cbs( std::move( other.m_cbs ) )
 		, m_finishedSemas( std::move( other.m_finishedSemas ) )
 		, m_finishedFences( std::move( other.m_finishedFences ) )
-		, m_iFrame( other.m_iFrame )
+		, m_framebuffers( std::move( other.m_framebuffers ) )
 		, m_sss( std::move( other.m_sss ))
 		, m_sms( std::move( other.m_sms ))
 		, m_ub( std::move( other.m_ub ))
@@ -755,7 +748,6 @@ namespace VK
 		, m_descriptorSetLayout( std::move( other.m_descriptorSetLayout ))
 		, m_pipelineLayout( std::move( other.m_pipelineLayout ))
 		, m_pipeline( std::move( other.m_pipeline ))
-		, m_framebuffers( std::move( other.m_framebuffers ))
 		{}
 
 		//VkResult submit( GFX const& gfx, std::vector<SemaphoreH> const wait = {} ); // call this base class function last or put semaphore in queue in derived class

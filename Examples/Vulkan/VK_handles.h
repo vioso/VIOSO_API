@@ -65,14 +65,22 @@ namespace VK
 		SHnd( SHnd&& other ) noexcept
 		: params( std::move( other.params ) )
 		{
+			piRef = other.piRef;
+			other.piRef = nullptr;
+			hnd = other.hnd;
+			other.hnd = 0;
+			piWRef = other.piWRef;
+			other.piWRef = nullptr;
+		}
+
+		constexpr void swap( SHnd& other ) noexcept
+		{
 			if( this != &other )
 			{
-				piRef = other.piRef;
-				other.piRef = nullptr;
-				hnd = other.hnd;
-				other.hnd = 0;
-				piWRef = other.piWRef;
-				other.piWRef = nullptr;
+				std::swap( piRef, other.piRef );
+				std::swap( piWRef, other.piWRef );
+				std::swap( hnd, other.hnd );
+				std::swap( params, other.params );
 			}
 		}
 
@@ -205,15 +213,12 @@ namespace VK
 		WHnd( WHnd&& other ) noexcept
 		: params( std::move( other.params ) )
 		{
-			if( this != &other )
-			{
-				piRef = other.piRef;
-				other.piRef = nullptr;
-				hnd = other.hnd;
-				other.hnd = 0;
-				piWRef = other.piWRef;
-				other.piWRef = nullptr;
-			}
+			piRef = other.piRef;
+			other.piRef = nullptr;
+			hnd = other.hnd;
+			other.hnd = 0;
+			piWRef = other.piWRef;
+			other.piWRef = nullptr;
 		}
 
 		void _destroy()

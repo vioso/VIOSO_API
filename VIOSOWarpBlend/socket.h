@@ -60,12 +60,6 @@ struct SocketAddress : sockaddr_in
 // construction
 
 	// use default constructor to create empty address
-	SocketAddress()
-	{
-		sin_family = AF_INET;
-		sin_port = 0;
-		sin_addr.s_addr = INADDR_ANY;
-	};
 
 	// copy constructor
 	SocketAddress(sockaddr const& sa)
@@ -79,8 +73,8 @@ struct SocketAddress : sockaddr_in
 		memcpy(this, &sin, sizeof(sockaddr_in));
 	}; 
 
-	// construct AF_INET address using UINT-address and port in host-byte-order.
-	SocketAddress(unsigned long addr, unsigned short port);
+	// construct AF_INET address using UINT-address in net-byte-order and port in host-byte-order.
+	SocketAddress(unsigned long addr=INADDR_ANY, unsigned short port=0);
 
 	// construct AF_INET address using url string and port number in host byte order.
 	SocketAddress(char const* url, unsigned short port = 0); 

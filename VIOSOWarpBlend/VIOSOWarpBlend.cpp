@@ -40,8 +40,8 @@ uint8_t const* g_cryptoKey = nullptr;
 #ifdef _SOCKTEST_DEV
 #include "Net.h"
 Server g_server;
-typedef std::vector< shared_ptr<VWBTCPListener>> ListenerList;
-ListenerList g_listeners;
+typedef std::map< uint16_t, shared_ptr<VWBTCPListener>> Listeners;
+Listeners g_listeners;
 #endif //def _SOCKTEST_DEV
 
 #ifdef WIN32
@@ -405,8 +405,12 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		logStr( 1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", 1900 + tm.tm_year, 1 + tm.tm_mon, tm.tm_mday, VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV );
 
 		char* szModPath = NULL;
+		char* szProcPath = NULL;
 #ifdef WIN32
-		char modPath[MAX_PATH] = {0};
+		char procPath[MAX_PATH]{ 0 };
+		if( ::GetModuleFileNameA( 0, procPath, MAX_PATH ) )
+			szProcPath = procPath;
+		char modPath[MAX_PATH]{ 0 };
 		szModPath = modPath;
 		if( ::GetModuleFileNameA( g_hModDll, modPath, MAX_PATH ) )
 #else
@@ -414,7 +418,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		szModPath = (char*) dl_info.dli_fname;
 		if( dladdr((void *)VWB_CreateA, &dl_info) && szModPath )
 #endif //def WIN32
-		logStr( 1, "%s.\n", szModPath );
+			logStr( 1, "%s.\n", szModPath );
+		if( szProcPath )
+			logStr( 1, "%s.\n", szProcPath );
 	}
 	logStr( 2,	"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
 				"calibFile=%s\n"
@@ -531,37 +537,30 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 			TCPConnection conn( SocketAddress( "vioso.com", 80 ) );
 			if( conn )
 			{
-				char sz[] = "GET / HTTP/1.1\015\012Host:www.vioso.com\015\012Client:WP\015\012\015\012";
+				char sz[] = "GET / HTTP/1.1\015\012Host: www.vioso.com\015\012Client:VIOSO_API/" VWB_VERSTR "\015\012\015\012";
 				conn.sendDirect( sz, sizeof(sz)-1 );
 				while( 0 == conn.getNumRead() )
 					conn.processAsClient();
-				char szRecv[1024] = "olla peter von frosta! Como e sta?";
+				char szRecv[1024] = "olla peter von frosta! Como estas?";
 				int bt = conn.readUntil( szRecv, 1024, "\015\012" );
-				if( 0 == strcmp( szRecv, "HTTP/1.0 200 OK" ) 
-				   || 0 == strcmp( szRecv, "HTTP/1.1 200 OK" ) )
+				if( 0 == strncmp( szRecv, "HTTP/", 5 ) )
 				{
-					bt = conn.readUntil( szRecv, 1024, "\015\012" );
+					bt = conn.readUntil( szRecv, 1024, "\015\012\015\012" );
+					bt = (int)strlen( szRecv );
 				}
 			}
 		}
-		std::vector<SPtr<VWBTCPListener>>::iterator it = g_listeners.begin();
-		err = VWB_ERROR_FALSE;
-		while( it != g_listeners.end() && VWB_ERROR_FALSE == ( err = (*it)->add( pWarper ) ) )	{ it++;	}
-		if( VWB_ERROR_FALSE == err && it == g_listeners.end() )
+
+		// try to find a listener with same port to add this warper, or create a new one
+		auto& listener = g_listeners.try_emplace( pWarper->port, make_shared<VWBTCPListener>( SocketAddress( INADDR_ANY, ( unsigned short )pWarper->port ) ) ).first->second;
+		if( VWB_ERROR_NONE != ( err = listener->add( pWarper ) ) )
 		{
-			g_listeners.push_back( new VWBTCPListener(SocketAddress( INADDR_ANY, (unsigned short)pWarper->port ) ) );
-			it = g_listeners.end() - 1;
-			err = (*it)->add( pWarper );
-			if( VWB_ERROR_NONE != err )
-			{
-				logStr( 0, "ERROR(%i): failed to add warper \"%s\" to new listener at %hu.\n", err, pWarper->channel, pWarper->port );
-				return err;
-			}
-			if( 0 != g_server.addReceiver( SPtr<SockIn>(*it) ) )
-				err = VWB_ERROR_NETWORK;
+			logStr( 0, "ERROR(%i): failed to add warper \"%s\" to new listener at %hu.\n", err, pWarper->channel, pWarper->port );
+			return err;
 		}
-		if( VWB_ERROR_NONE != err )
+		if( 0 != g_server.addReceiver( shared_ptr<SockIn>(listener) ) )
 		{
+			err = VWB_ERROR_NETWORK;
 			logStr( 0, "ERROR(%i): failed to add warper \"%s\".\n", err, pWarper->channel );
 			return err;
 		}
@@ -618,18 +617,18 @@ void VWB_Destroy( VWB_Warper* pWarper )
 #ifdef _SOCKTEST_DEV
 	if( !g_listeners.empty() )
 	{
-		for( std::vector< SPtr< VWBTCPListener > >::iterator it = g_listeners.begin(); it != g_listeners.end(); it++ )
+		auto it = g_listeners.find( pWarper->port );
+		if(it != g_listeners.end() )
 		{
-			if( VWB_ERROR_NONE == (*it)->remove( pWarper ) )
+			if( VWB_ERROR_NONE == it->second->remove( pWarper ) )
 			{
-				if( (*it)->empty() )
+				if( it->second->empty() )
 				{
-					g_server.removeReceiver( SPtr<SockIn>(*it) );
+					g_server.removeReceiver( shared_ptr<SockIn>( it->second ) );
 					g_listeners.erase( it );
 					if( g_server.empty() )
 						g_server.endModal(0);
 				}
-				break;
 			}
 		}
 	}
@@ -1396,6 +1395,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	// use mid points and transform to IG coordinates
 	VWB_VEC3d dx,dy,dtl,dtr,dbl,dbr; // the main coordinate axes to-be.
 
+	// calculate the display corners in host coordinates
 	dtl = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)ptl) );
 	dtr = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)ptr) );
 	dbl = VWB_VEC3d( VWB_VEC3f::ptr((VWB_float*)pbl) );
@@ -1408,15 +1408,15 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	dx = dtr + dbr - dtl - dbl;
 	dy = dtl + dtr - dbl - dbr;
 	
-	// calculate local base matrix to IG coordinates
+	// calculate display local base matrix to IG coordinates, this is the rotation from (0,0,0) looking to +/-z (depending on handedness) with y up, to look at the display, as it would be in the virtual world 
 	VWB_MAT33d M = VWB_MAT33d::Base( dx, dy ); // this will always create a right-handed base with normalized vectors
-	VWB_MAT44d T = VWB_MAT44d(M) * Bi; // T contains now a transformation to a client coordinate system so that
-	// it's x-z plane most parallel to the plane span by the corners of the mapping
-	// y is aligned to point up
+	VWB_MAT44d T = VWB_MAT44d(M) * Bi; // T contains now a transformation from VIOSO coordinates to a display local coordinate system
 	{
-		VWB_VEC3d c = ( dtl + dtr + dbl + dbr ) / 4; // the centre in IG
-		VWB_VEC3d cL = M * c; // centre in local coordinates
-		screenDist = VWB_float( cL.z ); // eye to plane distance
+		VWB_VEC3d c = ( dtl + dtr + dbl + dbr ) / 4; // the centre of the view plane in IG coordinates
+		VWB_VEC3d cL = M * c; // centre in display local coordinates
+		screenDist = VWB_float( cL.z ); // IG (0,0,0) to plane distance
+		if( m_bRH ) // turn screenDist positive, in case we are right-handed, as z points backwards
+			screenDist *= -1;
 	}
 
 	logStr( 3, "View:\n[%.6f, %.6f, %.6f, %.6f ]\n[%.6f, %.6f, %.6f, %.6f]\n[%.6f, %.6f, %.6f, %.6f]\n[%.6f, %.6f, %.6f, %.6f]\n",
@@ -1426,6 +1426,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 	// caclulate FoVs
 	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
+	double maxL = FLT_MAX, maxT = -FLT_MAX, maxR = -FLT_MAX, maxB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom
 	double maxEL = FLT_MAX, maxET = -FLT_MAX, maxER = -FLT_MAX, maxEB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom throughout moving space
 
 	// now we get the corners of a box in that coordinate system
@@ -1434,45 +1435,63 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	pW = wb.pWarp;
 	pB = wb.pBlend2;
 	size_t sz = ptrdiff_t( wb.header.width ) * wb.header.height;
-	double cnt = 0;
-	const double minX = 0.25 / abs( screenDist ) / wb.header.width;
-	const double minY = 0.25 / abs( screenDist ) / wb.header.height;
-	double l = autoViewC * abs(screenDist) / 4;
+	// double l = autoViewC * screenDist / 4; optimized (we devide everything by screenDist and multiply the final result):
+	double l = autoViewC / 4;
 
-	VWB_VEC4d* pTLB = new VWB_VEC4d[ptrdiff_t( wb.header.width ) + 1]; // transformed of previous value and prevoius line, to calculate projected distance
-	VWB_VEC4d* pTL = pTLB, *pTLE = pTLB + ( ptrdiff_t( wb.header.width ) + 1);
-	for( pTL = pTLB; pTL != pTLE; pTL++ )
-		pTL->w = 0; // mark all entries invalid
+	// the distance maps and iterators
+	vector<double> distanceMapX( wb.header.width* wb.header.height, 0 );
+	auto distX = distanceMapX.begin();
+	vector<double> distanceMapY( wb.header.width* wb.header.height, 0 );
+	auto distY = distanceMapY.begin();
+
+	// find the clip planes
+	vector<VWB_VEC3d> prevL(ptrdiff_t( wb.header.width )); // for optimization, we keep the transformed values of the previous line of the mapping
+	for( auto& v : prevL )
+		v = VWB_VEC3d::O(); // set to all zero
+	// start iterating through mapping
 	for( VWB_WarpRecord const* pWE = pW + sz; pW != pWE; )
 	{
-		pTLB->w = 0; // mark predecessor invalid
-		pTL = pTLB + 1;
-		for( VWB_WarpRecord const* pWLE = pW + wb.header.width; pW != pWLE; pW++, pB++, pTL++ )
+		VWB_VEC3d prev = VWB_VEC3d::O(); // for optimization, we also keep previous transformed value
+		auto prevT = prevL.begin(); // reset to start
+		// start iterating through line
+		for( VWB_WarpRecord const* pWLE = pW + wb.header.width; pW != pWLE; pW++, pB++, prevT++, distX++, distY++ )
 		{
 			if( 1 == pW->w && // map contains valid value
 				0 != pB->a && // not masked
 				0 != ( pB->r + pB->g + pB->b ) ) // not entirely blended black
 			{
-				VWB_VEC3d v( pW->x, pW->y, pW->z);
-				VWB_VEC3d vTT = T * v; // transform 
-				b+= vTT;
-
-				// widen by movement
-				// if a point sticks out from the screen plane, it can potentionally
-				// move out of the minimal frustum, so we need to widen anyway
-				// using 1 as autoViewC allows for a moving volume of half the
-				// screen (plane) distance
-				double dd = abs( l * ( vTT.z - screenDist ) / vTT.z );
+				VWB_VEC3d v( pW->x, pW->y, pW->z); // this is the 3D VIOSO coordinate
+				VWB_VEC3d vTT = T * v; // transform to display local coordinate
 
 				// in case we have right-handed coordinate system
-				// it will mirror both directions thus toggle the sign
+				// it will mirror forward direction thus toggle the sign on z to turn it positive
 				if( m_bRH )
 					vTT.z *= -1;
 
-				// project v to the screen plane
-				// this yields the normal view plane size
+				// calculate deviation value depending on distance to screen plane
+				// if a point sticks out from the screen plane, it can potentionally
+				// move out of the minimal frustum, so we need to widen it.
+				// using 1 as autoViewC allows for a moving volume of half the
+				// screen (plane) distance
+				//double dd = abs( l * screenDist / vTT.z - l );
+				double dd = abs( l / vTT.z - l / screenDist );
+
+				// project v to the local display's screen plane
+				// this yields the a coordinate on a plane at z = screenDist, x right, y up
+				//double vx = vTT.x * screenDist / vTT.z;
+				//double vy = vTT.y * screenDist / vTT.z; optimized
 				double vx = vTT.x / vTT.z;
 				double vy = vTT.y / vTT.z;
+				b += VWB_VEC3d( vx, vy, 1 ); // add to AABB
+
+				if( maxL > vx ) // left, minimal x (x points right)
+					maxL = vx;
+				if( maxT < vy ) // top, maximal y (y points up)
+					maxT = vy;
+				if( maxR < vx ) // right, maximal x
+					maxR = vx;
+				if( maxB > vy ) // bottom, minimal y
+					maxB = vy;
 
 				if( maxEL > vx - dd ) // left, minimal x (x points right)
 					maxEL = vx - dd;
@@ -1483,29 +1502,23 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 				if( maxEB > vy - dd) // bottom, minimal y
 					maxEB = vy - dd;
 
-				// find smallest distance between 2 neighbouring points
-				if( 1 == pTLB->w )
+				// sum up for x, if prev is valid
+				if( 1 == prev.z )
 				{ // previous value valid, go for horizontal
-					VWB_double d = abs( vTT.x - pTLB->x );
-					if( minDx > d && minX < d )
-						minDx = d;
+					*distX= abs( vx - prev.x );
 				}
-				if( 1 == pTL->w )
+				if( 1 == prevT->z )
 				{ // upper value is valid
-					VWB_double d = abs( vTT.y - pTL->y );
-					if( minDy > d && minY < d )
-						minDy = d;
+					*distY = abs( vy - prevT->y );
 				}
-				*pTL = VWB_VEC4d( vTT ); // w is set to 1 by assignment by constructor
-				*pTLB = VWB_VEC4d( vTT );
+				*prevT = prev = VWB_VEC3d( vx, vy, 1 ); 
 			}
 			else
-				pTL->w = 0;
-
+			{
+				prev.z = prevT->z = 0; // mark invalid
+			}
 		}
-
 	}
-	delete[] pTLB;
 
 	if( FLT_MAX == maxEL || FLT_MAX == maxET || -FLT_MAX == maxER || -FLT_MAX == maxEB )
 	{
@@ -1513,9 +1526,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		return VWB_ERROR_GENERIC;
 	}
 
-	// now we have a minimal box around our point cloud, but in local base coordinates
-	// now we transform IG's eye to that coordinate system
-
+	// calculate FoVs
 	double left =	b.vMin.x;
 	double top =	b.vMax.y;
 	double right =	b.vMax.x;
@@ -1527,20 +1538,76 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	fov[2] = VWB_float( RAD2DEG( atan( maxER ) ) );
 	fov[3] = VWB_float( RAD2DEG( atan( -maxEB ) ) );
 
-	VWB_VEC4d borderFit( std::log( maxEL / left * screenDist ), std::log( maxET / top * screenDist ) , std::log( maxER / right * screenDist ), std::log( maxEB / bottom * screenDist ) );
+	// the border fit gives a hint about the quality of the screen plane; it shows how much the movement affects the FoVs.
+	VWB_VEC4d borderFit( ( left - maxEL ) / ( maxER - maxEL ), ( maxET - top ) / ( maxET - maxEB ), ( maxER - right ) / ( maxER - maxEL ), ( bottom - maxEB ) / ( maxET - maxEB ) );
 
-	optimalRes.cx = abs( VWB_int( ( maxER - maxEL ) * screenDist / minDx ) );
-	optimalRes.cy = abs( VWB_int( ( maxEB - maxET ) * screenDist / minDy ) );
+	{ // calculate optimal resolution
+		
+		double sum = 0; // sum of all valid projected mapping distances
+		size_t num = 0; // counter
+		
+		for( auto x : distanceMapX )
+		{
+			if( 0 < x ) 
+			{
+				sum += x;
+				num++;
+			}
+		}
+		double avgX = sum / num;
+		sum = 0; num = 0;
+		for( auto y : distanceMapY )
+		{
+			if( 0 < y )
+			{
+				sum += y;
+				num++;
+			}
+		}
+		double avgY = sum / num;
 
-	if( optimalRes.cx > wb.header.width * 2)
-	{
-		logStr( 1, "WARNING: AutoView optimal width calculation too high (%i), capping.", optimalRes.cx );
-		optimalRes.cx = wb.header.width * 2;
-	}
-	if( optimalRes.cy > wb.header.height * 2 )
-	{
-		logStr( 1, "WARNING: AutoView optimal height calculation too high (%i), capping.", optimalRes.cy );
-		optimalRes.cy = wb.header.height * 2;
+		optimalRes.cx = VWB_int( ( maxR - maxL ) / avgX );
+		optimalRes.cy = VWB_int( ( maxT - maxB ) / avgY );
+		logStr( 1, "INFO: AutoView average resolution is %ix%i.", optimalRes.cx, optimalRes.cy );
+
+		// now we search for lowest, but ignoring values, that would result in more than double resolution
+		// 2 * width = ( maxR - maxL ) / capX
+		// <=> capX = 0.5 * ( maxR - maxL ) / width
+		double minX = DBL_MAX;
+		double cap = 0.5 * ( maxR - maxL ) / wb.header.width;
+		size_t droppedX = 0;
+		for( auto x : distanceMapX )
+		{
+			if( cap <= x )
+			{
+				if( x < minX )
+				{
+					minX = x;
+				}
+			}
+			else
+				droppedX++;
+		}
+
+		double minY = DBL_MAX;
+		cap = 0.5 * ( maxT - maxB ) / wb.header.height;
+		size_t droppedY = 0;
+		for( auto y : distanceMapY )
+		{
+			if( cap <= y )
+			{
+				if( y < minY )
+				{
+					minY = y;
+				}
+			}
+			else
+				droppedY++;
+		}
+
+		optimalRes.cx = VWB_int( ceil( ( maxR - maxL ) / minX ) );
+		optimalRes.cy = VWB_int( ceil( ( maxT - maxB ) / minY ) );
+		logStr( 1, "INFO: AutoView optimal resolution coverage is %i%%x%i%%.", 100 - droppedX * 100 / wb.header.height / wb.header.width, 100 - droppedY * 100 / wb.header.height / wb.header.width );
 	}
 
 	optimalRect.left = 0;
@@ -1554,7 +1621,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		"optimalRes=[%d, %d]\n"
 		"optimalRect=[%d, %d, %d, %d]\n"
 		"handedness=%s\n"
-		"borderFitError=[%.6f%%, %.6f%%, %.6f%%, %.6f%%]\n",
+		"borderFitError=[%ipx, %ipx, %ipx, %ipx]\n",
 		channel,
 		dir[0],dir[1],dir[2],
 		fov[0],fov[1],fov[2],fov[3],
@@ -1562,7 +1629,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		optimalRes.cx, optimalRes.cy,
 		optimalRect.left, optimalRect.top, optimalRect.right, optimalRect.bottom,
 		m_bRH ? "right" : "left",
-		borderFit.x * 100, borderFit.y * 100, borderFit.z * 100, borderFit.w * 100 );
+		VWB_int( borderFit.x * wb.header.width ), VWB_int( borderFit.y * wb.header.height ), VWB_int( borderFit.z * wb.header.width ), VWB_int( borderFit.w * wb.header.height ) );
 	return VWB_ERROR_NONE;
 }
 
@@ -1571,11 +1638,11 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 #ifdef _SOCKTEST_DEV
 	if( 0 != port )
 	{
-		for( auto listener = g_listeners.begin(); listener != g_listeners.end(); listener++ )
+		for( auto listener : g_listeners )
 		{
-			if( this == listener->ptr->getWarper( channel ) )
+			if( this == listener.second->getWarper( channel ) )
 			{
-				VWBTCPConnection* conn = dynamic_cast<VWBTCPConnection*>( listener->ptr );
+				VWBTCPConnection* conn = dynamic_cast<VWBTCPConnection*>( listener.second.get() );
 				if( conn )
 				{
 					HttpRequest const* req = conn->headRequestPtr();

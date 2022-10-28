@@ -29,6 +29,9 @@
 #include "PathHelper.h"
 #include "VWF.h"
 #include "resource.h"
+#define STRINGIFY(s) #s
+#define STRVER( ma, mi, x ) STRINGIFY(ma.mi.x)
+#define VWB_VERSTR STRVER(VWB_Version_MAJ,VWB_Version_MIN,VWB_Version_MAI)
 #include "mmath.h"
 
 #include "../Include/EyePointProvider.h"

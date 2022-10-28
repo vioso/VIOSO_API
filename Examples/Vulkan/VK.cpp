@@ -132,6 +132,21 @@ namespace VK
     const VkClearColorValue RenderTarget::s_sky{ { 0.59f, 0.86f, 1.0f, 1.0f } };
     const VkClearDepthStencilValue RenderTarget::s_clearDepth{ 1.0f, 0 };
 
+    RenderTarget::RenderTarget( DeviceH const& dev, std::vector<VkImage> const& images, VkExtent3D const& extent, VkFormat format, VkFormat depthFormat, uint32_t mipLevels )
+    : m_currentBuffer( 0 )
+    , m_extent( extent )
+    , m_mipLevels( mipLevels )
+    , m_format( format )
+    , m_depthFormat( depthFormat )
+    , m_dev( dev )
+    {
+        // create semaphores for acquireing
+        for( auto& image : images )
+        {
+            _rts( vkCreateSemaphore( dev, &SemaphoreCreateInfo(), _defAlloc, m_imageAcquireSemas.emplace_back().set( dev ) ), "ERROR failed to crate image acquire semahore." );
+        }
+    }
+
     std::map<VkImage, FramebufferH> RenderTarget::createFramebufferMap( RenderPassH const& renderPass ) const
     {
         std::map<VkImage, FramebufferH> fbm;
@@ -203,10 +218,8 @@ namespace VK
 
         m_images.clear();
 
-        _rts( vkCreateSemaphore( gfx.getDevice(), &SemaphoreCreateInfo(), _defAlloc, m_presentComplete.set( gfx.getDevice() ) ), "ERROR failed to crate present complete semahore." );
         for( auto& image : images ) {
             m_images.emplace_back( make_unique<SwapchainImage>( gfx, image, m_format, extent.width, extent.height ) );
-            //_rts( vkCreateSemaphore( gfx.getDevice(), &SemaphoreCreateInfo(), _defAlloc, m_imageAcquire.emplace_back().set( gfx.getDevice() ) ), "ERROR failed to crate image acquire semahore." );
 
             if( VK_FORMAT_UNDEFINED != depthFormat )
             {
@@ -235,8 +248,10 @@ namespace VK
 
     Image const& BackBuffer::getNextBuffer()
     {
-        VkResult res = vkAcquireNextImageKHR( m_dev, m_sc, UINT64_MAX, m_presentComplete, 0, atomicRef(m_currentBuffer) );
-        
+        VkResult res = vkAcquireNextImageKHR( m_dev, m_sc, UINT64_MAX, m_imageAcquireSemas.back(), 0, atomicRef(m_currentBuffer) ); // this will block, if all images are in-flight
+        m_images[m_currentBuffer]->swapSema( m_imageAcquireSemas.back() );
+        m_imageAcquireSemas.pop_back();
+
         if( VK_ERROR_OUT_OF_DATE_KHR == res )
             throw out_of_date( "Need resize while acquireing backbuffer image" );
         else if( VK_ERROR_DEVICE_LOST == res )
@@ -249,6 +264,8 @@ namespace VK
     //--------------------------------------------------------------------------------------
     // RenderTexture
     //--------------------------------------------------------------------------------------
+
+    // NOTE we need to signal the semaphore
 
     //--------------------------------------------------------------------------------------
     // Renderer
@@ -300,11 +317,12 @@ namespace VK
         RenderTarget const& rt,
         shared_ptr <UniformBuffer>&& uniformBuffer,
         shared_ptr <VertexBuffer>&& vertexBuffer,
-        vector<shared_ptr<Sampler>>&& samplers )
+        vector<shared_ptr<Sampler>>&& samplers,
+        uint32_t nFramesAhed)
     : m_id( ++s_freeID )
     , m_dev( gfx.getDevice() )
-    , m_cbs( *reinterpret_cast<array< VK::CommandBufferH, VK_MAX_FRAME_LAG >*>(gfx.createCommandBuffers( VK_MAX_FRAME_LAG ).data()) )
-    , m_iFrame(0)
+    , m_iFrame( 0 )
+    , m_cbs( gfx.createCommandBuffers( nFramesAhed ) )
     , m_sss( std::move( shaderStages ))
     , m_sms( std::move( samplers ))
     , m_ub( std::move( uniformBuffer ))
@@ -363,17 +381,16 @@ namespace VK
 
         const SemaphoreCreateInfo semaphoreCI;
         const FenceCreateInfo fenceCI( VK_FENCE_CREATE_SIGNALED_BIT);
-        for( uint32_t i = 0; i != VK_MAX_FRAME_LAG; i++ )
+        for( uint32_t i = 0; i != nFramesAhed; i++ )
         {
-            _rts( vkCreateSemaphore( gfx.getDevice(), &semaphoreCI, _defAlloc, m_finishedSemas[i].set( gfx.getDevice() ) ), "ERROR failed to crate render finished semahore." );
-            _rts( vkCreateFence( gfx.getDevice(), &fenceCI, _defAlloc, m_finishedFences[i].set( gfx.getDevice() ) ), "ERROR failed to crate render finished fence." );
+            _rts( vkCreateSemaphore( gfx.getDevice(), &semaphoreCI, _defAlloc, m_finishedSemas.emplace_back().set( gfx.getDevice() ) ), "ERROR failed to crate render finished semahore." );
+            _rts( vkCreateFence( gfx.getDevice(), &fenceCI, _defAlloc, m_finishedFences.emplace_back().set( gfx.getDevice() ) ), "ERROR failed to crate render finished fence." );
         }
-
     }
 
    void Renderer::preRender( GFX const& gfx, mat4x4 const& world, mat4x4 const& view, mat4x4 const& projection )
     {
-        waitForFenceThrow( gfx.getDevice(), m_finishedFences[m_iFrame] );
+        waitForFenceThrow( gfx.getDevice(), m_finishedFences[m_iFrame] ); // let the frame in-flight finish. We still might have m_finishedFences.size() - 1 frames in-flight
         const CommandBufferBeginInfo cmdBI( VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT );
         _rts( vkResetCommandBuffer( m_cbs[m_iFrame], 0 ), "vkResetCommandBuffer failed" );
         _rts( vkBeginCommandBuffer( m_cbs[m_iFrame], &cmdBI ), "beginCommandBuffer failed." );
@@ -404,11 +421,11 @@ namespace VK
         _rts( vkEndCommandBuffer( m_cbs[m_iFrame] ), "endCommandBuffer failed." );
 
 
-        gfx.submit( { m_cbs[m_iFrame] }, 0, {}, { m_finishedSemas[m_iFrame] } );
+        gfx.submit( { m_cbs[m_iFrame] }, 0, { gfx.getRT().getCurrentImageAquire() }, { m_finishedSemas[m_iFrame] } );
 
         // increment current cb
         m_iFrame++;
-        if( m_iFrame == VK_MAX_FRAME_LAG )
+        if( m_iFrame == m_cbs.size() )
             m_iFrame = 0;
     }
 
@@ -739,8 +756,10 @@ namespace VK
 
     void GFX::preRender( mat4x4 const& world )
     {
-        // let previous frame finish
-        VK::waitForFencesThrow( m_dev, m_fences.begin(), m_fences.end() );
+        // acquire new buffer
+        m_rt->getNextBuffer();
+        uint32_t imageIndex = m_rt->getCurrentIndex();
+
         for( auto& renderer : m_renderers )
             renderer->preRender( *this, world, m_mView, m_mProjection );
     }
@@ -755,6 +774,8 @@ namespace VK
     {
         for( auto& renderer : m_renderers )
             renderer->postRender( *this, world, m_mView, m_mProjection );
+        m_rt->finish();
+        m_frame++;
     }
 
     //--------------------------------------------------------------------------------------
@@ -1020,17 +1041,11 @@ namespace VK
 
         m_rt = make_unique<BackBuffer>(*this, m_sc, format, VkExtent2D{ uint32_t(width), uint32_t(height) }, withDepth ? VK_FORMAT_D16_UNORM : VK_FORMAT_UNDEFINED);
 
-        // create frame fence
-        for( auto& fence : m_fences )
-            _rts( vkCreateFence( m_dev, &FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT), _defAlloc, fence.set( m_dev ) ), "Failed to create frame fence" );
-
         mat4x4_frustum( m_mProjection, -0.5f, 0.5f, -0.5f * float(height) / float(width), 0.5f * float(height) / float(width), 0.25f, 1024.25f );
    }
 
     void OutputWindow::preRender( mat4x4 const& world )
     {
-        m_rt->getNextBuffer();
-        uint32_t imageIndex = m_rt->getCurrentIndex();
         __super::preRender( world );
     }
 
@@ -1040,17 +1055,13 @@ namespace VK
         __super::postRender( world );
         // 
         PresentInfoKHR pI;
-        // get last finish handle
-        auto it = m_renderers.rbegin();
-        vector< VkSemaphore > fs;
-        while( m_renderers.rend() != it )
+        // get all finish semaphores
+        vector< VkSemaphore > fs; fs.reserve( m_renderers.size() );
+        for( auto& renderer : m_renderers )
         {
-            SemaphoreH const& h = it->get()->getFinishSignal();
+            SemaphoreH const& h = renderer.get()->getFinishSignal();
             if( h )
-            {
                 fs.emplace_back( h.hnd );
-            }
-            it++;
         }
         pI.waitSemaphoreCount = uint32_t( fs.size() );
         pI.pWaitSemaphores = fs.data();
@@ -1060,7 +1071,6 @@ namespace VK
         pI.pImageIndices = &ii;
 
         VkResult result = vkQueuePresentKHR( m_cq, &pI );
-        m_frame++;
     }
 
 };

@@ -53,7 +53,7 @@ VWB_ERROR VWBTCPListener::remove( VWB_Warper* pWarper )
 	{
 		if( *it == pWarper )
 		{
-			logStr( 2, "INFO: VWBUDPListen(%hu): warper %s removed!\n", m_port, pWarper->channel );
+			logStr( 2, "INFO: VWBUDPListener(%hu): warper %s removed!\n", m_port, pWarper->channel );
 			m_warpers.erase( it );
 			return VWB_ERROR_NONE;
 		}

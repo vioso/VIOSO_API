@@ -63,7 +63,7 @@ TriangleRenderer::TriangleRenderer( VK::GFX const& gfx, VK::RenderTarget const& 
 			make_shared < VK::ShaderModule>( gfx.getDevice(), (uint32_t const*)triangleFS_bytecode, sizeof(triangleFS_bytecode), VK_SHADER_STAGE_FRAGMENT_BIT )  }
 		,
 		rt, nullptr, nullptr, {},
-		false )
+		1 )
 {
 }
 
@@ -217,7 +217,7 @@ CubesRenderer::CubesRenderer(
 			make_shared<VK::ShaderModule>( gfx.createFSPassthrough() ) 
 		},
 		attachments, make_unique<VK::MappedUniformBuffer<Constants>>( gfx, Constants{} ), nullptr, {},
-	false )
+	1 )
 	, m_mub( *(Constants*)m_ub.get() )
 {}
 
