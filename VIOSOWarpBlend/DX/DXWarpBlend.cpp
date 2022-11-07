@@ -1,17 +1,68 @@
 #include "DXWarpBlend.h"
 #pragma comment( lib, "dxguid.lib" )
-#pragma comment( lib, "d3dcompiler.lib" )
+//#pragma comment( lib, "d3dcompiler.lib" )
 #include <DirectXMath.h>
 using namespace DirectX;
+
+typedef HRESULT ( WINAPI *D3DCompileFn )( _In_reads_bytes_( SrcDataSize ) LPCVOID pSrcData,
+				   _In_ SIZE_T SrcDataSize,
+				   _In_opt_ LPCSTR pSourceName,
+				   _In_reads_opt_( _Inexpressible_( pDefines->Name != NULL ) ) CONST D3D_SHADER_MACRO* pDefines,
+				   _In_opt_ ID3DInclude* pInclude,
+				   _In_opt_ LPCSTR pEntrypoint,
+				   _In_ LPCSTR pTarget,
+				   _In_ UINT Flags1,
+				   _In_ UINT Flags2,
+				   _Out_ ID3DBlob** ppCode,
+				   _Always_( _Outptr_opt_result_maybenull_ ) ID3DBlob** ppErrorMsgs );
+D3DCompileFn pfnD3DCompile = nullptr;
+HMODULE hmD3DCompilerDll = 0;
+
+extern "C" HRESULT WINAPI
+D3DCompile( _In_reads_bytes_( SrcDataSize ) LPCVOID pSrcData,
+			_In_ SIZE_T SrcDataSize,
+			_In_opt_ LPCSTR pSourceName,
+			_In_reads_opt_( _Inexpressible_( pDefines->Name != NULL ) ) CONST D3D_SHADER_MACRO * pDefines,
+			_In_opt_ ID3DInclude * pInclude,
+			_In_opt_ LPCSTR pEntrypoint,
+			_In_ LPCSTR pTarget,
+			_In_ UINT Flags1,
+			_In_ UINT Flags2,
+			_Out_ ID3DBlob * *ppCode,
+			_Always_( _Outptr_opt_result_maybenull_ ) ID3DBlob * *ppErrorMsgs )
+{
+	if( !pfnD3DCompile )
+	{
+		*ppCode = nullptr;
+		if( ppErrorMsgs )
+			*ppErrorMsgs = nullptr;
+		return E_FAIL;
+	}
+	return pfnD3DCompile( pSrcData, SrcDataSize, pSourceName, pDefines, pInclude, pEntrypoint, pTarget, Flags1, Flags2, ppCode, ppErrorMsgs );
+}
+
 
 DXWarpBlend::DXWarpBlend()
 : VWB_Warper_base()
 {
+	hmD3DCompilerDll = ::LoadLibraryA( "D3DCompiler_47.dll" );
+	if( !hmD3DCompilerDll )
+		hmD3DCompilerDll = ::LoadLibraryA( "D3DCompiler_43.dll" );
+	if( !hmD3DCompilerDll )
+		hmD3DCompilerDll = ::LoadLibraryA( "D3DCompiler_42.dll" );
+	if( !hmD3DCompilerDll )
+	{
+		logStr( 0, "ERROR: Could not load D3DCompiler_4*.dll" );
+		throw VWB_ERROR_SHADER;
+	}
+	pfnD3DCompile = (D3DCompileFn)::GetProcAddress( hmD3DCompilerDll, "D3DCompile" );
 	m_modelPath[0] = 0;
 }
 
 DXWarpBlend::~DXWarpBlend()
 {
+	if( hmD3DCompilerDll )
+		::FreeLibrary( hmD3DCompilerDll );
 }
 
 VWB_ERROR DXWarpBlend::Init( VWB_WarpBlendSet& wbs )
