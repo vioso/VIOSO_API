@@ -1,8 +1,6 @@
 #include "DX9WarpBlend.h"
 #include "pixelshader.h"
 
-//#pragma comment( lib, "d3d9.lib" )
-
 #if defined( VWB_USE_DEPRECATED_INIT )
 VWB_DX9WHANDLE VWB_InitDX9A( LPDIRECT3DDEVICE9 pDevice, LPCSTR szConfigFile, LPCSTR szChannel )
 {

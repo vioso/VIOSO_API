@@ -12,7 +12,7 @@
 #pragma once
 
 #include "DXSample.h"
-
+#define USE_VIOSO_API
 #ifdef USE_VIOSO_API
 #define VIOSOWARPBLEND_DYNAMIC_DEFINE
 #include "../../Include/VIOSOWarpBlend.h"

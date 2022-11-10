@@ -1,8 +1,6 @@
 #include "DX9EXWarpBlend.h"
 #include "pixelshader.h"
 
-//#pragma comment( lib, "d3d9.lib" )
-
 //const DWORD DXSCREENVERTEX::FVF = D3DFVF_XYZ | D3DFVF_TEX1; // already initialized in D3D9WarpBlend.cpp !
 
 DX9EXWarpBlend::DX9EXWarpBlend( LPDIRECT3DDEVICE9EX pDevice )

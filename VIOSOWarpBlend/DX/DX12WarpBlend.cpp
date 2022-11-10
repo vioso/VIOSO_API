@@ -5,7 +5,37 @@
 
 #include "pixelshader.h"
 #include "atlbase.h"
-#pragma comment( lib, "d3d12.lib" )
+//#pragma comment( lib, "d3d12.lib" )
+
+extern "C" HRESULT WINAPI D3D12SerializeVersionedRootSignature(
+	_In_ const D3D12_VERSIONED_ROOT_SIGNATURE_DESC * pRootSignature,
+	_Out_ ID3DBlob * *ppBlob,
+	_Always_( _Outptr_opt_result_maybenull_ ) ID3DBlob * *ppErrorBlob )
+{
+	typedef HRESULT (WINAPI *FnD3D12SerializeVersionedRootSignature)(
+	_In_ const D3D12_VERSIONED_ROOT_SIGNATURE_DESC * pRootSignature,
+		_Out_ ID3DBlob * *ppBlob,
+		_Always_( _Outptr_opt_result_maybenull_ ) ID3DBlob * *ppErrorBlob );
+
+	HRESULT res = E_FAIL;
+	if( ppBlob )
+		*ppBlob = nullptr;
+	if( ppErrorBlob )
+		*ppErrorBlob = nullptr;
+
+	HMODULE hDll = ::LoadLibraryA( "D3D12.dll" );
+	if( hDll )
+	{
+		FnD3D12SerializeVersionedRootSignature pFn = ( FnD3D12SerializeVersionedRootSignature )::GetProcAddress( hDll, "D3D12SerializeVersionedRootSignature" );
+		if( pFn )
+		{
+			res = pFn( pRootSignature, ppBlob, ppErrorBlob );
+		}
+		::FreeLibrary( hDll );
+	}
+	return res;
+}
+
 
 DX12WarpBlend::DX12WarpBlend( ID3D12CommandQueue* pCQ )
 : DXWarpBlend()
