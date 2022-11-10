@@ -1,7 +1,7 @@
 #include "DX9EXWarpBlend.h"
 #include "pixelshader.h"
 
-#pragma comment( lib, "d3d9.lib" )
+//#pragma comment( lib, "d3d9.lib" )
 
 //const DWORD DXSCREENVERTEX::FVF = D3DFVF_XYZ | D3DFVF_TEX1; // already initialized in D3D9WarpBlend.cpp !
 
@@ -211,6 +211,7 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
+	__super::Render( inputTexture, stateMask );
 	logStr( 4, "Render begin." );
     HRESULT res;
 	if( VWB_STATEMASK_STANDARD == stateMask )

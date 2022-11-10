@@ -551,6 +551,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
+	__super::Render( inputTexture, stateMask );
 	HRESULT res = E_FAIL;
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;

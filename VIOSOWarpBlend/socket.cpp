@@ -856,11 +856,17 @@ int TCPConnection::processRead( Server* pServer )
 			s.resize( r );
 			m_strIn.push_back( s );
 			m_iReadSize+= r;
+		}
+		else
+		{
+			r = SOCKET_ERROR;
+			logStr( 0, "Error: Connection socket %08x read mutex inaccessible.\n", ( SOCKET )*this );
+		}
+		if( r != SOCKET_ERROR )
+		{
 			r = cbRead( pServer );
 			return r;
 		}
-		r = SOCKET_ERROR;
-		logStr( 0, "Error: Connection socket %08x read mutex inaccessible.\n", (SOCKET)*this );
 	}
 
 	logStr( 1, "Closing socket %08x reason %i.\n", (SOCKET)*this, r );
@@ -1502,48 +1508,49 @@ int Server::doModalStep()
 	timeval to = m_sto;
 	FD_SET r;
 	FD_SET w;
-	VWB_LockedStatement( m_mtxGlobal )
+	if( 0 != m_readers.fd_count ) // there can't be any writers without readers in TCP
 	{
-		if( 0 != m_readers.fd_count ) // there can't be any writers without readers in TCP
+		Listeners tmp;
+		VWB_LockedStatement( m_mtxGlobal )
 		{
+			tmp = m_listeners;
 			r = m_readers;
 			w = m_writers;
-			Listeners tmp = m_listeners;
-			n = ::select( (int)m_listeners.size(), &r, &w, NULL, &to );
-			if( 0 < n )
+		}
+		else
+		{
+			logStr( 0, "Server: Could not aquire mutex. Server is stopping.\n" );
+			return -2;
+	}
+		n = ::select( (int)m_listeners.size(), &r, &w, NULL, &to );
+		if( 0 < n ) 
+		{
+			// handle readers
+			for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
 			{
-				// handle readers
-				for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
+				if( FD_ISSET( **it, &r ) )
 				{
-					if( FD_ISSET( **it, &r ) )
-					{
-						n = (*it)->processRead( this );
-					}
-				}
-				// handle writers
-				for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
-				{
-					if( FD_ISSET( **it, &w ) )
-					{
-						(*it)->processWrite( this ); // handle all ready writing sockets
-					}
+					n = ( *it )->processRead( this );
 				}
 			}
-			else if( SOCKET_ERROR == n )
+			// handle writers
+			for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
 			{
-				int err = lastNetError;
-				logStr( 0, "Server: Socket Error %i. Server is stopping.\n", err );
+				if( FD_ISSET( **it, &w ) )
+				{
+					( *it )->processWrite( this ); // handle all ready writing sockets
+				}
 			}
 		}
-		else if( MODALSTATE_RUN == m_modalState )
-		{ // idle
-			sleep(m_sto.tv_usec/1000);
+		else if( SOCKET_ERROR == n )
+		{
+			int err = lastNetError;
+			logStr( 0, "Server: Socket Error %i. Server is stopping.\n", err );
 		}
 	}
-	else
-	{
-		n = -2;
-		logStr( 0, "Server: Could not aquire mutex. Server is stopping.\n" );
+	else if( MODALSTATE_RUN == m_modalState )
+	{ // idle
+		sleep(m_sto.tv_usec/1000);
 	}
 	return n;
 }

@@ -1,7 +1,7 @@
 #include "DX9WarpBlend.h"
 #include "pixelshader.h"
 
-#pragma comment( lib, "d3d9.lib" )
+//#pragma comment( lib, "d3d9.lib" )
 
 #if defined( VWB_USE_DEPRECATED_INIT )
 VWB_DX9WHANDLE VWB_InitDX9A( LPDIRECT3DDEVICE9 pDevice, LPCSTR szConfigFile, LPCSTR szChannel )
@@ -239,6 +239,7 @@ VWB_ERROR DX9WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
+	__super::Render( inputTexture, stateMask );
 	HRESULT res;
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;

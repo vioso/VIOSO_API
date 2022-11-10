@@ -706,6 +706,7 @@ VWB_ERROR GLWarpBlend::SetViewProjection( VWB_float const* pView, VWB_float cons
 
 VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
+	__super::Render( inputTexture, stateMask );
 	logStr( 4, "Render GL" );
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;

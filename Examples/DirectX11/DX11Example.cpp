@@ -125,7 +125,7 @@ public:
 
     virtual void postRender()
     {
-        __super::preRender();
+        __super::postRender();
 
         // this applies warp
         m_pWarper->Render( dynamic_cast<RenderTexture*>(m_rtt->getRenderTarget().get())->getResource(), VWB_STATEMASK_STANDARD );
