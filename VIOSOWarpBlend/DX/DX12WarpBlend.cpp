@@ -617,7 +617,8 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
-	logStr( 5, "RenderDX12..." );
+	__super::Render( inputTexture, stateMask );
+	logStr( 4, "RenderDX12..." );
 
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT_D3D12;
@@ -784,7 +785,15 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		}
 		else
 		{
-			logStr( 2, "WARNING: cannot clear render target if rtvHandlePtr is not set." );
+			static bool showwarning = true;
+			if( showwarning )
+			{
+				logStr( 2, "WARNING: cannot clear render target if rtvHandlePtr is not set." );
+				showwarning = false;
+			}
+			else
+				logStr( 4, "WARNING: cannot clear render target if rtvHandlePtr is not set." );
+
 		}
 	}
 
