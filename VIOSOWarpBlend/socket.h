@@ -438,26 +438,104 @@ private:
 	virtual int processError( Server* pServer );
 };
 
-class HttpRequest
+//////////////////////////////////////////////////////////////
+
+class TCPProto
 {
 public:
 	typedef enum STATE {
 		STATE_UNDEF,
 		STATE_INIT,
-		STATE_HEADER,
-		STATE_CONTENTLENGTH,
-		STATE_BODY,
-		STATE_PARSED,
+		STATE_PARSED = 0x7FFFFFFF,
 		STATE_ERROR = 0xFFFFFFFF
 	} STATE;
 
 	typedef enum TYPE {
 		TYPE_UNDEF,
-		TYPE_GET,
-		TYPE_POST,
-		TYPE_DELETE,
-		TYPE_PUT
+		TYPE_HTTP,
+		TYPE_JSON,
+		TYPE_COMMAND
 	} TYPE;
+
+	typedef int State;
+protected:
+	TYPE type;
+	State state;
+
+public:
+	TCPProto() noexcept
+		: type( TYPE_UNDEF )
+		, state( STATE_UNDEF )
+	{};
+	TCPProto( TYPE t ) : type( t ), state( STATE_INIT ) {}
+	TCPProto( TCPProto const& other ) noexcept
+		: type( other.type )
+		, state( other.state )
+	{};
+	State getState() const { return state; }
+	TYPE getType() const { return type; }
+	TCPProto& operator=( TCPProto const& other ) noexcept {
+		type = other.type;
+		state = other.state;
+		return *this;
+	}
+	virtual bool send( TCPConnection& conn ) = 0;
+};
+
+class Request : public TCPProto
+{
+public:
+	typedef std::shared_ptr<Request> ptr_t;
+protected:
+	std::string		request;
+
+public:
+	static ptr_t parse( TCPConnection& conn );
+
+	Request( Request const& other ) noexcept
+		: TCPProto( other )
+		, request( other.request )
+	{}
+	Request( Request&& other ) noexcept
+		: TCPProto( std::move(other) )
+		, request( std::move(other.request) )
+	{}
+
+	std::string const& getRequest() const { return request; }
+
+	Request& operator=( Request const& other ) noexcept
+	{
+		TCPProto::operator=( other );
+		request = other.request;
+		return *this;
+	}
+	Request& operator=( Request&& other ) noexcept
+	{
+		TCPProto::operator=( other );
+		request.swap( other.request );
+		return *this;
+	}
+protected:
+	Request() : TCPProto() {};
+	Request( std::string const& req, TYPE type ) : TCPProto( type ), request( req ) { }
+};
+
+class Response : public TCPProto
+{
+public:
+	static std::unique_ptr<Response> parseResponse( TCPConnection& conn );
+};
+
+class HttpBase
+{
+public:
+	typedef enum HTTYPE {
+		HTTYPE_UNDEF,
+		HTTYPE_GET,
+		HTTYPE_POST,
+		HTTYPE_DELETE,
+		HTTYPE_PUT
+	} HTTYPE;
 
 	typedef enum ENCTYPE {
 		ENCTYPE_UNDEF,
@@ -471,28 +549,62 @@ public:
 		std::string value;
 		std::string file;
 	} PostValue;
+	struct strcmpFn { bool operator()( std::string const& x, std::string const& y ) const { return 0 < x.compare( y ); }; };
 
-	struct strcmpFn { bool operator()( std::string const& x, std::string const& y ) const { return 0 < x.compare(y); };};
 	typedef std::map< std::string, std::string, strcmpFn > ParamMap;
 	typedef std::map< std::string, PostValue, strcmpFn > PostParamMap;
 
-	std::string		request;
+	static int parseURL( std::string const& url, std::string& site, ParamMap& getParams );
+	static int parseHttpHeader( char const* szIn, HTTYPE& type, std::string& request, ParamMap& heads );
+	static int parseHeader( char const* szIn, ParamMap& heads );
+	static int parseHeaderLine( char const* p, ParamMap& params );
+	static int parseURLencBody( std::string const& body, PostParamMap& postData );
+	static int parseMultipartBody( std::string const& body, std::string const& bound, PostParamMap& postData );
+	static int resolveURL( std::string const& url, bool& isSecure, std::string& host, unsigned short& port, std::string& path, ParamMap& getParams, std::string& fragment );
+	static std::string URLencode( std::string const& unencoded );
+	static std::string URLdecode( std::string const& encoded );
+};
+
+class JsonRequest : public Request
+{
+public:
+	JsonRequest( TCPConnection& conn ) { type = TYPE_JSON; state = STATE_ERROR; }
+	JsonRequest( std::string const& request ) : Request(request, TYPE_JSON ) { state = STATE_PARSED; }
+	virtual bool send( TCPConnection& conn );
+};
+
+class CommandRequest : public Request
+{
+public:
+	CommandRequest( TCPConnection& conn ) { type = TYPE_COMMAND; state = STATE_ERROR; };
+	virtual bool send( TCPConnection& conn );
+};
+
+class HttpRequest : public Request, HttpBase
+{
+public:
+	typedef enum STATE {
+		STATE_HEADER = STATE_INIT + 1,
+		STATE_CONTENTLENGTH,
+		STATE_BODY,
+	} STATE;
+
+
+	HTTYPE			httype;
+	ENCTYPE			enctype;
+	std::string		bound;
+	int				contentLength;
 	ParamMap		getData;
 	ParamMap		headers;
 	std::string		body;
 	PostParamMap	postData;
-	STATE			state;
-	TYPE			type;
-	ENCTYPE			enctype;
-	std::string		bound;
-	int				contentLength;
 
-	HttpRequest() : state( STATE_UNDEF ), type( TYPE_UNDEF ), enctype( ENCTYPE_UNDEF ), contentLength(0) {};
+
+	HttpRequest() : Request(), httype( HTTYPE_UNDEF ), enctype( ENCTYPE_UNDEF ), contentLength( 0 ) {};
 	HttpRequest( HttpRequest const& other )
-		: state( other.state )
-		, type( other.type )
+		: Request( other )
+		, httype( other.httype )
 		, enctype( other.enctype )
-		, request( other.request )
 		, getData( other.getData )
 		, headers( other.headers )
 		, body( other.body )
@@ -500,19 +612,47 @@ public:
 		, bound( other.bound )
 		, contentLength( other.contentLength )
 	{};
+	HttpRequest( HttpRequest&& other ) noexcept
+		: Request( std::move( other ) )
+		, httype( other.httype )
+		, enctype( other.enctype )
+		, getData( std::move( other.getData ) )
+		, headers( std::move( other.headers ) )
+		, body( std::move( other.body ) )
+		, postData( std::move( other.postData ) )
+		, bound( std::move( other.bound ) )
+		, contentLength( other.contentLength )
+	{};
+
+	HttpRequest& operator=( HttpRequest const& other ) noexcept
+	{
+		Request::operator=( other );
+		httype = other.httype;
+		enctype = other.enctype;
+		getData = other.getData;
+		headers = other.headers;
+		return *this;
+	}
+
+	HttpRequest& operator=( HttpRequest&& other ) noexcept
+	{
+		Request::operator=( std::move( other ) );
+		httype = other.httype;
+		enctype = other.enctype;
+		getData.swap( other.getData );
+		headers.swap( other.headers );
+		return *this;
+	}
 
 	HttpRequest( TCPConnection& conn );
-	bool readFrom( TCPConnection& conn );
-	bool writeTo( TCPConnection& conn );
-	operator STATE() { return state; }
 
-	STATE parseRequest( TCPConnection& conn );
-	static int parseURL( std::string const& url, std::string& site, ParamMap& getParams );
-	static int parseHttpHeader( char const* szIn, TYPE& type, std::string& request, ParamMap& heads );
-	static int parseHeader( char const* szIn, ParamMap& heads );
-	static int parseHeaderLine( char const* p, ParamMap& params );
-	static int parseURLencBody( std::string const& body, PostParamMap& postData );
-	static int parseMultipartBody( std::string const& body, std::string bound, PostParamMap& postData );
+	HttpRequest( HTTYPE httype, std::string request, PostParamMap const& postParams = {}, ParamMap const& headers = {} );
+
+	virtual bool send( TCPConnection& conn );
+};
+
+class HttpResponse {
+public:
 };
 
 class Server
@@ -550,7 +690,13 @@ public:
 	bool isRunningModal();
 private: 
 	u_int modalLoop();
-	static void __stdcall _theadFn( void* param );
+};
+
+class Client
+{
+public:
+	Client( SocketAddress sa );
+	virtual ~Client();
 };
 
 #endif //ndef VWB_SOCKET_HPP

@@ -58,6 +58,38 @@ size_t copyCursorBitmapToMappedTexture( HBITMAP hbmMask, HBITMAP hbmColor, BITMA
 
 inline void spliceVec( VWB_double& outX, VWB_double& outY, VWB_double& outZ, VWB_double const& inX, VWB_double const& inY, VWB_double const& inZ, VWB_uint sw );
 
+inline std::string fmt( const char* format, ... )
+{
+	char buf[256];
+	va_list args;
+	va_start( args, format );
+	const auto r = std::vsnprintf( buf, sizeof buf, format, args );
+	if( r < 0 )
+	{
+		va_end( args );
+		return {};
+	}
+	else
+	{
+		const size_t len = r;
+		if( len < sizeof( buf ) )
+		{
+			va_end( args );
+			return { buf, len };
+		}
+
+		std::string s( len, '\0' );
+		#if __cplusplus >= 201703L
+		std::vsnprintf( s.data(), len + 1, format, args );
+		#else
+		std::vsnprintf( &s[0], len + 1, format, args );
+		#endif
+		va_end( args );
+		return s;
+	}
+}
+
+
 class VWB_Warper_base : public VWB_Warper 
 {
 protected:

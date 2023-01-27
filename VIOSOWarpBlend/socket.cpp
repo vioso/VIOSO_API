@@ -402,13 +402,8 @@ SocketAddress	Socket::gethostbyname(const std::string& name, const unsigned shor
 //static
 std::string Socket::gethostname()
 {
-	std::string s;
-	int len = ::gethostname( NULL, 0 );
-	if( 0 < len )
-	{
-		s.resize( size_t(len) + 1, 0 );
-		::gethostname( &s[0], len + 1 );
-	}
+	std::string s(257,'\0');
+	::gethostname( s.data(), 256 );
 	return s;
 }
 
@@ -915,29 +910,565 @@ int TCPConnection::processError( Server* pServer )
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
+// Request
+
+Request::ptr_t Request::parse( TCPConnection& conn )
+{
+	std::unique_ptr<Request> r;
+	if( conn.cmpFront( "GET " ) || conn.cmpFront( "POST" ) )
+	{
+		r = make_unique<HttpRequest>( conn );
+	}
+	else if( conn.cmpFront( "{" ) || conn.cmpFront( "[" ) )
+	{
+		r = make_unique<JsonRequest>( conn );
+	}
+	else  // create a command
+	{
+		r = make_unique<CommandRequest>( conn );
+	}
+	return r;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Response
+
+std::unique_ptr<Response> Response::parseResponse( TCPConnection& conn )
+{
+	return std::unique_ptr<Response>();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// HttpBase
+
+int HttpBase::parseURL( std::string const& request, std::string& site, ParamMap& getData )
+{
+	if( request.empty() )
+		return SOCKET_ERROR;
+
+	std::string::size_type pos = request.find( '?' );
+	if( std::string::npos != pos )
+	{
+		std::string::size_type pos1 = pos + 1;
+		while( 1 )
+		{
+			std::string::size_type pos2 = request.find( '&', pos1 );
+			std::string::size_type pos3 = request.find( '=', pos1 );
+			if( std::string::npos == pos3 )
+				break;
+			getData[std::string( request, pos1, pos3 - pos1 )] = std::string( request, pos3, std::string::npos == pos2 ? std::string::npos : pos2 - pos3 );
+			if( std::string::npos == pos2 )
+				break;
+			pos1 = pos2 + 1;
+		}
+		site = request.substr( 0, pos - 1 );
+		return 1 + ( int )getData.size();
+	}
+	else
+		site = request;
+	return 1;
+}
+
+int HttpBase::parseHttpHeader( char const* szIn, HTTYPE& type, std::string& request, ParamMap& headers )
+{
+	if( NULL == szIn )
+		return -1;
+	char const* p = szIn;
+	char const* pE = strstr( p, "\015\012" );
+	if( NULL == pE )
+		return SOCKET_ERROR;
+	request = std::string( p, pE - p );
+
+	std::string::size_type po1 = request.find( ' ', 5 ); // this is the space before protocol, this is mandatory but does not change change processing
+	if( std::string::npos == po1 )
+		return SOCKET_ERROR;
+
+	if( 0 == request.compare( 0, 4, "GET " ) )
+	{
+		type = HTTYPE_GET;
+		request = request.substr( 4, po1 - 4 );
+	}
+	else if( 0 == request.compare( 0, 5, "POST " ) )
+	{
+		type = HTTYPE_POST;
+		request = request.substr( 5, po1 - 5 );
+	}
+	else
+		return SOCKET_ERROR;
+
+	// read header lines
+	p = pE + 2;
+	parseHeader( p, headers );
+	return 1 + ( int )headers.size();
+}
+
+int HttpBase::parseHeader( char const* p, ParamMap& headers )
+{
+	char const* pS = p;
+	char const* pE = NULL;
+	while( *p && NULL != ( pE = strstr( p, "\015\012" ) ) )
+	{
+		std::string s( p, pE - p );
+		if( s.empty() )
+			return ( int )( p - pS ) + 2;
+		std::string::size_type pos = s.find( ':' );
+		if( std::string::npos != pos )
+		{
+			headers[std::string( p, pos )] = std::string( s, pos + 2, std::string::npos );
+		}
+		else
+			headers[std::string( p )] = "";
+		p = pE + 2;
+	}
+	return SOCKET_ERROR;
+}
+
+int HttpBase::parseHeaderLine( char const* p, ParamMap& params )
+{
+	char const* pE = NULL;
+	while( p )
+	{
+		pE = strstr( p, "; " );
+
+		std::string s;
+		if( pE )
+		{
+			s = std::string( p, pE - p );
+			pE += 2;
+		}
+		else
+			s = p;
+
+		std::string::size_type pos = s.find( '=' );
+		if( std::string::npos != pos )
+		{
+			if( '"' == s[pos + 1] )
+			{
+				params[std::string( p, pos )] = std::string( s, pos + 2, -1 );
+				params[std::string( p, pos )].pop_back();
+			}
+			else
+				params[std::string( p, pos )] = std::string( s, pos + 1, -1 );
+		}
+		else
+		{
+			params[s] = "";
+		}
+		p = pE;
+	}
+
+	return ( int )params.size();
+}
+
+int HttpBase::parseURLencBody( std::string const& body, PostParamMap& postData )
+{
+	if( body.empty() )
+		return SOCKET_ERROR;
+
+	std::string::size_type pos1 = 0;
+	while( 1 )
+	{
+		std::string::size_type pos2 = body.find( '&', pos1 );
+		std::string::size_type pos3 = body.find( '=', pos1 );
+		if( std::string::npos == pos3 )
+			break;
+		PostValue v = { ENCTYPE_URL, std::string( body, pos3 + 1, std::string::npos == pos2 ? std::string::npos : pos2 - pos3 - 1 ), "" };
+		postData[std::string( body, pos1, pos3 - pos1 )] = v;
+		if( std::string::npos == pos2 )
+			break;
+		pos1 = pos2 + 1;
+	}
+	return ( int )postData.size();
+}
+
+int HttpBase::parseMultipartBody( std::string const& body, std::string const& bound, PostParamMap& postData )
+{
+	if( bound.length() * 2 + 10 > body.size() )
+		return SOCKET_ERROR;
+	std::string::size_type lBound = bound.length();
+	std::string::size_type found = std::string::npos;
+
+	// must start with bound
+	if( 0 == body.compare( 0, lBound, bound ) )
+	{
+		std::string::size_type offs = lBound + 2; // step over first boundary line feed
+		std::string b2( "\015\012" ); b2.append( bound ); lBound += 2;
+		while( std::string::npos != ( found = body.find( b2, offs ) ) )
+		{
+			// next boundary found; inbetween there is content
+			std::string blob = body.substr( offs, found - offs );
+			offs = found + lBound + 2;
+
+			// parse blob
+			ParamMap headers;
+			int datastart = parseHeader( blob.c_str(), headers );
+			if( SOCKET_ERROR != datastart )
+			{
+				//std::string cntt = "ContentDissition: form-data; ";
+				ParamMap::iterator itCD = headers.find( "Content-Disposition" );
+				ParamMap::iterator itCT = headers.find( "Content-Type" );
+				if( headers.end() != itCD && headers.end() != itCT )
+				{
+					ParamMap params;
+					parseHeaderLine( itCD->second.c_str(), params );
+					ParamMap::iterator itName = params.find( "name" );
+					ParamMap::iterator itFile = params.find( "filename" );
+					if( params.end() != itName )
+					{
+						PostValue& v = postData[itName->second];
+						v.encType = ENCTYPE_OTHER;
+						v.value = blob.substr( datastart, std::string::npos );
+						if( params.end() != itFile )
+						{
+							v.file.swap( itFile->second );
+						}
+					}
+				}
+			}
+
+			if( '-' == body[offs] )
+				return int( offs + 4 ); // finished NOTE: conversion to INT is sane, as the content size cannot exceed 2GB
+			else
+				return SOCKET_ERROR;
+		}
+	}
+	return SOCKET_ERROR; // did not find final boundary, this is an error
+}
+
+int HttpBase::resolveURL( std::string const& url, bool& isSecure, std::string& host, unsigned short& port, std::string& path, ParamMap& getParams, std::string& fragment )
+{
+	// to resolve, the url must be at least 8 characters wide, http://a
+	// get protocol
+	if( 8 < url.size() && !strncmp( "http", url.c_str(), 4 ) && ( !strncmp( "://", &url.c_str()[4], 3 ) || !strncmp( "s://", &url.c_str()[4], 4 ) ) )
+	{
+		size_t posHost = 7;
+		if( 's' == url.c_str()[4] )
+		{
+			isSecure = true;
+			posHost++;
+		}
+		else
+			isSecure = false;
+
+		auto posPath = url.find( '/', 8 );
+		auto posParams = url.find( '?', 8 );
+		auto posFragment = url.find( '#', 8 );
+		if( posFragment <= posPath ) // there is no path before start of fragment
+		{
+			posPath = string::npos; // the '/' was found after the fragment qualifier, so its part of the fagment rather than indicating the beginning of the resource path, thus ist ends rather with the params qualifier
+		}
+		if( posFragment <= posParams )  // there is no params before fragment
+		{
+			posParams = string::npos;
+		}
+		if( posParams <= posPath )  // there is no path before params (resp. before fragment)
+		{
+			posPath = string::npos;
+		}
+		if( string::npos == posPath ) // no path
+		{
+			if( posParams < posFragment ) // read until params
+			{
+				host = url.substr( posHost, posParams - posHost );
+			}
+			else // read until fragment (or to end, if it is npos)
+			{
+				host = url.substr( posHost, posFragment - posHost );
+			}
+		}
+		else // read until path
+		{
+			host = url.substr( posHost, posPath - posHost );
+		}
+		// the host might contain a port
+		auto posPort = host.find( ':', 1 );
+		port = 0;
+		if( string::npos != posPort )
+		{
+			port = ( unsigned short )stoi( host.substr( posPort + 1 ) );
+			host.erase( posPort, string::npos );
+		}
+		if( 0 == port )
+		{
+			if( isSecure )
+				port = 443;
+			else
+				port = 80;
+		}
+
+		// get the path
+		if( string::npos != posPath )
+		{
+			if( posParams < posFragment ) // there are parameters
+				path = URLencode( url.substr( posPath, posParams - posPath ) ); // we need the /, so no +1
+			else
+				path = URLencode( url.substr( posPath, posFragment - posPath ) );
+		}
+		else
+			path = "/";
+
+		// get the getParams
+		getParams.clear();
+		for( auto pos = posParams; pos < posFragment; )
+		{
+			auto pos2 = url.find( '&', pos + 1 );
+			if( pos2 >= posFragment ) // the & was in fragment
+				pos2 = posFragment;
+			auto pos3 = url.find( '=', pos + 1 );
+			string value;
+			if( pos3 > pos2 ) // no value
+				pos3 = pos2;
+			else
+				value = url.substr( pos3 + 1, pos2 - pos3 - 1 );
+			string key = url.substr( pos + 1, pos3 - pos - 1 );
+			getParams.emplace( URLencode( key ), URLencode( value ) );
+			pos = pos2;
+		}
+
+		// get the fragment
+		if( string::npos != posFragment )
+		{
+			fragment = URLencode( url.substr( posFragment + 1 ) );
+		}
+		return 1;
+	}
+	return 0;
+}
+
+std::string HttpBase::URLencode( std::string const& unencoded )
+{
+	// note: we do not encode '/'
+	std::string s; s.reserve( unencoded.size() );
+	for( auto c : unencoded )
+	{
+		if(
+			( '0' <= c && c <= '9' ) ||
+			( 'a' <= c && c <= 'z' ) ||
+			( 'A' <= c && c <= 'Z' ) ||
+			( '.' == c || '~' == c || '-' == c || '_' == c || '/' == c )
+			)
+		{
+			s.push_back( c );
+		}
+		else if( ' ' == c )
+		{
+			s.push_back( '+' );
+		}
+		else
+		{
+			s.push_back( '%' );
+			unsigned char x;
+			x = unsigned char(c) >> 4;
+			if( 9 < x )
+				x += 'A' - 9;
+			else
+				x += '0';
+			s.push_back( x );
+			x = unsigned char(c) & 0x0F;
+			if( 9 < x )
+				x += 'A' - 9;
+			else
+				x += '0';
+			s.push_back( x );
+		}
+	}
+	return s;
+}
+
+std::string HttpBase::URLdecode( std::string const& encoded )
+{
+	std::string s; s.reserve( encoded.size() );
+	for( auto c = encoded.begin(); c != encoded.end(); c++ )
+	{
+		if( '+' == *c )
+		{
+			s.push_back( '+' );
+		}
+		else if( '%' == *c )
+		{
+			unsigned char xHi = *( ++c );
+			if( 'A' <= xHi )
+				xHi -= 'A' + 9;
+			else
+				xHi -= '0';
+			unsigned char x = *( ++c );
+			if( 'A' <= x )
+				x -= 'A' + 9;
+			else
+				x -= '0';
+			x += xHi << 4;
+			s.push_back( x );
+		}
+		else
+			s.push_back( *c );
+	}
+	return s;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// HttpRequest
 
 HttpRequest::HttpRequest( TCPConnection& conn )
-: state( STATE_UNDEF ), type( TYPE_UNDEF ), enctype( ENCTYPE_UNDEF ) 
+: Request(), httype( HTTYPE_UNDEF ), enctype( ENCTYPE_UNDEF ) 
 {
-	parseRequest( conn );
-};
+	char* pB = NULL;
+	int nB = 0;
+	switch( state )
+	{
+	case STATE_UNDEF:
+	{
+		state = STATE_INIT;
+	}
+	[[fallthrough]];
+	/* fall through */
+	case STATE_INIT:
+	{
+		nB = conn.getNumRead();
+		pB = new char[nB];
+		int n = conn.readUntil( pB, nB, "\015\012\015\012" );
+		if( 0 < n )
+		{
+			if( 0 < parseHttpHeader( pB, httype, request, headers ) )
+				state = STATE_HEADER;
+			else
+			{
+				state = STATE_ERROR;
+				break;
+			}
+		}
+		else if( 0 > n )
+		{
+			state = STATE_ERROR;
+			break;
+		}
+		else
+			break;
+	}
+	[[fallthrough]];
+	/* fall through */
+	case STATE_HEADER:
+	{
+		parseURL( request, request, getData );
+		// read content length, this is a must on post requests
+		if( HTTYPE_POST == httype )
+		{
+			auto it = headers.find( "Content-Type" );
+			if( it != headers.end() )
+			{
+				if( 0 == it->second.compare( "application/x-www-form-urlencoded" ) )
+					enctype = ENCTYPE_URL;
+				else if( 0 == it->second.compare( 0, 19, "multipart/form-data" ) )
+				{
+					enctype = ENCTYPE_MULTI;
+					bound = std::string( "--" );
+					bound.append( it->second.substr( 30 ) );
+				}
+				else // other
+				{
+					enctype = ENCTYPE_OTHER;
+					bound = it->second.substr( 0, it->second.find( ';' ) );
+				}
+				headers.erase( it );
+			}
+			else
+				enctype = ENCTYPE_URL;
+			it = headers.find( "Content-Length" );
+			if( it != headers.end() )
+			{
+				contentLength = atoi( it->second.c_str() );
+				if( 0 < contentLength )
+				{
+					state = STATE_CONTENTLENGTH;
+				}
+				else
+				{
+					state = STATE_ERROR;
+					break;
+				}
+				headers.erase( it ); // need to remove from headers after parsed
+			}
+			else
+			{
+				state = STATE_ERROR;
+				break;
+			}
+		}
+		else
+		{
+			state = STATE_PARSED;
+			break;
+		}
+	}
+	[[fallthrough]];
+	/* fall through */
+	case STATE_CONTENTLENGTH:
+	{
+		if( contentLength > conn.getNumRead() )
+			break;
 
-bool HttpRequest::readFrom( TCPConnection& conn )
+		body.resize( size_t( contentLength ) + 1 );
+
+		if( contentLength == conn.read( &body[0], contentLength + 1, contentLength ) )
+			state = STATE_BODY;
+		else
+			state = STATE_ERROR;
+	}
+	[[fallthrough]];
+	/* fall through */
+	case STATE_BODY:
+	{
+		int i;
+		if( ENCTYPE_URL == enctype )
+			i = parseURLencBody( body, postData );
+		else
+			i = parseMultipartBody( body, bound, postData );
+		if( 0 < i )
+			state = STATE_PARSED;
+		else if( 0 == i )
+			break;
+		else
+		{
+			state = STATE_ERROR;
+			break;
+		}
+	}
+	[[fallthrough]];
+	/* fall through */
+	case STATE_PARSED:
+		break;
+	}
+	if( pB )
+		delete[] pB;
+}
+
+HttpRequest::HttpRequest( HTTYPE type, std::string url, PostParamMap const& postParams, ParamMap const& headers )
+	: Request( url, TYPE_HTTP )
+	, httype( type )
+	, enctype( ENCTYPE_URL )
+	, bound( "-----------------------------VIOSOAPI" )
+	, contentLength( 0 )
+	, postData( postParams )
+	, HttpRequest::headers( headers )
 {
-	*this = HttpRequest(); // empty
-	return STATE_ERROR != parseRequest( conn );
-};
+}
 
-bool HttpRequest::writeTo( TCPConnection& conn )
+bool HttpRequest::send( TCPConnection& conn )
 {
 	std::stringstream s( std::ios_base::binary );
 	if( postData.empty() ) // GET header
+		httype = HTTYPE_POST;
+	else if( HTTYPE_UNDEF == httype )
+		httype = HTTYPE_GET;
+
+	if( HTTYPE_POST == httype )
 		s << "GET ";
-	else // POST header
+	else if( HTTYPE_POST == httype ) // POST header
 	{
 		s << "POST ";
-		bound = "-----------------------------VIOSOSPCALIBRATOR";
 	}
+	else
+		return false;
+
 	if( request.empty() )
 		s << "/";
 	else
@@ -1011,391 +1542,7 @@ bool HttpRequest::writeTo( TCPConnection& conn )
 		s << ss.str();
 	}
 
-	conn.write( s.str().c_str(), (int)s.str().size() );
-	return false;
-}
-
-HttpRequest::STATE HttpRequest::parseRequest( TCPConnection& conn )
-{
-	char* pB = NULL;
-	int nB = 0;
-	switch( state )
-	{
-	case STATE_UNDEF:
-		{
-			if( conn.cmpFront( "GET " ) || conn.cmpFront( "POST" ) )
-			{
-				state = STATE_INIT;
-			}
-			else
-			{
-				state = STATE_ERROR;
-				break;
-			}
-		}
-		[[fallthrough]];
-		/* fall through */
-	case STATE_INIT:
-		{
-			nB = conn.getNumRead();
-			pB = new char[ nB ];
-			int n = conn.readUntil( pB, nB, "\015\012\015\012" );
-			if( 0 < n )
-			{
-				if( 0 < parseHttpHeader( pB, type, request, headers ) )
-					state = STATE_HEADER;
-				else
-				{
-					state = STATE_ERROR;
-					break;
-				}
-			}
-			else if( 0 > n )
-			{
-				state = STATE_ERROR;
-				break;
-			}
-			else
-				break;
-		}
-		[[fallthrough]];
-		/* fall through */
-	case STATE_HEADER:
-		{
-			parseURL( request, request, getData );
-			// read content length, this is a must on post requests
-			if( TYPE_POST == type )
-			{
-				auto it = headers.find("Content-Type");
-				if( it != headers.end() )
-				{
-					if( 0 == it->second.compare( "application/x-www-form-urlencoded" ) )
-						enctype = ENCTYPE_URL;
-					else if( 0 == it->second.compare( 0, 19, "multipart/form-data" ) )
-					{
-						enctype = ENCTYPE_MULTI;
-						bound = std::string("--");
-						bound.append( it->second.substr( 30 ) );
-					}
-					else // other
-					{
-						enctype = ENCTYPE_OTHER;
-						bound = it->second.substr( 0, it->second.find( ';' ) );
-					}
-					headers.erase( it );
-				}
-				else
-					enctype = ENCTYPE_URL;
-				it = headers.find( "Content-Length" );
-				if( it != headers.end() )
-				{
-					contentLength = atoi( it->second.c_str() );
-					if( 0 < contentLength )
-					{
-						state = STATE_CONTENTLENGTH;
-					}
-					else
-					{
-						state = STATE_ERROR;
-						break;
-					}
-					headers.erase( it ); // need to remove from headers after parsed
-				}
-				else
-				{
-					state = STATE_ERROR;
-					break;
-				}
-			}
-			else
-			{
-				state = STATE_PARSED;
-				break;
-			}
-		}
-		[[fallthrough]];
-		/* fall through */
-	case STATE_CONTENTLENGTH:
-		{
-			if( contentLength > conn.getNumRead() )
-				break;
-
-			body.resize( size_t(contentLength) + 1 );
-
-			if( contentLength == conn.read( &body[0], contentLength + 1, contentLength ) )
-				state = STATE_BODY;
-			else
-				state = STATE_ERROR;
-		}
-		[[fallthrough]];
-		/* fall through */
-	case STATE_BODY:
-		{
-			int i;
-			if( ENCTYPE_URL == enctype )
-				i = parseURLencBody( body, postData );
-			else
-				i = parseMultipartBody( body, bound, postData );
-			if( 0 < i )
-				state = STATE_PARSED;
-			else if( 0 == i )
-				break;
-			else
-			{
-				state = STATE_ERROR;
-				break;
-			}
-		}
-		[[fallthrough]];
-		/* fall through */
-	case STATE_PARSED:
-		break;
-	}
-	if( pB )
-		delete[] pB;
-	return state;
-}
-
-
-int HttpRequest::parseURL( std::string const& request, std::string& site, ParamMap& getData )
-{
-	if( request.empty() )
-		return SOCKET_ERROR;
-
-	std::string::size_type pos = request.find( '?' );
-	if( std::string::npos != pos )
-	{
-		std::string::size_type pos1 = pos+1;
-		while( 1 )
-		{
-			std::string::size_type pos2 = request.find( '&', pos1 );
-			std::string::size_type pos3 = request.find( '=', pos1 );
-			if( std::string::npos == pos3 )
-				break;
-			getData[std::string( request, pos1, pos3 - pos1 )] = std::string( request, pos3, std::string::npos == pos2 ? std::string::npos : pos2 - pos3 );
-			if( std::string::npos == pos2 )
-				break;
-			pos1 = pos2 + 1;
-		}
-		site = request.substr( 0, pos - 1 );
-		return 1 + (int)getData.size();
- 	}
-	else
-		site = request;
-	return 1;
-}
-
-int HttpRequest::parseHttpHeader( char const* szIn, TYPE& type, std::string& request, ParamMap& headers )
-{
-	if( NULL == szIn )
-		return -1;
-	char const* p = szIn;
-	char const* pE = strstr( p, "\015\012" );
-	if( NULL == pE )
-		return SOCKET_ERROR;
-	request = std::string( p, pE - p );
-
-	std::string::size_type po1 = request.find( ' ', 5 ); // this is the space before protocol, this is mandatory but does not change change processing
-	if( std::string::npos == po1 )
-		return SOCKET_ERROR;
-
-	if( 0 == request.compare( 0, 4, "GET " ) )
-	{
-		type = TYPE_GET;
-		request = request.substr( 4, po1 - 4 );
-	}
-	else if( 0 == request.compare( 0, 5, "POST " ) )
-	{
-		type = TYPE_POST;
-		request = request.substr( 5, po1 - 5 );
-	}
-	else
-		return SOCKET_ERROR;
-
-	// read header lines
-	p = pE + 2;
-	parseHeader( p, headers );
-	return 1 + (int)headers.size();
-}
-
-int HttpRequest::parseHeader( char const* p, ParamMap& headers )
-{
-	char const* pS = p;
-	char const* pE = NULL;
-	while( *p && NULL != ( pE = strstr( p,  "\015\012" ) ) )
-	{
-		std::string s( p, pE - p );
-		if( s.empty() )
-			return (int)(p - pS) + 2;
-		std::string::size_type pos = s.find( ':' );
-		if( std::string::npos != pos )
-		{
-			headers[ std::string( p, pos ) ] = std::string( s, pos+2, std::string::npos );
-		}
-		else
-			headers[ std::string( p ) ] = "";
-		p = pE + 2;
-	}
-	return SOCKET_ERROR;
-}
-
-int HttpRequest::parseHeaderLine( char const* p, ParamMap& params )
-{
-	char const* pE = NULL;
-	while( p )
-	{
-		pE = strstr( p,  "; " );
-
-		std::string s;
-		if( pE )
-		{
-			s = std::string( p, pE - p );
-			pE+= 2;
-		}
-		else
-			s = p;
-
-		std::string::size_type pos = s.find( '=' );
-		if( std::string::npos != pos )
-		{
-			if( '"' == s[pos+1] )
-			{
-				params[ std::string( p, pos ) ] = std::string( s, pos+2, -1 );
-				params[ std::string( p, pos ) ].pop_back();
-			}
-			else
-				params[ std::string( p, pos ) ] = std::string( s, pos+1, -1 );
-		}
-		else
-		{
-			params[ s ] = "";
-		}
-		p = pE;
-	}
-
-	return (int)params.size();
-}
-
-int HttpRequest::parseURLencBody( std::string const& body, PostParamMap& postData )
-{
-	if( body.empty() )
-		return SOCKET_ERROR;
-
-	std::string::size_type pos1 = 0;
-	while( 1 )
-	{
-		std::string::size_type pos2 = body.find( '&', pos1 );
-		std::string::size_type pos3 = body.find( '=', pos1 );
-		if( std::string::npos == pos3 )
-			break;
-		PostValue v = { ENCTYPE_URL, std::string( body, pos3 + 1, std::string::npos == pos2 ? std::string::npos : pos2 - pos3 - 1 ), "" };
-		postData[std::string( body, pos1, pos3 - pos1 )] = v;
-		if( std::string::npos == pos2 )
-			break;
-		pos1 = pos2 + 1;
-	}
-	return (int)postData.size();
-}
-
-int HttpRequest::parseMultipartBody( std::string const& body, std::string bound, PostParamMap& postData )
-{
-	if( bound.length() * 2 + 10 > body.size() )
-		return SOCKET_ERROR;
-	std::string::size_type lBound = bound.length();
-	std::string::size_type found = std::string::npos;
-
-	// must start with bound
-	if( 0 == body.compare( 0, lBound, bound ) )
-	{
-		std::string::size_type offs = lBound + 2; // step over first boundary line feed
-		std::string b2( "\015\012" ); b2.append( bound ); lBound+= 2;
-		while( std::string::npos != ( found = body.find( b2, offs ) ) )
-		{
-			// next boundary found; inbetween there is content
-			std::string blob = body.substr( offs, found - offs );
-			offs = found + lBound + 2;
-
-			// parse blob
-			ParamMap headers;
-			int datastart = parseHeader( blob.c_str(), headers );
-			if( SOCKET_ERROR != datastart )
-			{
-				//std::string cntt = "ContentDissition: form-data; ";
-				ParamMap::iterator itCD = headers.find( "Content-Disposition" );
-				ParamMap::iterator itCT = headers.find( "Content-Type" );
-				if( headers.end() != itCD && headers.end() != itCT )
-				{
-					ParamMap params;
-					parseHeaderLine( itCD->second.c_str(), params );
-					ParamMap::iterator itName = params.find( "name" );
-					ParamMap::iterator itFile = params.find( "filename" );
-					if( params.end() != itName  )
-					{
-						PostValue& v = postData[itName->second];
-						v.encType = ENCTYPE_OTHER;
-						v.value = blob.substr( datastart, std::string::npos );
-						if( params.end() != itFile )
-						{
-							v.file.swap( itFile->second );
-						}
-					}
-				}
-			}
-
-			if( '-' == body[offs] )
-				return int(offs + 4); // finished NOTE: conversion to INT is sane, as the content size cannot exceed 2GB
-			else 
-				return SOCKET_ERROR;
-		}
-	}
-	return SOCKET_ERROR; // did not find final boundary, this is an error
-
-/*
-	while( std::string::npos != ( found = body.find( "\015\012", offs ) ) )
-	{
-		std::string s( body, offs, found - offs );
-		if(  ) // first
-		{
-			offs = found + 2;
-			int ct = 0;
-			int enc = ENCTYPE_UNDEF;
-			while( std::string::npos != ( found = body.find( "\015\012", offs ) ) )
-			{
-				std::string l( body, offs, found - offs );
-				offs = found + 2;
-			}
-			if( 0 == ct && ENCTYPE_UNDEF == enc )
-				break;
-		}
-		else if( 0 == s.compare( 0, bound.length(), bound ) ) // subsequent
-		{
-			if( s.length() == bound.length() + 2 && '-' == s[bound.length()] && '-' == s[bound.length()+1] ) // last
-			{
-				// terminate
-			}
-			else
-			{ // inbetween
-			}
-		}
-		else
-		{
-			std::string::size_type p1 = s.find( '=' );
-			if( std::string::npos != p1 )
-			{
-				std::string& data = postData[ std::string( s, p1 ) ] = std::string( s, p1+2, -1 );
-				std::string::size_type f2 = data.find( "file" );
-				if( std::string::npos != f2 )
-				{
-					// get file...
-					std::string fname;
-					files[ fname ] = std::string( );
-				}
-			}
-		}
-		offs = found;
-	}
-*/
-	return (int)postData.size();
+	return 0 < conn.write( s.str().c_str(), (int)s.str().size() );
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -1581,7 +1728,7 @@ int Server::doModal()
 			m_thread.join();
 		}
 	}
-	m_thread = std::thread( Server::_theadFn, this );
+	m_thread = std::thread( &Server::modalLoop, this );
 	if( m_thread.joinable() )
 		return 0;
 	logStr( 0, "Server: FATAL ERROR cannot sart listener loop.\n" );
@@ -1613,15 +1760,6 @@ bool Server::isRunningModal()
 {
 	return MODALSTATE_RUN == m_modalState; 
 }
-
-void Server::_theadFn( void* param )
-{
-	if( NULL == param )
-		return;
-	//return
-	((Server*)param)->modalLoop();
-}
-
 
 ////////////////////////////////////// copy paste functions; TODO: wrap a nice HTTP client class arround ///////////////////////
 // return
@@ -1796,3 +1934,20 @@ BOOL SendHTTP( LPCSTR szHost, unsigned short iPort, LPCSTR szURI, LPCSTR szName,
 	return FALSE;
 }
 
+Client::Client( SocketAddress sa )
+{
+}
+
+Client::~Client()
+{
+}
+
+bool JsonRequest::send( TCPConnection& conn )
+{
+	return false;
+}
+
+bool CommandRequest::send( TCPConnection& conn )
+{
+	return false;
+}

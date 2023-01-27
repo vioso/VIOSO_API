@@ -110,6 +110,7 @@ typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum 
 #define GL_CLAMP_TO_BORDER						0x812D
 #define GL_CLAMP_TO_EDGE						0x812F
 
+#define GL_R32F									0x822E 
 #define GL_RG32F								0x8230
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS				0x8242
 #define GL_DEBUG_NEXT_LOGGED_MESSAGE_LENGTH		0x8243

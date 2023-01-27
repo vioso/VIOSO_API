@@ -184,6 +184,9 @@ struct VWB_Warper
 
 	/// set to true to disable black level offset, defaults to false
 	bool        bDoNoBlack;
+
+	/// set to a port a UDP broadcast is sent every 3 seconds, defaults to 0, which means no heartbeat is sent; only avaliable if "port" is set
+	VWB_word        heartBeatPort;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

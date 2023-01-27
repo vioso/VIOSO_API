@@ -4,10 +4,36 @@
 using namespace std;
 queue< VWBRemoteCommand > g_commandQueue;
 
-VWBTCPListener::VWBTCPListener( SocketAddress& s )
+int VWBTCPListener::heartBeatFn( void* param )
+{
+	while( m_tm != 0ms )
+	{
+		sendInfoTo( SocketAddress::broadcast( m_port ) );
+		this_thread::sleep_for( m_tm );
+	}
+	return 0;
+}
+
+VWBTCPListener::VWBTCPListener( SocketAddress& s, std::chrono::duration<u_short, std::milli > tm )
 : TCPListener( s )
 , m_port( s.getPort() ) 
-{}
+, m_tm( tm )
+, m_lck()
+{
+	if( m_tm != 0ms )
+	{
+		m_heardBeatTh = thread( &VWBTCPListener::heartBeatFn, this, nullptr );
+	}
+}
+
+VWBTCPListener::~VWBTCPListener()
+{
+	if( m_tm != 0ms && m_heardBeatTh.joinable() )
+	{
+		m_tm = 0ms;
+		m_heardBeatTh.join();
+	}
+}
 
 VWB_ERROR VWBTCPListener::add( VWB_Warper* pWarper )
 {
@@ -20,6 +46,7 @@ VWB_ERROR VWBTCPListener::add( VWB_Warper* pWarper )
 	if( m_port != pWarper->port )
 		return VWB_ERROR_FALSE;
 
+	lock_guard sl( m_lck );
 	for( WarperList::iterator it = m_warpers.begin(); it != m_warpers.end(); it++ )
 	{
 		if( *it == pWarper )
@@ -49,6 +76,7 @@ VWB_ERROR VWBTCPListener::remove( VWB_Warper* pWarper )
 	//if( m_port != Socket::hton(pWarper->port) )
 	//	return VWB_ERROR_FALSE;
 
+	lock_guard sl( m_lck );
 	for( WarperList::iterator it = m_warpers.begin(); it != m_warpers.end(); it++ )
 	{
 		if( *it == pWarper )
@@ -78,6 +106,7 @@ VWB_ERROR VWBTCPListener::sendInfoTo( SocketAddress sa, SocketAddress* local )
 	char buff[20];
 	try {
 		buf << "VIOSOWarpBlend API " << VWB_Version_MAJ << "." << VWB_Version_MIN << "." << VWB_Version_MAI << "." << VWB_Version_REV << m_warpers.size() << " display(s) on " << local->getDottedDecimal(buff) <<":" << local->getPort() << "\015\012";
+		lock_guard sl( m_lck );
 		for( WarperList::iterator it = m_warpers.begin(); it != m_warpers.end(); it++ )
 		{
 			VWB_Warper_base* p = (VWB_Warper_base*)*it;
@@ -95,6 +124,7 @@ VWB_ERROR VWBTCPListener::sendInfoTo( SocketAddress sa, SocketAddress* local )
 
 VWB_Warper* VWBTCPListener::getWarper( char const* szName )
 {
+	lock_guard sl( m_lck );
 	for( auto it = m_warpers.begin(); it != m_warpers.end(); it ++ )
 		if( (*it) && 0 == strcmp( (*it)->channel, szName ) )
 			return *it;
@@ -135,36 +165,18 @@ int VWBTCPConnection::sendResponse()
 int VWBTCPConnection::cbRead( Server* pServer )
 { // this is always called from within lock
 	m_iCalls++;
-	if( m_req.empty() ) // initial 
-		m_req.push( HttpRequest(*this) );
-	else
-		m_req.front().parseRequest( *this );
-	HttpRequest::STATE r = m_req.front();
-
-	if( HttpRequest::STATE_ERROR == r )
+	auto req = Request::parse( *this );
+	auto state = m_req.front().get()->getState();
+	if( Request::STATE_ERROR == state )
 	{
 		// report error
-		logStr( 2, "INFO: No http request, parse as command string...\n" );
-		if( 2 < getNumRead() )
-		{
-			string s( size_t(getNumRead()) + 1, 0 );
-			read( &s[0], getNumRead()+1, getNumRead() ); 
-
-			m_req.front().type = HttpRequest::TYPE_GET;
-			if( 0 < HttpRequest::parseURL( s, m_req.front().request, m_req.front().getData ) )
-				m_req.front().state = HttpRequest::STATE_PARSED;
-			else
-			{
-				logStr( 1, "WARNING: Malformed request(2)\n" );
-			}
-		}
-		logStr( 1, "WARNING: Malformed request(1)\n" );
+		logStr( 2, "INFO: No TCP request parsing failed\n" );
 		return SOCKET_ERROR;
 	}
-	if( HttpRequest::STATE_PARSED == r )
+	if( HttpRequest::STATE_PARSED == state )
 	{
-		logStr( 2, "INFO: Net receive request %s\n", m_req.front().request.c_str() );
-		m_req.push( HttpRequest() );
+		logStr( 2, "INFO: Net receive request %s\n", m_req.front()->getRequest().c_str() );
+		m_req.emplace( req );
 		return 1;
 	}
 	return 0;

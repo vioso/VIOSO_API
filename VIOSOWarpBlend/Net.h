@@ -5,6 +5,8 @@
 #include "socket.h"
 #include <map>
 #include <queue>
+#include <chrono>
+#include <mutex>
 
 class VWBRemoteCommand
 {
@@ -23,8 +25,13 @@ protected:
 
 	WarperList m_warpers;
 	u_short m_port;
+	std::chrono::duration<u_short,std::milli> m_tm;
+	std::thread m_heardBeatTh;
+	std::mutex m_lck;
+	int heartBeatFn( void* param );
 public:
-	VWBTCPListener( SocketAddress& s );
+	VWBTCPListener( SocketAddress& s, std::chrono::duration<u_short, std::milli> tm = std::chrono::duration<u_short, std::milli>( 0 ) );
+	virtual ~VWBTCPListener();
 
 	VWB_ERROR add( VWB_Warper* pWarper );
 	VWB_ERROR remove( VWB_Warper* pWarper );
@@ -40,7 +47,7 @@ public:
 class VWBTCPConnection : public TCPConnection
 {
 public:
-	typedef std::queue<HttpRequest> RequestList;
+	typedef std::queue<Request::ptr_t> RequestList;
 protected:
 	VWB_Warper* m_pWarper;
 	int m_state;
@@ -66,9 +73,9 @@ public:
 	{ 
 		if( !m_req.empty() ) m_req.pop(); 
 	}
-	HttpRequest const* headRequestPtr()
+	Request const* headRequestPtr()
 	{
-		return m_req.empty() ? NULL : &m_req.front();
+		return m_req.empty() ? NULL : m_req.front().get();
 	}
 private:
 	virtual int cbRead( Server* pServer );

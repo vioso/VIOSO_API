@@ -40,7 +40,7 @@ uint8_t const* g_cryptoKey = nullptr;
 #ifdef _SOCKTEST_DEV
 #include "Net.h"
 Server g_server;
-typedef std::map< uint16_t, shared_ptr<VWBTCPListener>> Listeners;
+typedef map< uint16_t, shared_ptr<VWBTCPListener>> Listeners;
 Listeners g_listeners;
 #endif //def _SOCKTEST_DEV
 
@@ -242,6 +242,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt( "default", "port", 0, path );
 		port = GetIniInt( channel, "port", iDef, path );
 
+		iDef = GetIniInt( "default", "heartBeatPort", 0, path );
+		heartBeatPort = GetIniInt( channel, "heartBeatPort", iDef, path );
+
 		GetIniString( "default", "addr", "0.0.0.0", sDef, MAX_PATH, path );
 		GetIniString( channel, "addr", sDef, addr, MAX_PATH, path );
 
@@ -266,6 +269,28 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 
 VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile )
 {
+
+	#ifdef _DEBUG
+	bool isSecure;
+	string host;
+	uint16_t port;
+	string path;
+	HttpBase::ParamMap params;
+	string fragment;
+	int ok;
+	ok = HttpBase::resolveURL( ( char const* )u8"hp://sasd.asd.co", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"https://sasd.asd.co", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://sasd:81.asd.co", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://sasd.asd.co:818#anc", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://sasd.asd.co:888?bla=blubb&cc=abra cadabra!", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://sasd.asd.co#bla=blubb&cc=abra cadabra!", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://sasd.asd.co/bla.htm#bla=blubb&cc=abra cadabra!", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://sasd.asd.co/bla.htmbla=blubb&cc=abra cadabra!#anc", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"https://a.b?sdasd~/tr++/üü&?sdf#sadf", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"http://übers.na.bend/sdasd~/tr++/üü&?sdf#sadf", isSecure, host, port, path, params, fragment );
+	ok = HttpBase::resolveURL( ( char const* )u8"sdasd~/tr++/üü&?sdf#sadf", isSecure, host, port, path, params, fragment );
+	#endif
+
 	if( NULL == ppWarper )
 		return VWB_ERROR_PARAMETER;
 
@@ -529,45 +554,30 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 	VWB_ERROR err = VWB_ERROR_NONE;
 
-#ifdef _SOCKTEST_DEV
+#ifdef BBBBBBBBBB //_SOCKTEST_DEV
 	if( pWarper->port )
 	{
-		SocketAddress sa = Socket::gethostbyname( "localhost" );
-		if(0){
-			TCPConnection conn( SocketAddress( "vioso.com", 80 ) );
-			if( conn )
-			{
-				char sz[] = "GET / HTTP/1.1\015\012Host: www.vioso.com\015\012Client:VIOSO_API/" VWB_VERSTR "\015\012\015\012";
-				conn.sendDirect( sz, sizeof(sz)-1 );
-				while( 0 == conn.getNumRead() )
-					conn.processAsClient();
-				char szRecv[1024] = "olla peter von frosta! Como estas?";
-				int bt = conn.readUntil( szRecv, 1024, "\015\012" );
-				if( 0 == strncmp( szRecv, "HTTP/", 5 ) )
-				{
-					bt = conn.readUntil( szRecv, 1024, "\015\012\015\012" );
-					bt = (int)strlen( szRecv );
-				}
-			}
-		}
-
+		string hostname = Socket::gethostname();
 		// try to find a listener with same port to add this warper, or create a new one
-		auto& listener = g_listeners.try_emplace( pWarper->port, make_shared<VWBTCPListener>( SocketAddress( INADDR_ANY, ( unsigned short )pWarper->port ) ) ).first->second;
-		if( VWB_ERROR_NONE != ( err = listener->add( pWarper ) ) )
+		auto& entry = g_listeners.try_emplace( pWarper->port, make_shared<VWBTCPListener>( SocketAddress( INADDR_ANY, ( unsigned short )pWarper->port ) ) );
+		if( VWB_ERROR_NONE != ( err = entry.first->second->add( pWarper ) ) )
 		{
 			logStr( 0, "ERROR(%i): failed to add warper \"%s\" to new listener at %hu.\n", err, pWarper->channel, pWarper->port );
 			return err;
 		}
-		if( 0 != g_server.addReceiver( shared_ptr<SockIn>(listener) ) )
+		if( entry.second ) // is new intry
 		{
-			err = VWB_ERROR_NETWORK;
-			logStr( 0, "ERROR(%i): failed to add warper \"%s\".\n", err, pWarper->channel );
-			return err;
-		}
-		if( -1 == g_server.doModal() )
-		{
-			err = VWB_ERROR_NETWORK;
-			return err;
+			if( 0 != g_server.addReceiver( shared_ptr<SockIn>( entry.first->second ) ) )
+			{
+				err = VWB_ERROR_NETWORK;
+				logStr( 0, "ERROR(%i): failed to add warper \"%s\".\n", err, pWarper->channel );
+				return err;
+			}
+			if( -1 == g_server.doModal() ) // server will not run twice, if already there there will be no new thread
+			{
+				err = VWB_ERROR_NETWORK;
+				return err;
+			}
 		}
 	}
 #endif //def _SOCKTEST_DEV
@@ -1645,20 +1655,29 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 				VWBTCPConnection* conn = dynamic_cast<VWBTCPConnection*>( listener.second.get() );
 				if( conn )
 				{
-					HttpRequest const* req = conn->headRequestPtr();
-					if( nullptr != req )
+					auto req = conn->headRequestPtr();
+					if( req->getType() == TCPProto::TYPE_HTTP )
 					{
-						HttpRequest::PostParamMap::const_iterator it = req->postData.find( "inifile" );
-						if( it != req->postData.end() && !it->second.file.empty() )
+						auto http = (HttpRequest const*)req;
+						if( nullptr != http )
 						{
-							it->second.file;
-							// TODO ovrewrite current ini file
-						}
-						it = req->postData.find( "jsonrpc" );
-						if( it != req->postData.end() && !it->second.value.empty() )
-						{
-							it->second.value;
-							// TODO ovrewrite current ini file
+							if( http->getRequest() == "/upload.htm" )
+							{
+								auto it = http->postData.find( "inifile" );
+								if( it != http->postData.end() && !it->second.file.empty() )
+								{
+									it->second.file;
+									// TODO ovrewrite current ini file
+								}
+								it = http->postData.find( "jsonrpc" );
+								if( it != http->postData.end() && !it->second.value.empty() )
+								{
+									it->second.value;
+								}
+							}
+							else if( http->getRequest() == "/getconfig.htm" )
+							{
+							}
 						}
 					}
 				}
@@ -3013,8 +3032,8 @@ int expandPseudoGrid( VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long widt
 
 	struct RepairItem
 	{
-		std::vector<TP>::iterator where; // the grid position 
-		std::vector<TP>::value_type v;
+		typename std::vector<TP>::iterator where; // the grid position 
+		typename std::vector<TP>::value_type v;
 	};
 	std::list<RepairItem> repairs;
 

@@ -8,6 +8,35 @@
 #include <exception>
 #include <atomic>
 
+/*
+	static VWB_ERROR VwfInfoC(char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC(path, set, count); }
+	// call again with path = NULL, to release memory
+	static VWB_ERROR VwfInfoC(const TCHAR* dllPath, char const* path, VWB_WarpBlendHeaderSet* set) {
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if (nullptr != path)
+			if (1 == ++instanceCounter)
+				loadDll(dllPath);
+		if (instanceCounter)
+		{
+			VWB_uint count = 0;
+			ret = VWB_vwfInfoC(path, nullptr, &count);
+			if (count)
+			{
+				set->resize(count);
+				for (VWB_uint i = 0; i != count; i++)
+				{
+
+					VWB_vwfInfoC(path, , &count)
+				}
+			}
+		}
+		if (nullptr == path)
+			if (0 == --instanceCounter)
+				unloadDll();
+		return ret;
+	}
+*/
+
 class VWB
 {
 private:

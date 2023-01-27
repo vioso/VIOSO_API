@@ -651,6 +651,8 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	BOOL	done = FALSE;								// Bool Variable To Exit Loop
 	g_hInstance = hInstance;				// Grab An Instance For Our Window
 
+
+
 	char const* calibFile = lpCmdLine;
 	if( 0 == calibFile[0] )
 		calibFile = "VIOSO3d.vwf";
