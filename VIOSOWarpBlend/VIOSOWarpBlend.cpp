@@ -270,7 +270,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile )
 {
 
-	#ifdef _DEBUG
+	#if defined(_DEBUG) && defined (_SOCKTEST_DEV)
 	bool isSecure;
 	string host;
 	uint16_t port;
@@ -554,18 +554,18 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 	VWB_ERROR err = VWB_ERROR_NONE;
 
-#ifdef BBBBBBBBBB //_SOCKTEST_DEV
+#ifdef _SOCKTEST_DEV
 	if( pWarper->port )
 	{
 		string hostname = Socket::gethostname();
 		// try to find a listener with same port to add this warper, or create a new one
-		auto& entry = g_listeners.try_emplace( pWarper->port, make_shared<VWBTCPListener>( SocketAddress( INADDR_ANY, ( unsigned short )pWarper->port ) ) );
+		auto entry = g_listeners.try_emplace( (uint16_t)pWarper->port, make_shared<VWBTCPListener>( SocketAddress( INADDR_ANY, ( unsigned short )pWarper->port ), pWarper->heartBeatPort ) );
 		if( VWB_ERROR_NONE != ( err = entry.first->second->add( pWarper ) ) )
 		{
 			logStr( 0, "ERROR(%i): failed to add warper \"%s\" to new listener at %hu.\n", err, pWarper->channel, pWarper->port );
 			return err;
 		}
-		if( entry.second ) // is new intry
+		if( entry.second ) // is new entry
 		{
 			if( 0 != g_server.addReceiver( shared_ptr<SockIn>( entry.first->second ) ) )
 			{
@@ -1656,12 +1656,12 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 				if( conn )
 				{
 					auto req = conn->headRequestPtr();
-					if( req->getType() == TCPProto::TYPE_HTTP )
+					if( req->getType() == HttpRequest::myType )
 					{
 						auto http = (HttpRequest const*)req;
 						if( nullptr != http )
 						{
-							if( http->getRequest() == "/upload.htm" )
+							if( http->getContent() == "/upload.htm" )
 							{
 								auto it = http->postData.find( "inifile" );
 								if( it != http->postData.end() && !it->second.file.empty() )
@@ -1669,13 +1669,28 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 									it->second.file;
 									// TODO ovrewrite current ini file
 								}
-								it = http->postData.find( "jsonrpc" );
-								if( it != http->postData.end() && !it->second.value.empty() )
-								{
-									it->second.value;
-								}
+								//it = http->postData.find( "jsonrpc" );
+								//if( it != http->postData.end() && !it->second.value.empty() )
+								//{
+								//	it->second.value;
+								//}
 							}
-							else if( http->getRequest() == "/getconfig.htm" )
+							//if( http->getContent() == "/download.htm" )
+							//{
+							//	auto it = http->postData.find( "inifile" );
+							//	if( it != http->postData.end() )
+							//	{
+							//		// send current ini file
+							//		HttpResponse resp();
+							//		resp.send( conn );
+							//	}
+							//	//it = http->postData.find( "jsonrpc" );
+							//	//if( it != http->postData.end() && !it->second.value.empty() )
+							//	//{
+							//	//	it->second.value;
+							//	//}
+							//}
+							else if( http->getContent() == "/getconfig.htm" )
 							{
 							}
 						}

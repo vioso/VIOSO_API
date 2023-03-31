@@ -903,6 +903,8 @@
     <ClInclude Include="GL\GLWarpBlend.h" />
     <ClInclude Include="GL\GLWarpBlendXPL.h" />
     <ClInclude Include="GL\pixelshader.h" />
+    <ClInclude Include="HTTP.h" />
+    <ClInclude Include="JSON.h" />
     <ClInclude Include="JSONWrapper.h" />
     <ClInclude Include="logging.h" />
     <ClInclude Include="mmath.h" />
@@ -911,6 +913,8 @@
     <ClInclude Include="Platform.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="socket.h" />
+    <ClInclude Include="TCP.h" />
+    <ClInclude Include="UDP.h" />
     <ClInclude Include="VWF.h" />
   </ItemGroup>
   <ItemGroup>
@@ -946,6 +950,8 @@
     <ClCompile Include="DX\DXWarpBlend.cpp" />
     <ClCompile Include="GL\GLWarpBlend.cpp" />
     <ClCompile Include="GL\GLWarpBlendXPL.cpp" />
+    <ClCompile Include="HTTP.cpp" />
+    <ClCompile Include="JSON.cpp" />
     <ClCompile Include="JSONWrapper.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Mantis|Win32'">true</ExcludedFromBuild>
@@ -982,6 +988,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Win7|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="TCP.cpp" />
+    <ClCompile Include="UDP.cpp" />
     <ClCompile Include="VIOSOWarpBlend.cpp" />
     <ClCompile Include="VWF.cpp" />
   </ItemGroup>

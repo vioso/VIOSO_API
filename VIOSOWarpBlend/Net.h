@@ -2,7 +2,8 @@
 #define VWB_Net_h
 
 #include "common.h"
-#include "socket.h"
+#include "HTTP.h"
+#include "JSON.h"
 #include <map>
 #include <queue>
 #include <chrono>
@@ -25,12 +26,12 @@ protected:
 
 	WarperList m_warpers;
 	u_short m_port;
-	std::chrono::duration<u_short,std::milli> m_tm;
+	u_short m_heartBeatPort;
 	std::thread m_heardBeatTh;
 	std::mutex m_lck;
 	int heartBeatFn( void* param );
 public:
-	VWBTCPListener( SocketAddress& s, std::chrono::duration<u_short, std::milli> tm = std::chrono::duration<u_short, std::milli>( 0 ) );
+	VWBTCPListener( SocketAddress const& s, u_short heartBeatPort );
 	virtual ~VWBTCPListener();
 
 	VWB_ERROR add( VWB_Warper* pWarper );
@@ -47,7 +48,7 @@ public:
 class VWBTCPConnection : public TCPConnection
 {
 public:
-	typedef std::queue<Request::ptr_t> RequestList;
+	typedef std::queue<TCPProto::ptr_t> RequestList;
 protected:
 	VWB_Warper* m_pWarper;
 	int m_state;
@@ -73,7 +74,7 @@ public:
 	{ 
 		if( !m_req.empty() ) m_req.pop(); 
 	}
-	Request const* headRequestPtr()
+	TCPProto const* headRequestPtr()
 	{
 		return m_req.empty() ? NULL : m_req.front().get();
 	}

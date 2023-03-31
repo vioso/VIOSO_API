@@ -258,22 +258,28 @@ public:
 	int test(const double timeout=INFINITETIMEOUT) const;
 
 	// send some data to a conected socket, operation blocks
-	int send(const char* pch, const int iSize, const double timeout=INFINITETIMEOUT); 
+	int send(const char* pch, int iSize, const double timeout=INFINITETIMEOUT); 
 
 	// send some data to a concected socket direct, without select
-	int sendDirect(const char* pch, const int iSize); 
+	int sendDirect(const char* pch, int iSize); 
 
 	// receive some date from connected socket, operation blocks
-	int recv(char* pch, const int iSize, const double timeout=INFINITETIMEOUT); 
+	int recv(char* pch, int iSize, const double timeout=INFINITETIMEOUT); 
 
 	// receive some date from connected socket direct, witout select
-	int recvDirect(char* pch, const int iSize); 
+	int recvDirect(char* pch, int iSize); 
 
 	// sends datagram to peer
 	int sendDatagram(const char* buf, const int iSize, SocketAddress const& sa, bool dontRoute = false);
+	int sendDatagram( const char* buf, SocketAddress const& sa, bool dontRoute = false ) // for zero terminated string
+	{
+		int sz = ( int )strnlen_s( buf, 0xFFFF );
+		return sendDatagram( buf, sz, sa, dontRoute );
+	} 
 
 	// receives datagram from socket, peer address will be stored in 'sa' if specified
 	int recvDatagram(char* buf, const int iSize, SocketAddress* sa=NULL);
+	template<int sz> int recvDatagram( char( &buf )[sz], SocketAddress* sa ) { return recvDatagram( buf, sz, sa ); }
 
 	// returns connected peer address
 	SocketAddress getpeeraddr();
@@ -313,9 +319,6 @@ public:
 	friend bool operator==(const SOCKET s, const Socket& ss) { return s == ss.sock; };
 };
 
-class UDPListener;
-class TCPListener;
-class TCPConnection;
 class Server;
 
 class SockIn : public Socket
@@ -326,7 +329,7 @@ protected:
 public:
 	SockIn() : Socket() {}
 	SockIn( Socket const& s ) : Socket( s ) {}
-	SockIn( int protocol, SocketAddress& sa );
+	SockIn( int protocol, SocketAddress const& sa );
 	virtual ~SockIn();
 	Socket detach() { Socket s(sock); sock = 0; return s; }
 
@@ -340,345 +343,33 @@ protected:
 	virtual int processError( Server* pServer ) {return 1;}
 };
 
-class UDPListener : public SockIn
-{
-public:
-	typedef std::pair< std::string, SocketAddress > DataPackage;
-	typedef std::queue< DataPackage > RecvQueue;
-protected:
-	RecvQueue m_received;
-	int m_szRcvBuff;
-
-	UDPListener( UDPListener const& other ) : SockIn( other ), m_szRcvBuff(0) {}
-	UDPListener() : SockIn(), m_szRcvBuff( 0 ) {}
-public:
-
-	DataPackage& front() { return m_received.front(); }
-	int size() { (int)m_received.size(); }
-	void pop() { m_received.pop(); }
-
-	UDPListener( SocketAddress& sa );
-
-private:
-	virtual int processRead( Server* pServer );
-};
-
-class TCPListener : public SockIn
-{
-public:
-	typedef struct Peer { void* pData{}; SocketAddress sa; std::shared_ptr<TCPConnection> s; } Peer;
-	typedef std::vector< Peer > PeerList;
-protected:
-	PeerList m_peers;
-	
-	TCPListener( TCPListener const& other ) : SockIn( other ) {}
-	TCPListener() : SockIn() {}
-public:
-	int size() { (int)m_peers.size(); }
-	Peer& getPeer( int i ) { return m_peers[i]; }
-	Peer const& getPeer( int i ) const { return m_peers[i]; }
-	int getPeerIndex( TCPConnection const* pC ) const;
-	void closePeer( int i ) { m_peers.erase( m_peers.begin() + i ); }
-
-	TCPListener( SocketAddress& listenAt );
-
-private:
-	virtual int processRead( Server* pServer );
-};
-
-class TCPConnection : public SockIn
-{
-public:
-	typedef std::list< std::string > DataStream;
-protected:
-	DataStream m_strIn;
-	DataStream m_strOut;
-	int m_iRcvBuffSize;
-	int m_iSndBuffSize;
-	int m_iReadOffs;
-	int m_iReadSize;
-	bool m_bPendingSend;
-	SocketAddress m_peerAddr;
-	TCPListener* m_pListener;
-	Server* m_pServer;
-	mutable std::mutex m_mtxRWIn;
-	mutable std::mutex m_mtxRWOut;
-	timeval m_sto;
-
-public:
-	TCPConnection( Socket const& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer );
-	TCPConnection( SocketAddress connectTo );
-	virtual ~TCPConnection();
-
-	int write( char const* buff, int size );
-
-	// returns number of read chars, obtain available number of chars in stream from getNumRead()
-	// returns SOCKET_ERROR if buffer too small
-	int read( char* buff, int iBuffSize, int size );
-
-	// @param buff			the buffer to read into
-	// @param iBuffSize		the size of the bufferto read until
-	// @param szDelimiter	optional zero terminated string, set to network new-line "\015\012" 
-	// if buff is NULL, it returns the needed size including terminating zero char
-	// returns number of read chars
-	// returns 0 if no line is found or an empty line is read
-	// returns SOCKET_ERROR if buffer too small
-	int readUntil( char* buff, int iBuffSize, char const* szDelimiter = NULL ); // Adds zero termination to string
-
-	int cmpFront( char const* str ) const;
-	int processAsClient();
-
-	bool isWritePending() const { return m_bPendingSend; }
-	int getNumRead() const { return m_iReadSize; }
-	int getCurrRcvBuffSize() const { return m_iRcvBuffSize; }
-	int getCurrSndBuffSize() const { return m_iSndBuffSize; }
-private:
-	virtual int processRead( Server* pServer );
-	virtual int processWrite( Server* pServer );
-	virtual int processError( Server* pServer );
-};
 
 //////////////////////////////////////////////////////////////
-
-class TCPProto
-{
-public:
-	typedef enum STATE {
-		STATE_UNDEF,
-		STATE_INIT,
-		STATE_PARSED = 0x7FFFFFFF,
-		STATE_ERROR = 0xFFFFFFFF
-	} STATE;
-
-	typedef enum TYPE {
-		TYPE_UNDEF,
-		TYPE_HTTP,
-		TYPE_JSON,
-		TYPE_COMMAND
-	} TYPE;
-
-	typedef int State;
-protected:
-	TYPE type;
-	State state;
-
-public:
-	TCPProto() noexcept
-		: type( TYPE_UNDEF )
-		, state( STATE_UNDEF )
-	{};
-	TCPProto( TYPE t ) : type( t ), state( STATE_INIT ) {}
-	TCPProto( TCPProto const& other ) noexcept
-		: type( other.type )
-		, state( other.state )
-	{};
-	State getState() const { return state; }
-	TYPE getType() const { return type; }
-	TCPProto& operator=( TCPProto const& other ) noexcept {
-		type = other.type;
-		state = other.state;
-		return *this;
-	}
-	virtual bool send( TCPConnection& conn ) = 0;
-};
-
-class Request : public TCPProto
-{
-public:
-	typedef std::shared_ptr<Request> ptr_t;
-protected:
-	std::string		request;
-
-public:
-	static ptr_t parse( TCPConnection& conn );
-
-	Request( Request const& other ) noexcept
-		: TCPProto( other )
-		, request( other.request )
-	{}
-	Request( Request&& other ) noexcept
-		: TCPProto( std::move(other) )
-		, request( std::move(other.request) )
-	{}
-
-	std::string const& getRequest() const { return request; }
-
-	Request& operator=( Request const& other ) noexcept
-	{
-		TCPProto::operator=( other );
-		request = other.request;
-		return *this;
-	}
-	Request& operator=( Request&& other ) noexcept
-	{
-		TCPProto::operator=( other );
-		request.swap( other.request );
-		return *this;
-	}
-protected:
-	Request() : TCPProto() {};
-	Request( std::string const& req, TYPE type ) : TCPProto( type ), request( req ) { }
-};
-
-class Response : public TCPProto
-{
-public:
-	static std::unique_ptr<Response> parseResponse( TCPConnection& conn );
-};
-
-class HttpBase
-{
-public:
-	typedef enum HTTYPE {
-		HTTYPE_UNDEF,
-		HTTYPE_GET,
-		HTTYPE_POST,
-		HTTYPE_DELETE,
-		HTTYPE_PUT
-	} HTTYPE;
-
-	typedef enum ENCTYPE {
-		ENCTYPE_UNDEF,
-		ENCTYPE_URL,
-		ENCTYPE_MULTI,
-		ENCTYPE_OTHER
-	} ENCTYPE;
-
-	typedef struct PostValue {
-		ENCTYPE encType{ ENCTYPE_UNDEF };
-		std::string value;
-		std::string file;
-	} PostValue;
-	struct strcmpFn { bool operator()( std::string const& x, std::string const& y ) const { return 0 < x.compare( y ); }; };
-
-	typedef std::map< std::string, std::string, strcmpFn > ParamMap;
-	typedef std::map< std::string, PostValue, strcmpFn > PostParamMap;
-
-	static int parseURL( std::string const& url, std::string& site, ParamMap& getParams );
-	static int parseHttpHeader( char const* szIn, HTTYPE& type, std::string& request, ParamMap& heads );
-	static int parseHeader( char const* szIn, ParamMap& heads );
-	static int parseHeaderLine( char const* p, ParamMap& params );
-	static int parseURLencBody( std::string const& body, PostParamMap& postData );
-	static int parseMultipartBody( std::string const& body, std::string const& bound, PostParamMap& postData );
-	static int resolveURL( std::string const& url, bool& isSecure, std::string& host, unsigned short& port, std::string& path, ParamMap& getParams, std::string& fragment );
-	static std::string URLencode( std::string const& unencoded );
-	static std::string URLdecode( std::string const& encoded );
-};
-
-class JsonRequest : public Request
-{
-public:
-	JsonRequest( TCPConnection& conn ) { type = TYPE_JSON; state = STATE_ERROR; }
-	JsonRequest( std::string const& request ) : Request(request, TYPE_JSON ) { state = STATE_PARSED; }
-	virtual bool send( TCPConnection& conn );
-};
-
-class CommandRequest : public Request
-{
-public:
-	CommandRequest( TCPConnection& conn ) { type = TYPE_COMMAND; state = STATE_ERROR; };
-	virtual bool send( TCPConnection& conn );
-};
-
-class HttpRequest : public Request, HttpBase
-{
-public:
-	typedef enum STATE {
-		STATE_HEADER = STATE_INIT + 1,
-		STATE_CONTENTLENGTH,
-		STATE_BODY,
-	} STATE;
-
-
-	HTTYPE			httype;
-	ENCTYPE			enctype;
-	std::string		bound;
-	int				contentLength;
-	ParamMap		getData;
-	ParamMap		headers;
-	std::string		body;
-	PostParamMap	postData;
-
-
-	HttpRequest() : Request(), httype( HTTYPE_UNDEF ), enctype( ENCTYPE_UNDEF ), contentLength( 0 ) {};
-	HttpRequest( HttpRequest const& other )
-		: Request( other )
-		, httype( other.httype )
-		, enctype( other.enctype )
-		, getData( other.getData )
-		, headers( other.headers )
-		, body( other.body )
-		, postData( other.postData )
-		, bound( other.bound )
-		, contentLength( other.contentLength )
-	{};
-	HttpRequest( HttpRequest&& other ) noexcept
-		: Request( std::move( other ) )
-		, httype( other.httype )
-		, enctype( other.enctype )
-		, getData( std::move( other.getData ) )
-		, headers( std::move( other.headers ) )
-		, body( std::move( other.body ) )
-		, postData( std::move( other.postData ) )
-		, bound( std::move( other.bound ) )
-		, contentLength( other.contentLength )
-	{};
-
-	HttpRequest& operator=( HttpRequest const& other ) noexcept
-	{
-		Request::operator=( other );
-		httype = other.httype;
-		enctype = other.enctype;
-		getData = other.getData;
-		headers = other.headers;
-		return *this;
-	}
-
-	HttpRequest& operator=( HttpRequest&& other ) noexcept
-	{
-		Request::operator=( std::move( other ) );
-		httype = other.httype;
-		enctype = other.enctype;
-		getData.swap( other.getData );
-		headers.swap( other.headers );
-		return *this;
-	}
-
-	HttpRequest( TCPConnection& conn );
-
-	HttpRequest( HTTYPE httype, std::string request, PostParamMap const& postParams = {}, ParamMap const& headers = {} );
-
-	virtual bool send( TCPConnection& conn );
-};
-
-class HttpResponse {
-public:
-};
-
+// the server handles all connections. It listenes to a port, either UDP or TCP
 class Server
 {
 public:
 	typedef std::vector< std::shared_ptr<SockIn> > Listeners;
-	typedef enum MODALSTATE { 
+	typedef enum MODALSTATE {
 		MODALSTATE_RUN = -1025,
- 		MODALSTATE_ERR = -2049,
+		MODALSTATE_ERR = -2049,
 		MODALSTATE_EXC = -1535
 	} MODALSTATE;
 protected:
 	Listeners	m_listeners;
 	FD_SET		m_readers;
 	FD_SET		m_writers;
-	int			m_modalState;
+	std::atomic_int_fast32_t m_modalState;
 	std::thread	m_thread;
 	std::mutex	m_mtxGlobal;
 public:
-	timeval m_sto;
+	timeval m_sto; // standard time-out value
 	Server();
-	Server(std::shared_ptr<SockIn> const& s, bool bRunModal );
+	Server( std::shared_ptr<SockIn> const& s, bool bRunModal );
 	virtual ~Server();
 
-	int addReceiver(std::shared_ptr<SockIn> s );
-	int removeReceiver(std::shared_ptr<SockIn> s );
+	int addReceiver( std::shared_ptr<SockIn> s );
+	int removeReceiver( std::shared_ptr<SockIn> s );
 
 	// s needs to be in listeners already!!
 	int addResponder( Socket& s );
@@ -688,15 +379,9 @@ public:
 	int endModal( int code );
 	int doModal();
 	bool isRunningModal();
-private: 
+private:
 	u_int modalLoop();
 };
 
-class Client
-{
-public:
-	Client( SocketAddress sa );
-	virtual ~Client();
-};
 
 #endif //ndef VWB_SOCKET_HPP

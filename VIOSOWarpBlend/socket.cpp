@@ -1,9 +1,6 @@
 #include "Platform.h"
 #include "socket.h"
 #include "logging.h"
-#include <limits>
-#include <string>
-#include <sstream>
 
 using namespace std;
 // ----------------------------------------------------------------------------------
@@ -199,7 +196,9 @@ int Socket::close()
 
 int Socket::tryRead(const double timeout) const 
 {
-	fd_set fd={1,sock};
+	FD_SET fd;
+	FD_ZERO( &fd );
+	FD_SET( sock, &fd );
 	timeval t,*pt=NULL;
 	if(timeout < INFINITETIMEOUT) 
 	{
@@ -212,7 +211,9 @@ int Socket::tryRead(const double timeout) const
 
 int Socket::tryWrite(const double timeout) const 
 {
-	fd_set fd={1,sock};
+	FD_SET fd;
+	FD_ZERO( &fd );
+	FD_SET( sock, &fd );
 	timeval t,*pt=NULL;
 	if(timeout < INFINITETIMEOUT) 
 	{
@@ -225,7 +226,9 @@ int Socket::tryWrite(const double timeout) const
 
 int Socket::test(const double timeout) const
 {
-	fd_set fd={1,sock};
+	FD_SET fd;
+	FD_ZERO( &fd );
+	FD_SET( sock, &fd );
 	timeval t,*pt=NULL;
 	if(timeout < INFINITETIMEOUT) 
 	{
@@ -236,70 +239,54 @@ int Socket::test(const double timeout) const
 	return ::select(0,NULL,NULL,&fd,pt);
 }
 
-int	Socket::send(const char* pch, const int iSize, const double timeout)
+int	Socket::send(const char* pch, int size, const double timeout)
 {
-	int i;
-	int iBytesSend=0;
-	int qBuf=10485760;
-	int iBytesThisTime=0;
-	int s=tryWrite(timeout);
+	if( 1 == tryWrite( timeout ) )
+		return sendDirect( pch, size );
 
-	if(s==1) do 
-	{
-		i= iSize-iBytesSend > qBuf ? qBuf : iSize-iBytesSend;
-		iBytesThisTime=::send( sock, pch, i, 0);
-		if(iBytesThisTime<=0)
-		{
-			if( (iBytesThisTime==0) || (::WSAGetLastError()!=WSAENOBUFS) )
-				break;
-			for( qBuf=i>>1; qBuf>0 ; qBuf>>=1)
-			{
-				iBytesThisTime=::send( sock, pch, qBuf, 0);
-				if(iBytesThisTime>=0)
-					break;
-			}
-			if(iBytesThisTime<=0)
-				break;
-		}
-		iBytesSend+=iBytesThisTime;
-		if(iBytesSend>=iSize)
-			break;
-		pch+=iBytesThisTime;
-	}while(1);
-
-	return iBytesSend;
+	return SOCKET_ERROR;
 }
 
-int	Socket::sendDirect(const char* pch, const int iSize)
+int	Socket::sendDirect(const char* pch, int size)
 {
-	int iBytesSend=0;
-	int iBytesThisTime=0;
+	int bytesSent = 0;
 
-	do 
+	do // as it is OK to send an empty packet, we need to run the loop always once
 	{
-		if((iBytesThisTime=::send(sock,pch,iSize-iBytesSend,0))==0) break;
-		if(iBytesThisTime == SOCKET_ERROR) break;
-		if((iBytesSend+=iBytesThisTime) >= iSize) break;
-		pch+=iBytesThisTime;
-	}
-	while(iBytesSend < iSize);
-
-	return iBytesSend;
+		int bytesThisTime = ::send( sock, pch, size, 0 );
+		if( SOCKET_ERROR == bytesThisTime ) 
+			return SOCKET_ERROR;
+		size -= bytesThisTime;
+		bytesSent += bytesThisTime;
+		pch += bytesThisTime;
+	} while( 0 != size );
+	return bytesSent;
 }
 
-int	Socket::recv(char* pch, const int iSize, const double timeout)
+int	Socket::recv(char* pch, int iSize, const double timeout)
 { 
 	if(tryRead(timeout)==1) 
 	{
-		return ::recv(sock,pch,iSize,0);
+		return recvDirect( pch, iSize );
 	} 
 
 	return 0;
 }
 
-int	Socket::recvDirect(char* pch, const int iSize)
+int	Socket::recvDirect(char* pch, int size)
 { 
-	return ::recv(sock,pch,iSize,0);
+	int bytesRec = 0;
+
+	do // as it is OK to get an empty packet, we need to run the loop always once
+	{
+		int bytesThisTime = ::recv( sock, pch, size, 0 );
+		if( SOCKET_ERROR == bytesThisTime )
+			return SOCKET_ERROR;
+		size -= bytesThisTime;
+		bytesRec += bytesThisTime;
+		pch += bytesThisTime;
+	} while( 0 != size );
+	return bytesRec;
 }
 
 
@@ -343,7 +330,9 @@ int Socket::sendDatagram(const char* pch,const int iSize,SocketAddress const& sa
 
 int Socket::recvDatagram(char* pch,const int iSize, SocketAddress* sa)
 {
-	fd_set fd={ 1, sock};
+	FD_SET fd;
+	FD_ZERO( &fd );
+	FD_SET( sock, &fd );
 	socklen_t size=sizeof(SocketAddress);
 	int res=::select( 0, &fd, NULL, NULL, 0);
 
@@ -497,7 +486,7 @@ u_int64	Socket::hton(u_int64   hostlong)
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-SockIn::SockIn( int protocol, SocketAddress& sa )
+SockIn::SockIn( int protocol, SocketAddress const& sa )
 {
 	if( IPPROTO_TCP == protocol )
 	{
@@ -519,1048 +508,20 @@ SockIn::~SockIn()
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-UDPListener::UDPListener( SocketAddress& sa )
-	: SockIn( IPPROTO_UDP, sa )
-	, m_szRcvBuff( 0 ) 
-{
-	getRecvBuffSize( m_szRcvBuff );
-	char buff[20];
-	logStr( 1, "INFO: New UDPListener(%s:%hu).\n", sa.getDottedDecimal(buff), sa.getPort() );
-}
-
-int UDPListener::processRead( Server* pServer )
-{
-	DataPackage a( std::string( m_szRcvBuff, 0 ), SocketAddress() );
-	int size=(int)sizeof(SocketAddress);
-	int r = ::recvfrom( sock, &a.first[0], (int)a.first.size(), 0, (struct sockaddr*)&a.second, &size );
-	if( 0 < r )
-	{
-		a.first.resize(r);
-		m_received.push( a );
-		return cbRead( pServer );
-	}
-	else
-		return cbError( pServer, r );
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-
-TCPListener::TCPListener(SocketAddress& sa)
-	: SockIn(IPPROTO_TCP, sa)
-{
-	listen();
-	char buff[20];
-	logStr( 1, "INFO: New TCPListener(%s:%hu).\n", sa.getDottedDecimal(buff), sa.getPort() );
-}
-
-int TCPListener::processRead( Server* pServer )
-{
-	Peer peer;
-	peer.pData = NULL;
-	peer.s = make_shared<TCPConnection>( Socket::accept(peer.sa), peer.sa, this, pServer );
-	if( 0 < *peer.s )
-	{
-		m_peers.push_back( peer );
-		cbRead( pServer );
-		pServer->addReceiver( m_peers.back().s );
-		return 0;
-	}
-	else
-		cbError( pServer, (int)(SOCKET)*peer.s );
-	return SOCKET_ERROR;
-}
-
-int TCPListener::getPeerIndex( TCPConnection const* pC ) const
-{
-	for( PeerList::const_iterator it = m_peers.begin(); it != m_peers.end(); it++ )
-	{
-		if( pC == it->s.get() )
-			return (int)(it - m_peers.begin());
-	}
-	return -1;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-
-TCPConnection::TCPConnection( Socket const& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer ) 
-: SockIn( other )
-, m_iRcvBuffSize(0)
-, m_iSndBuffSize( 0 )
-, m_iReadOffs(0)
-, m_peerAddr( peerAddress )
-, m_pListener( pL )
-, m_pServer( pServer )
-, m_bPendingSend( false )
-, m_iReadSize(0)
-, m_sto()
-{
-	getRecvBuffSize( m_iRcvBuffSize );
-	getSendBuffSize( m_iSndBuffSize );
-	m_sto.tv_sec = 0;
-	m_sto.tv_usec = 16000;
-	char buff[20];
-	logStr( 2, "Info: TCPConnection accepted at server from %s:%hu.\n\tBuffers in:%i out:%i.\n", peerAddress.getDottedDecimal(buff), peerAddress.getPort(), m_iRcvBuffSize, m_iSndBuffSize );
-}
-
-TCPConnection::TCPConnection( SocketAddress connectTo ) // client connection
-: SockIn( IPPROTO_TCP, connectTo )
-, m_iRcvBuffSize( 0 )
-, m_iSndBuffSize( 0 )
-, m_iReadOffs(0)
-, m_peerAddr( connectTo )
-, m_pListener( NULL )
-, m_pServer( NULL )
-, m_bPendingSend( false )
-, m_iReadSize(0)
-, m_sto()
-{
-	char buff[20];
-	if( 0 != connect( connectTo ) )
-	{
-		logStr( 0, "Error: TCPConnection client failed to connect to server at %s:%hu.. Reason %i.\n", connectTo.getDottedDecimal(buff), connectTo.getPort(), lastNetError );
-		return;
-	}
-	getRecvBuffSize( m_iRcvBuffSize );
-	getSendBuffSize( m_iSndBuffSize );
-	m_sto.tv_sec = 0;
-	m_sto.tv_usec = 16000;
-	logStr( 2, "Info: TCPConnection client connected to server at %s:%hu as %08x.\n\tBuffers in:%i out:%i.\n", connectTo.getDottedDecimal(buff), connectTo.getPort(), (SOCKET)*this, m_iRcvBuffSize, m_iSndBuffSize );
-}
-
-TCPConnection::~TCPConnection()
-{
-	if( *this )
-		logStr( 2, "Info: TCPConnection %08x closed.\n", (SOCKET)*this );
-}
-
-int TCPConnection::write( char const* buff, int size )
-{
-	int r = 0;
-	VWB_LockedStatement( m_mtxRWOut )
-	//if( VWB_MutexLock __l = VWB_MutexLock( m_mtxRWOut ) )
-	{
-		while( size > m_iSndBuffSize )
-		{
-			m_strOut.push_back( std::string( buff, m_iSndBuffSize ) );
-			size-= m_iSndBuffSize;
-			m_iReadSize+= m_iSndBuffSize;
-			buff+= m_iSndBuffSize;
-		}
-		if( 0 != size )
-		{
-			m_strOut.push_back( std::string( buff, size ) );
-		}
-		if( !m_strOut.empty() )
-		{
-			r = sendDirect( &m_strOut.front()[0], (int)m_strOut.front().size() );
-			m_strOut.pop_front();
-			if( m_pServer )
-				m_pServer->addResponder( *this );
-			m_bPendingSend = true;
-		}
-	}
-	return r;
-}
-
-int TCPConnection::read( char* buff, int szBuff, int size )
-{
-	int r = 0;
-	if( szBuff < size )
-		return SOCKET_ERROR;
-	VWB_LockedStatement( m_mtxRWIn )
-	{
-		while( !m_strIn.empty() && 0 < m_strIn.front().size() - m_iReadOffs )
-		{
-			if( 0 == size || 0 == szBuff )
-				break;
-			int ts = size > szBuff ? szBuff : size; // this is what fits into the string
-			int tr = ((int)m_strIn.front().size()) - m_iReadOffs; // this is what will be read in this run
-			if( tr <= ts ) 
-			{ // all fits in
-				memcpy( buff, &m_strIn.front()[m_iReadOffs], tr );
-				m_iReadOffs = 0;
-				m_strIn.pop_front();
-				size-= tr;
-				szBuff-= tr;
-				r+= tr;
-				buff+= tr;
-			}
-			else
-			{ // only part fits in
-				memcpy( buff, &m_strIn.front()[m_iReadOffs], ts );
-				m_iReadOffs+= ts;
-				r+= ts;
-				buff+= ts;
-				break;
-			}
-		}
-		m_iReadSize-= r;
-	}
-	return r;
-}
-
-int TCPConnection::readUntil( char* buff, int iBuffSize, const char* szDelimiter )
-{
-	int r = 0;
-	if( NULL == szDelimiter || 0 == szDelimiter[0] )
-		szDelimiter = "\015\012";
-	const int iDelSize = (int)strlen( szDelimiter );
-
-	VWB_LockedStatement( m_mtxRWIn )
-	{
-		auto it = m_strIn.begin();
-		char* pL = NULL;
-		int nn = 0;
-		if( it != m_strIn.end() )
-		{
-			char const* b = &(*it)[m_iReadOffs];
-			char const* bE = b + (int)(it->size() - m_iReadOffs ); 
-			for(; b < bE; b++ )
-				if( *b == szDelimiter[nn] )
-				{
-					if( iDelSize == ++nn )
-						break;
-				}
-				else
-					nn = 0;
-
-			if( iDelSize == nn )
-			{
-				r+= (int)(b - &(*it)[m_iReadOffs] ) + 1 - iDelSize;
-			}
-			else
-				r+= (int)it->size()-m_iReadOffs;
-		}
-		int c = 0;
-		if( iDelSize != nn )
-		{
-			for( it++; it != m_strIn.end(); it++ )
-			{
-				char const* b = &(*it)[0];
-				char const* bE = b + (int)it->size(); 
-				for(; b < bE; b++ )
-					if( *b == szDelimiter[nn] )
-					{
-						if( iDelSize == ++nn )
-							break;
-					}
-					else
-						nn = 0;
-				if( iDelSize == nn )
-				{
-					c = (int)( b - &(*it)[0] ) + 1 - iDelSize;
-					r+= c;
-					break;
-				}
-				r+= (int)it->size();
-			}
-		}
-
-		if( m_strIn.end() == it )
-			return 0; // not found
-
-		if( NULL == buff )
-			return r + 1;
-
-		if( r > iBuffSize )
-			return SOCKET_ERROR;
-
-		int t = (int)(m_strIn.front().size() - m_iReadOffs);
-		int o = r;
-		while( t < o )
-		{
-			memcpy( buff, &m_strIn.front()[m_iReadOffs], t );
-			o-= t;
-			buff+= t;
-			m_strIn.pop_front();
-			m_iReadOffs = 0;
-			m_iReadSize-= t;
-			t = (int)m_strIn.front().size();
-		}
-		if( 0 != o )
-		{
-			memcpy( buff, &m_strIn.front()[m_iReadOffs], o );
-		}
-		buff[o] = 0;
-		m_iReadOffs+= o + iDelSize; // this is ok as we found the delimiter here
-		m_iReadSize-= o + iDelSize;
-		if( m_iReadOffs > (int)m_strIn.front().size() ) // if it exceeded current buffer, we move onward
-		{
-			m_iReadOffs-= (int)m_strIn.size();
-			m_strIn.pop_front();
-		}
-	}
-	return r;
-}
-
-
-int TCPConnection::cmpFront( char const* str ) const
-{
-	VWB_LockedStatement( m_mtxRWIn )
-	{
-		if( strlen( str ) <= (m_strIn.front().size() - m_iReadOffs) )
-		{
-			return strcmp( str, &m_strIn.front()[m_iReadOffs] );
-		}
-	}
-	return SOCKET_ERROR;
-}
-
-int TCPConnection::processAsClient()
-{
-	int n = 0;
-	timeval to = m_sto;
-	FD_SET r;FD_ZERO(&r);
-	FD_SET( *this, &r );
-	FD_SET w;FD_ZERO(&w);
-	if( m_bPendingSend )
-		FD_SET( *this, &w );
-	FD_SET e;FD_ZERO(&e);
-	n = ::select( 1, &r, &w, &e, &to );
-	if( 0 < n )
-	{
-		if( FD_ISSET( *this, &r ) )
-			n = processRead( NULL );
-		if( FD_ISSET( *this, &w ) )
-			n = processWrite( NULL );
-		if( FD_ISSET( *this, &w ) )
-			n = processError( NULL );
-	}
-	if( SOCKET_ERROR == n )
-	{
-		int err = lastNetError;
-		logStr( 0, "Client: Socket Error %i.\n", err );
-		close();
-	}
-	return n;
-}
-
-int TCPConnection::processRead( Server* pServer )
-{
-	if( std::numeric_limits<int>::max() - m_iRcvBuffSize < m_iReadSize )
-	{
-		logStr( 0, "Error: Receiver buffer of socket %08x full.\nClosing connection.\n", (SOCKET)*this );
-		return -1;
-	}
-	std::string s( m_iRcvBuffSize, 0 );
-	int r = recvDirect( &s[0], m_iRcvBuffSize );
-	if( 0 < r )
-	{
-		VWB_LockedStatement( m_mtxRWIn )
-		{
-			s.resize( r );
-			m_strIn.push_back( s );
-			m_iReadSize+= r;
-		}
-		else
-		{
-			r = SOCKET_ERROR;
-			logStr( 0, "Error: Connection socket %08x read mutex inaccessible.\n", ( SOCKET )*this );
-		}
-		if( r != SOCKET_ERROR )
-		{
-			r = cbRead( pServer );
-			return r;
-		}
-	}
-
-	logStr( 1, "Closing socket %08x reason %i.\n", (SOCKET)*this, r );
-	r = cbError( pServer, r );
-	if( m_pListener )
-	{
-		int i = m_pListener->getPeerIndex( this );
-		if( 0 <= i )
-		{
-			if( pServer )
-				pServer->removeReceiver( m_pListener->getPeer(i).s );
-			m_pListener->closePeer(i);
-		}
-	}
-	return r;
-}
-
-int TCPConnection::processWrite( Server* pServer )
-{
-	int r = 0;
-	VWB_LockedStatement( m_mtxRWOut )
-	{
-		if( m_strOut.empty() )
-		{
-			m_bPendingSend = false;
-			if( pServer )
-				pServer->removeResponder( *this );
-		}
-		else 
-		{
-			r = sendDirect( &m_strOut.front()[0], (int)m_strOut.front().size() );
-			m_strOut.pop_front();
-		}
-		return r;
-	}
-
-	r = SOCKET_ERROR;
-	logStr( 0, "Error: Connection socket %08x read write inaccessible.\n", (SOCKET)*this );
-	logStr( 1, "Closing socket %08x reason %i.\n", (SOCKET)*this, r );
-	return r;
-}
-
-int TCPConnection::processError( Server* pServer )
-{
-	return 0;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// Request
-
-Request::ptr_t Request::parse( TCPConnection& conn )
-{
-	std::unique_ptr<Request> r;
-	if( conn.cmpFront( "GET " ) || conn.cmpFront( "POST" ) )
-	{
-		r = make_unique<HttpRequest>( conn );
-	}
-	else if( conn.cmpFront( "{" ) || conn.cmpFront( "[" ) )
-	{
-		r = make_unique<JsonRequest>( conn );
-	}
-	else  // create a command
-	{
-		r = make_unique<CommandRequest>( conn );
-	}
-	return r;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// Response
-
-std::unique_ptr<Response> Response::parseResponse( TCPConnection& conn )
-{
-	return std::unique_ptr<Response>();
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// HttpBase
-
-int HttpBase::parseURL( std::string const& request, std::string& site, ParamMap& getData )
-{
-	if( request.empty() )
-		return SOCKET_ERROR;
-
-	std::string::size_type pos = request.find( '?' );
-	if( std::string::npos != pos )
-	{
-		std::string::size_type pos1 = pos + 1;
-		while( 1 )
-		{
-			std::string::size_type pos2 = request.find( '&', pos1 );
-			std::string::size_type pos3 = request.find( '=', pos1 );
-			if( std::string::npos == pos3 )
-				break;
-			getData[std::string( request, pos1, pos3 - pos1 )] = std::string( request, pos3, std::string::npos == pos2 ? std::string::npos : pos2 - pos3 );
-			if( std::string::npos == pos2 )
-				break;
-			pos1 = pos2 + 1;
-		}
-		site = request.substr( 0, pos - 1 );
-		return 1 + ( int )getData.size();
-	}
-	else
-		site = request;
-	return 1;
-}
-
-int HttpBase::parseHttpHeader( char const* szIn, HTTYPE& type, std::string& request, ParamMap& headers )
-{
-	if( NULL == szIn )
-		return -1;
-	char const* p = szIn;
-	char const* pE = strstr( p, "\015\012" );
-	if( NULL == pE )
-		return SOCKET_ERROR;
-	request = std::string( p, pE - p );
-
-	std::string::size_type po1 = request.find( ' ', 5 ); // this is the space before protocol, this is mandatory but does not change change processing
-	if( std::string::npos == po1 )
-		return SOCKET_ERROR;
-
-	if( 0 == request.compare( 0, 4, "GET " ) )
-	{
-		type = HTTYPE_GET;
-		request = request.substr( 4, po1 - 4 );
-	}
-	else if( 0 == request.compare( 0, 5, "POST " ) )
-	{
-		type = HTTYPE_POST;
-		request = request.substr( 5, po1 - 5 );
-	}
-	else
-		return SOCKET_ERROR;
-
-	// read header lines
-	p = pE + 2;
-	parseHeader( p, headers );
-	return 1 + ( int )headers.size();
-}
-
-int HttpBase::parseHeader( char const* p, ParamMap& headers )
-{
-	char const* pS = p;
-	char const* pE = NULL;
-	while( *p && NULL != ( pE = strstr( p, "\015\012" ) ) )
-	{
-		std::string s( p, pE - p );
-		if( s.empty() )
-			return ( int )( p - pS ) + 2;
-		std::string::size_type pos = s.find( ':' );
-		if( std::string::npos != pos )
-		{
-			headers[std::string( p, pos )] = std::string( s, pos + 2, std::string::npos );
-		}
-		else
-			headers[std::string( p )] = "";
-		p = pE + 2;
-	}
-	return SOCKET_ERROR;
-}
-
-int HttpBase::parseHeaderLine( char const* p, ParamMap& params )
-{
-	char const* pE = NULL;
-	while( p )
-	{
-		pE = strstr( p, "; " );
-
-		std::string s;
-		if( pE )
-		{
-			s = std::string( p, pE - p );
-			pE += 2;
-		}
-		else
-			s = p;
-
-		std::string::size_type pos = s.find( '=' );
-		if( std::string::npos != pos )
-		{
-			if( '"' == s[pos + 1] )
-			{
-				params[std::string( p, pos )] = std::string( s, pos + 2, -1 );
-				params[std::string( p, pos )].pop_back();
-			}
-			else
-				params[std::string( p, pos )] = std::string( s, pos + 1, -1 );
-		}
-		else
-		{
-			params[s] = "";
-		}
-		p = pE;
-	}
-
-	return ( int )params.size();
-}
-
-int HttpBase::parseURLencBody( std::string const& body, PostParamMap& postData )
-{
-	if( body.empty() )
-		return SOCKET_ERROR;
-
-	std::string::size_type pos1 = 0;
-	while( 1 )
-	{
-		std::string::size_type pos2 = body.find( '&', pos1 );
-		std::string::size_type pos3 = body.find( '=', pos1 );
-		if( std::string::npos == pos3 )
-			break;
-		PostValue v = { ENCTYPE_URL, std::string( body, pos3 + 1, std::string::npos == pos2 ? std::string::npos : pos2 - pos3 - 1 ), "" };
-		postData[std::string( body, pos1, pos3 - pos1 )] = v;
-		if( std::string::npos == pos2 )
-			break;
-		pos1 = pos2 + 1;
-	}
-	return ( int )postData.size();
-}
-
-int HttpBase::parseMultipartBody( std::string const& body, std::string const& bound, PostParamMap& postData )
-{
-	if( bound.length() * 2 + 10 > body.size() )
-		return SOCKET_ERROR;
-	std::string::size_type lBound = bound.length();
-	std::string::size_type found = std::string::npos;
-
-	// must start with bound
-	if( 0 == body.compare( 0, lBound, bound ) )
-	{
-		std::string::size_type offs = lBound + 2; // step over first boundary line feed
-		std::string b2( "\015\012" ); b2.append( bound ); lBound += 2;
-		while( std::string::npos != ( found = body.find( b2, offs ) ) )
-		{
-			// next boundary found; inbetween there is content
-			std::string blob = body.substr( offs, found - offs );
-			offs = found + lBound + 2;
-
-			// parse blob
-			ParamMap headers;
-			int datastart = parseHeader( blob.c_str(), headers );
-			if( SOCKET_ERROR != datastart )
-			{
-				//std::string cntt = "ContentDissition: form-data; ";
-				ParamMap::iterator itCD = headers.find( "Content-Disposition" );
-				ParamMap::iterator itCT = headers.find( "Content-Type" );
-				if( headers.end() != itCD && headers.end() != itCT )
-				{
-					ParamMap params;
-					parseHeaderLine( itCD->second.c_str(), params );
-					ParamMap::iterator itName = params.find( "name" );
-					ParamMap::iterator itFile = params.find( "filename" );
-					if( params.end() != itName )
-					{
-						PostValue& v = postData[itName->second];
-						v.encType = ENCTYPE_OTHER;
-						v.value = blob.substr( datastart, std::string::npos );
-						if( params.end() != itFile )
-						{
-							v.file.swap( itFile->second );
-						}
-					}
-				}
-			}
-
-			if( '-' == body[offs] )
-				return int( offs + 4 ); // finished NOTE: conversion to INT is sane, as the content size cannot exceed 2GB
-			else
-				return SOCKET_ERROR;
-		}
-	}
-	return SOCKET_ERROR; // did not find final boundary, this is an error
-}
-
-int HttpBase::resolveURL( std::string const& url, bool& isSecure, std::string& host, unsigned short& port, std::string& path, ParamMap& getParams, std::string& fragment )
-{
-	// to resolve, the url must be at least 8 characters wide, http://a
-	// get protocol
-	if( 8 < url.size() && !strncmp( "http", url.c_str(), 4 ) && ( !strncmp( "://", &url.c_str()[4], 3 ) || !strncmp( "s://", &url.c_str()[4], 4 ) ) )
-	{
-		size_t posHost = 7;
-		if( 's' == url.c_str()[4] )
-		{
-			isSecure = true;
-			posHost++;
-		}
-		else
-			isSecure = false;
-
-		auto posPath = url.find( '/', 8 );
-		auto posParams = url.find( '?', 8 );
-		auto posFragment = url.find( '#', 8 );
-		if( posFragment <= posPath ) // there is no path before start of fragment
-		{
-			posPath = string::npos; // the '/' was found after the fragment qualifier, so its part of the fagment rather than indicating the beginning of the resource path, thus ist ends rather with the params qualifier
-		}
-		if( posFragment <= posParams )  // there is no params before fragment
-		{
-			posParams = string::npos;
-		}
-		if( posParams <= posPath )  // there is no path before params (resp. before fragment)
-		{
-			posPath = string::npos;
-		}
-		if( string::npos == posPath ) // no path
-		{
-			if( posParams < posFragment ) // read until params
-			{
-				host = url.substr( posHost, posParams - posHost );
-			}
-			else // read until fragment (or to end, if it is npos)
-			{
-				host = url.substr( posHost, posFragment - posHost );
-			}
-		}
-		else // read until path
-		{
-			host = url.substr( posHost, posPath - posHost );
-		}
-		// the host might contain a port
-		auto posPort = host.find( ':', 1 );
-		port = 0;
-		if( string::npos != posPort )
-		{
-			port = ( unsigned short )stoi( host.substr( posPort + 1 ) );
-			host.erase( posPort, string::npos );
-		}
-		if( 0 == port )
-		{
-			if( isSecure )
-				port = 443;
-			else
-				port = 80;
-		}
-
-		// get the path
-		if( string::npos != posPath )
-		{
-			if( posParams < posFragment ) // there are parameters
-				path = URLencode( url.substr( posPath, posParams - posPath ) ); // we need the /, so no +1
-			else
-				path = URLencode( url.substr( posPath, posFragment - posPath ) );
-		}
-		else
-			path = "/";
-
-		// get the getParams
-		getParams.clear();
-		for( auto pos = posParams; pos < posFragment; )
-		{
-			auto pos2 = url.find( '&', pos + 1 );
-			if( pos2 >= posFragment ) // the & was in fragment
-				pos2 = posFragment;
-			auto pos3 = url.find( '=', pos + 1 );
-			string value;
-			if( pos3 > pos2 ) // no value
-				pos3 = pos2;
-			else
-				value = url.substr( pos3 + 1, pos2 - pos3 - 1 );
-			string key = url.substr( pos + 1, pos3 - pos - 1 );
-			getParams.emplace( URLencode( key ), URLencode( value ) );
-			pos = pos2;
-		}
-
-		// get the fragment
-		if( string::npos != posFragment )
-		{
-			fragment = URLencode( url.substr( posFragment + 1 ) );
-		}
-		return 1;
-	}
-	return 0;
-}
-
-std::string HttpBase::URLencode( std::string const& unencoded )
-{
-	// note: we do not encode '/'
-	std::string s; s.reserve( unencoded.size() );
-	for( auto c : unencoded )
-	{
-		if(
-			( '0' <= c && c <= '9' ) ||
-			( 'a' <= c && c <= 'z' ) ||
-			( 'A' <= c && c <= 'Z' ) ||
-			( '.' == c || '~' == c || '-' == c || '_' == c || '/' == c )
-			)
-		{
-			s.push_back( c );
-		}
-		else if( ' ' == c )
-		{
-			s.push_back( '+' );
-		}
-		else
-		{
-			s.push_back( '%' );
-			unsigned char x;
-			x = unsigned char(c) >> 4;
-			if( 9 < x )
-				x += 'A' - 9;
-			else
-				x += '0';
-			s.push_back( x );
-			x = unsigned char(c) & 0x0F;
-			if( 9 < x )
-				x += 'A' - 9;
-			else
-				x += '0';
-			s.push_back( x );
-		}
-	}
-	return s;
-}
-
-std::string HttpBase::URLdecode( std::string const& encoded )
-{
-	std::string s; s.reserve( encoded.size() );
-	for( auto c = encoded.begin(); c != encoded.end(); c++ )
-	{
-		if( '+' == *c )
-		{
-			s.push_back( '+' );
-		}
-		else if( '%' == *c )
-		{
-			unsigned char xHi = *( ++c );
-			if( 'A' <= xHi )
-				xHi -= 'A' + 9;
-			else
-				xHi -= '0';
-			unsigned char x = *( ++c );
-			if( 'A' <= x )
-				x -= 'A' + 9;
-			else
-				x -= '0';
-			x += xHi << 4;
-			s.push_back( x );
-		}
-		else
-			s.push_back( *c );
-	}
-	return s;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// HttpRequest
-
-HttpRequest::HttpRequest( TCPConnection& conn )
-: Request(), httype( HTTYPE_UNDEF ), enctype( ENCTYPE_UNDEF ) 
-{
-	char* pB = NULL;
-	int nB = 0;
-	switch( state )
-	{
-	case STATE_UNDEF:
-	{
-		state = STATE_INIT;
-	}
-	[[fallthrough]];
-	/* fall through */
-	case STATE_INIT:
-	{
-		nB = conn.getNumRead();
-		pB = new char[nB];
-		int n = conn.readUntil( pB, nB, "\015\012\015\012" );
-		if( 0 < n )
-		{
-			if( 0 < parseHttpHeader( pB, httype, request, headers ) )
-				state = STATE_HEADER;
-			else
-			{
-				state = STATE_ERROR;
-				break;
-			}
-		}
-		else if( 0 > n )
-		{
-			state = STATE_ERROR;
-			break;
-		}
-		else
-			break;
-	}
-	[[fallthrough]];
-	/* fall through */
-	case STATE_HEADER:
-	{
-		parseURL( request, request, getData );
-		// read content length, this is a must on post requests
-		if( HTTYPE_POST == httype )
-		{
-			auto it = headers.find( "Content-Type" );
-			if( it != headers.end() )
-			{
-				if( 0 == it->second.compare( "application/x-www-form-urlencoded" ) )
-					enctype = ENCTYPE_URL;
-				else if( 0 == it->second.compare( 0, 19, "multipart/form-data" ) )
-				{
-					enctype = ENCTYPE_MULTI;
-					bound = std::string( "--" );
-					bound.append( it->second.substr( 30 ) );
-				}
-				else // other
-				{
-					enctype = ENCTYPE_OTHER;
-					bound = it->second.substr( 0, it->second.find( ';' ) );
-				}
-				headers.erase( it );
-			}
-			else
-				enctype = ENCTYPE_URL;
-			it = headers.find( "Content-Length" );
-			if( it != headers.end() )
-			{
-				contentLength = atoi( it->second.c_str() );
-				if( 0 < contentLength )
-				{
-					state = STATE_CONTENTLENGTH;
-				}
-				else
-				{
-					state = STATE_ERROR;
-					break;
-				}
-				headers.erase( it ); // need to remove from headers after parsed
-			}
-			else
-			{
-				state = STATE_ERROR;
-				break;
-			}
-		}
-		else
-		{
-			state = STATE_PARSED;
-			break;
-		}
-	}
-	[[fallthrough]];
-	/* fall through */
-	case STATE_CONTENTLENGTH:
-	{
-		if( contentLength > conn.getNumRead() )
-			break;
-
-		body.resize( size_t( contentLength ) + 1 );
-
-		if( contentLength == conn.read( &body[0], contentLength + 1, contentLength ) )
-			state = STATE_BODY;
-		else
-			state = STATE_ERROR;
-	}
-	[[fallthrough]];
-	/* fall through */
-	case STATE_BODY:
-	{
-		int i;
-		if( ENCTYPE_URL == enctype )
-			i = parseURLencBody( body, postData );
-		else
-			i = parseMultipartBody( body, bound, postData );
-		if( 0 < i )
-			state = STATE_PARSED;
-		else if( 0 == i )
-			break;
-		else
-		{
-			state = STATE_ERROR;
-			break;
-		}
-	}
-	[[fallthrough]];
-	/* fall through */
-	case STATE_PARSED:
-		break;
-	}
-	if( pB )
-		delete[] pB;
-}
-
-HttpRequest::HttpRequest( HTTYPE type, std::string url, PostParamMap const& postParams, ParamMap const& headers )
-	: Request( url, TYPE_HTTP )
-	, httype( type )
-	, enctype( ENCTYPE_URL )
-	, bound( "-----------------------------VIOSOAPI" )
-	, contentLength( 0 )
-	, postData( postParams )
-	, HttpRequest::headers( headers )
-{
-}
-
-bool HttpRequest::send( TCPConnection& conn )
-{
-	std::stringstream s( std::ios_base::binary );
-	if( postData.empty() ) // GET header
-		httype = HTTYPE_POST;
-	else if( HTTYPE_UNDEF == httype )
-		httype = HTTYPE_GET;
-
-	if( HTTYPE_POST == httype )
-		s << "GET ";
-	else if( HTTYPE_POST == httype ) // POST header
-	{
-		s << "POST ";
-	}
-	else
-		return false;
-
-	if( request.empty() )
-		s << "/";
-	else
-		s << request;
-	if( !getData.empty() )
-	{
-		s << "?";
-		ParamMap::const_iterator param = getData.begin();
-		s << param->first;
-		if( !param->second.empty() )
-			s << ":" << param->second;
-		for( ; param != getData.end(); param++ )
-		{
-			s << "&" << param->first;
-			if( !param->second.empty() )
-				s << ":" << param->second;
-		}
-	}
-	s << " HTTP/1.1\015\012";
-	for( ParamMap::const_iterator header = headers.begin(); header != headers.end(); header++ )
-	{
-		s << header->first;
-		if( !header->second.empty() )
-			s << ": " << header->second;
-		s << "\015\012";
-	}
-	// calculate content size, if POST
-	
-	if( !postData.empty() )
-	{
-		s << "Content-Type: multipart/form-data; boundary=" << bound << "\015\012";
-		std::stringstream ss;
-		for( PostParamMap::const_iterator it = postData.begin(); it != postData.end(); it++ )
-		{
-			ss << "--" << bound << "\015\012";
-			ss << "Content-Disposition: form-data; name=\"" << it->first << "\"";
-			if( !it->second.file.empty() )
-			{
-				ss << "; filename = \"" << it->second.value << "\"";
-			}
-			ss << "\015\012";
-			if( it->second.file.empty() )
-			{
-				ss << "Content-Type: text/plain" << "\015\012";
-				ss << "\015\012";
-				ss << it->second.value << "\015\012";
-			}
-			else
-			{
-				switch( it->second.encType )
-				{
-				case ENCTYPE_UNDEF:
-					ss << "Content-Type: application/octet-stream" << "\015\012";
-					break;
-				case ENCTYPE_URL:
-					ss << "Content-Type: application/x-url-encoded" << "\015\012";
-					break;
-				case ENCTYPE_MULTI: // actually an error
-				case ENCTYPE_OTHER:
-					ss << "Content-Type: application/octet-stream" << "\015\012";
-					break;
-				}
-				ss << "\015\012";
-				ss << it->second.file;
-				ss << "\015\012";
-			}
-		}
-		ss << "--" << bound << "--" << "\015\012";
-		s << "Content-Length: " << ss.str().size() << "\015\012";
-		s << "\015\012";
-		s << ss.str();
-	}
-
-	return 0 < conn.write( s.str().c_str(), (int)s.str().size() );
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-
-Server::Server() 
-: m_modalState(0)
-, m_sto{0,16000 }
+Server::Server()
+	: m_modalState( 0 )
+	, m_sto{ 0,16000 }
 {
 	FD_ZERO( &m_readers );
 	FD_ZERO( &m_writers );
 	ifStartSockets()
 	{
 	}
-};
+}
 
 Server::Server( shared_ptr<SockIn> const& s, bool bRunModal )
-: m_modalState(0)
-, m_sto{ 0,16000 }
+	: m_modalState( 0 )
+	, m_sto{ 0,16000 }
 {
 	FD_ZERO( &m_readers );
 	FD_ZERO( &m_writers );
@@ -1571,6 +532,7 @@ Server::Server( shared_ptr<SockIn> const& s, bool bRunModal )
 			doModal();
 	}
 }
+
 Server::~Server()
 {
 	VWB_LockedStatement( m_mtxGlobal )
@@ -1591,9 +553,9 @@ int Server::addReceiver( shared_ptr<SockIn> s )
 	{
 		VWB_LockedStatement( m_mtxGlobal )
 		{
-			m_listeners.push_back(s);
+			m_listeners.push_back( s );
 			FD_SET( *s, &m_readers );
-			logStr( 2, "INFO: Server added socket %08X. Server now listens to %u connections.\n", (SOCKET)*s, (u_int)m_listeners.size() );
+			logStr( 2, "INFO: Server added socket %08X. Server now listens to %u connections.\n", ( SOCKET )*s, ( u_int )m_listeners.size() );
 			return 0;
 		}
 	}
@@ -1612,7 +574,7 @@ int Server::removeReceiver( shared_ptr<SockIn> s )
 				{
 					FD_CLR( **it, &m_readers );
 					m_listeners.erase( it );
-					logStr( 2, "Server removed socket %08X. Server now listens to %u connections.\n", (SOCKET)*s, (u_int)m_listeners.size() );
+					logStr( 2, "Server removed socket %08X. Server now listens to %u connections.\n", ( SOCKET )*s, ( u_int )m_listeners.size() );
 					return 0;
 				}
 		}
@@ -1664,40 +626,40 @@ int Server::doModalStep()
 			r = m_readers;
 			w = m_writers;
 		}
-		else
-		{
-			logStr( 0, "Server: Could not aquire mutex. Server is stopping.\n" );
-			return -2;
+	else
+	{
+		logStr( 0, "Server: Could not aquire mutex. Server is stopping.\n" );
+		return -2;
 	}
-		n = ::select( (int)m_listeners.size(), &r, &w, NULL, &to );
-		if( 0 < n ) 
+	n = ::select( ( int )m_listeners.size(), &r, &w, NULL, &to );
+	if( 0 < n )
+	{
+		// handle readers
+		for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
 		{
-			// handle readers
-			for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
+			if( FD_ISSET( **it, &r ) )
 			{
-				if( FD_ISSET( **it, &r ) )
-				{
-					n = ( *it )->processRead( this );
-				}
-			}
-			// handle writers
-			for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
-			{
-				if( FD_ISSET( **it, &w ) )
-				{
-					( *it )->processWrite( this ); // handle all ready writing sockets
-				}
+				n = ( *it )->processRead( this );
 			}
 		}
-		else if( SOCKET_ERROR == n )
+		// handle writers
+		for( Listeners::iterator it = tmp.begin(); it != tmp.end(); it++ )
 		{
-			int err = lastNetError;
-			logStr( 0, "Server: Socket Error %i. Server is stopping.\n", err );
+			if( FD_ISSET( **it, &w ) )
+			{
+				( *it )->processWrite( this ); // handle all ready writing sockets
+			}
 		}
+	}
+	else if( SOCKET_ERROR == n )
+	{
+		int err = lastNetError;
+		logStr( 0, "Server: Socket Error %i. Server is stopping.\n", err );
+	}
 	}
 	else if( MODALSTATE_RUN == m_modalState )
 	{ // idle
-		sleep(m_sto.tv_usec/1000);
+		sleep( m_sto.tv_usec / 1000 );
 	}
 	return n;
 }
@@ -1749,7 +711,7 @@ u_int Server::modalLoop()
 		logStr( 1, "Server: Server stops listening.\n" );
 		return 0;
 	}
-	catch(...)
+	catch( ... )
 	{
 		m_modalState = MODALSTATE_EXC;
 		return SOCKET_ERROR;
@@ -1758,196 +720,5 @@ u_int Server::modalLoop()
 
 bool Server::isRunningModal()
 {
-	return MODALSTATE_RUN == m_modalState; 
-}
-
-////////////////////////////////////// copy paste functions; TODO: wrap a nice HTTP client class arround ///////////////////////
-// return
-// response code
-int ParseStdResponseCode( LPCSTR pStr, DWORD qStr )
-{
-	if( !( pStr && qStr ) )
-		return 500;
-
-	int i;
-	DWORD q;
-	const char* pLnEnd;
-	const char* pTotEnd = pStr + qStr;
-
-	for( pLnEnd = pStr; ( pLnEnd < pTotEnd ) && ( *pLnEnd != '\n' ); pLnEnd++ );
-	q = (DWORD)( pLnEnd - pStr );
-	if( ( q > 11 ) && !_strnicmp( pStr, "http/", 5 ) )
-	{
-		for( pStr += 5; ( pStr < pLnEnd ) && ( *pStr != ' ' ); pStr++ );
-		for( pStr++; ( pStr < pLnEnd ) && ( *pStr == ' ' ); pStr++ );
-		if( pStr < pLnEnd )
-		{
-			i = atoi( pStr );
-			if( i >= 0 )
-				return i;
-		}
-	}
-	else if( q )
-	{
-		char strTmp[32];
-
-		if( q > 31 )
-			q = 31;
-		memcpy( strTmp, pStr, q );
-		strTmp[q] = 0x0;
-		i = atoi( strTmp );
-		if( i > 0 )
-			return 200;
-	}
-
-	return 500;
-}
-
-BOOL SendHTTP( LPCSTR szHost, unsigned short iPort, LPCSTR szURI, LPCSTR szName, std::istream* content, LPCSTR szMime, LPCSTR szFileName, LPCSTR szFileClass, std::string* response )
-{
-	if( ( nullptr == szHost || 0 == szHost[0] ) )
-		return FALSE;
-	if( 0 == iPort )
-		iPort = 80;
-	if( nullptr == szURI )
-		szURI = "/";
-
-	Socket sock;
-	if( sock.create( SOCK_STREAM, FALSE, IPPROTO_TCP, FALSE, 0, 0 ) )
-		return FALSE;
-
-	SocketAddress dstAddr = SocketAddress( szHost, iPort );
-	if( !sock.connect( dstAddr ) )
-	{
-		std::list< std::istream* > chunks;
-		LPCSTR boundary = "---------------------------VIOSOWARPBLEND";
-		BOOL res = FALSE;
-		if( nullptr != content && !content->bad()/* && !file->eof() */ )
-		{
-			if( NULL == szMime || 0 == szMime[0] )
-				szMime = "application/octet-stream";
-
-			std::stringstream* chunk = new std::stringstream();
-			// send file
-			*chunk <<
-				"\015\012--" << boundary << "\015\012" <<
-				"Content-Disposition: form-data; name=\"" << szName << "\"";
-			if( nullptr != szFileName && 0 != szFileName[0] )
-				*chunk << "; filename=\"" << szFileName << "\"";
-			*chunk << "\015\012" <<
-				"Content-Type: " << szMime << "\015\012" <<
-				"\015\012";
-			chunks.push_back( chunk );
-			chunks.push_back( content );
-
-			if( NULL != szFileClass && 0 != szFileClass[0] )
-			{
-				std::stringstream* chunk = new std::stringstream();
-				*chunk <<
-					"\015\012--" << boundary << "\015\012" <<
-					"Content-Disposition: form-data; name=\"upload\"\015\012" <<
-					"Content-Type: text/xml\015\012" <<
-					"\015\012" <<
-					szFileClass;
-				chunks.push_back( chunk );
-			}
-		}
-		if( !chunks.empty() )
-		{
-			// add closing boundary
-			std::stringstream* chunk = new std::stringstream();
-			*chunk << "\015\012--" << boundary << "--";
-			chunks.push_back( chunk );
-
-			size_t l = 0;
-			try {
-				for( auto& chunk : chunks )
-				{
-					std::streampos oldGet = chunk->tellg();
-					chunk->seekg( 0, std::ios_base::end );
-					l += (size_t)chunk->tellg();
-					chunk->seekg( oldGet );
-				}
-			}
-			catch( ... ) { l = 0; }
-
-			// finally the actual header
-			chunk = new std::stringstream();
-			*chunk <<
-				"POST " << szURI << " HTTP/1.1\015\012" <<
-				"Host: " << szHost << ":" << iPort << "\015\012" <<
-				"User-Agent: VIOSO SPCalibrator\015\012" <<
-				"Content-Type: multipart/form-data; boundary=" << boundary << "\015\012";
-
-			// add content length, if it can be determined
-			if( 0 < l )
-				*chunk << "Content-Length: " << l << "\015\012";
-
-			*chunk << "\015\012"; // empty header line, to finish header
-
-			// this  goes first
-			chunks.push_front( chunk );
-		}
-		else
-		{
-			std::stringstream* chunk = new std::stringstream();
-			*chunk <<
-				"GET " << szURI << " HTTP/1.1\015\012" <<
-				"Host: " << szHost << ":" << iPort << "\015\012" <<
-				"User-Agent: VIOSO SPCalibrator\015\012" <<
-				"\015\012";
-			chunks.push_back( chunk );
-		}
-
-		int packetSize = 2048;
-		sock.getRecvBuffSize( packetSize );
-		char* sndBuf = new char[packetSize];
-		size_t nSent = 0;
-		for( auto& chunk : chunks )
-		{
-			while( chunk->read( sndBuf, packetSize ) )
-				nSent += sock.send( sndBuf, packetSize, INFINITETIMEOUT );
-			nSent += sock.send( sndBuf, (int)chunk->gcount(), INFINITETIMEOUT );
-		}
-		delete[] sndBuf;
-
-		char lBuf[8192];
-		int nRead = (__int64)sock.recv( lBuf, 8192, INFINITETIMEOUT );
-		if( nRead > 0 )
-		{
-			if( nullptr != response )
-				response->assign( lBuf, (size_t)nRead );
-			if( 400 > ParseStdResponseCode( lBuf, nRead ) )
-				res = TRUE;
-
-		}
-
-		for( auto& chunk : chunks )
-		{
-			if( content != chunk )
-				delete chunk;
-		}
-		sock.close();
-		return res;
-
-	}
-	return FALSE;
-}
-
-Client::Client( SocketAddress sa )
-{
-}
-
-Client::~Client()
-{
-}
-
-bool JsonRequest::send( TCPConnection& conn )
-{
-	return false;
-}
-
-bool CommandRequest::send( TCPConnection& conn )
-{
-	return false;
+	return MODALSTATE_RUN == m_modalState;
 }

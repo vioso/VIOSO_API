@@ -6,21 +6,21 @@ queue< VWBRemoteCommand > g_commandQueue;
 
 int VWBTCPListener::heartBeatFn( void* param )
 {
-	while( m_tm != 0ms )
+	while( m_port != 0 )
 	{
 		sendInfoTo( SocketAddress::broadcast( m_port ) );
-		this_thread::sleep_for( m_tm );
+		this_thread::sleep_for( 3000ms );
 	}
 	return 0;
 }
 
-VWBTCPListener::VWBTCPListener( SocketAddress& s, std::chrono::duration<u_short, std::milli > tm )
+VWBTCPListener::VWBTCPListener( SocketAddress const& s, u_short heartBeatPort = 0 )
 : TCPListener( s )
 , m_port( s.getPort() ) 
-, m_tm( tm )
+, m_heartBeatPort( heartBeatPort )
 , m_lck()
 {
-	if( m_tm != 0ms )
+	if( m_heartBeatPort != 0 )
 	{
 		m_heardBeatTh = thread( &VWBTCPListener::heartBeatFn, this, nullptr );
 	}
@@ -28,9 +28,9 @@ VWBTCPListener::VWBTCPListener( SocketAddress& s, std::chrono::duration<u_short,
 
 VWBTCPListener::~VWBTCPListener()
 {
-	if( m_tm != 0ms && m_heardBeatTh.joinable() )
+	if( m_port != 0 && m_heardBeatTh.joinable() )
 	{
-		m_tm = 0ms;
+		m_port = 0;
 		m_heardBeatTh.join();
 	}
 }
@@ -93,8 +93,8 @@ VWB_ERROR VWBTCPListener::sendInfoTo( SocketAddress sa, SocketAddress* local )
 {
 	if( 0 == sa.sin_addr.s_addr )
 		return VWB_ERROR_PARAMETER;
-	if( 0xFFFFFFFF == sa.sin_addr.s_addr )
-		return VWB_ERROR_PARAMETER;
+	//if( 0xFFFFFFFF == sa.sin_addr.s_addr ) // broadcast is allowed
+	//	return VWB_ERROR_PARAMETER;
 	SocketAddress my;
 	if( NULL == local )
 	{
@@ -165,9 +165,9 @@ int VWBTCPConnection::sendResponse()
 int VWBTCPConnection::cbRead( Server* pServer )
 { // this is always called from within lock
 	m_iCalls++;
-	auto req = Request::parse( *this );
+	auto req = TCPProto::parse( *this );
 	auto state = m_req.front().get()->getState();
-	if( Request::STATE_ERROR == state )
+	if( TCPProto::STATE_ERROR == state )
 	{
 		// report error
 		logStr( 2, "INFO: No TCP request parsing failed\n" );
@@ -175,7 +175,7 @@ int VWBTCPConnection::cbRead( Server* pServer )
 	}
 	if( HttpRequest::STATE_PARSED == state )
 	{
-		logStr( 2, "INFO: Net receive request %s\n", m_req.front()->getRequest().c_str() );
+		logStr( 2, "INFO: Net receive request %s\n", m_req.front()->getContent().c_str() );
 		m_req.emplace( req );
 		return 1;
 	}

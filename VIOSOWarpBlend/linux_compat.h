@@ -29,6 +29,7 @@ typedef struct {
 typedef int LONG;
 
  errno_t localtime_s( struct tm* const tmDest, time_t const* const sourceTime );
+ size_t strnlen_s( const char* str, size_t strsz ) { return str ? strlen( str ) : nullptr; }
  errno_t strcat_s( char* dest, size_t n, const char* src );
  // Body of a constexpr must be a return stament in c++11
  inline errno_t strcat_s( char* dest, const char* src ) { strcat( dest, src ); return 0; }
