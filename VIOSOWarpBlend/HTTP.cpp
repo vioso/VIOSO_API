@@ -705,7 +705,7 @@ bool HttpResponse::send( TCPConnection& conn )
 		// update size header
 		{
 			cnt->seekg( 0, ios_base::end );
-			sz = cnt->tellg();
+			sz = (int)cnt->tellg();
 			cnt->seekg( 0 );
 			headers["Content-Length"] = to_string( sz );
 		}
@@ -725,16 +725,15 @@ bool HttpResponse::send( TCPConnection& conn )
 			size_t( sps ) - hdsz > sz )
 		{
 			s << cnt;
-			conn.write( s.str().data(), s.str().length() );
+			conn.write( s.str().data(), (int)s.str().length() );
 		}
 		else
 		{
-			conn.write( s.str().data(), s.str().length() );
+			conn.write( s.str().data(), (int)s.str().length() );
 			string s( "", sps );
 			while( !cnt->eof() )
 			{
-				sps == cnt->readsome( s.data(), sps );
-				conn.write( s.data(), sps );
+				conn.write(s.data(), (int)cnt->readsome(s.data(), sps));
 			}
 		}
 	}

@@ -568,6 +568,75 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 	return ret;
 }
 
+template<typename T> inline void splitMap(T*& in, size_t wIn, size_t hIn, size_t oxIn, size_t oyIn, size_t wOut, size_t hOut )
+{
+	size_t nIn = wIn * hIn;
+	size_t nOut = wOut * hOut;
+	auto out = new T[nOut];
+	const size_t padd = wIn - wOut;
+	for (auto pIn = in + (oxIn + oyIn * wIn), pOut = out, pOutE = out + nOut; pOut != pOutE; pIn += padd)
+	{
+		for (auto pOutLE = pOut + wOut; pOut != pOutLE; pOut++, pIn++)
+		{
+			*pOut = *pIn;
+		}
+	}
+	delete[] in;
+	in = out;
+}
+
+VWB_ERROR SplitVWF(VWB_WarpBlend& wb, const VWB_word(&calibSplit)[4])
+{
+	if (0 == calibSplit[0] || 0 == calibSplit[1])
+		return VWB_ERROR_FALSE;
+	if (1 == calibSplit[0] && 1 == calibSplit[1])
+		return VWB_ERROR_FALSE;
+	if( 0 != wb.header.width % calibSplit[0] || 0 != wb.header.height % calibSplit[1] )
+		return VWB_ERROR_PARAMETER;
+	if (calibSplit[0] <= calibSplit[2] || calibSplit[1] <= calibSplit[3])
+		return VWB_ERROR_PARAMETER;
+	
+	int newWidth = wb.header.width / calibSplit[0];
+	int newHeight = wb.header.height / calibSplit[1];
+	int offsX = newWidth * calibSplit[2];
+	int offsY = newHeight * calibSplit[3];
+
+	if (wb.pWarp)
+	{
+		splitMap(wb.pWarp, wb.header.width, wb.header.height, offsX, offsY, newWidth, newHeight);
+	}
+	if (wb.pBlend)
+	{
+		if (wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV3)
+		{
+			splitMap(wb.pBlend3, wb.header.width, wb.header.height, offsX, offsY, newWidth, newHeight);
+		}
+		else if (wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV2)
+		{
+			splitMap(wb.pBlend2, wb.header.width, wb.header.height, offsX, offsY, newWidth, newHeight);
+		}
+		else
+		{
+			splitMap(wb.pBlend, wb.header.width, wb.header.height, offsX, offsY, newWidth, newHeight);
+		}
+	}
+	if (wb.pBlack)
+	{
+		splitMap(wb.pBlack, wb.header.width, wb.header.height, offsX, offsY, newWidth, newHeight);
+	}
+	if (wb.pWhite)
+	{
+		splitMap(wb.pWhite, wb.header.width, wb.header.height, offsX, offsY, newWidth, newHeight);
+	}
+
+	wb.header.width = newWidth;
+	wb.header.height = newHeight;
+	wb.header.offsetX += offsX;
+	wb.header.offsetY += offsY;
+
+	return VWB_ERROR_NONE;
+}
+
 
 VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os )
 {

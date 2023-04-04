@@ -186,7 +186,12 @@ struct VWB_Warper
 	bool        bDoNoBlack;
 
 	/// set to a port a UDP broadcast is sent every 3 seconds, defaults to 0, which means no heartbeat is sent; only avaliable if "port" is set
-	VWB_word        heartBeatPort;
+	VWB_word    heartBeatPort;
+
+	/// split info, a vector4 x: number of columns y: number of rows, z: column index, w: row index, defaults to [0,0,0,0]
+	/// If you want to split a map into 2 side-by side parts set to [2,1,0,0] for the left side and [2,1,1,0] for the right part
+	/// setting x or y to 0, indicates no split and z and w are not evaluated
+	VWB_word	calibSplit[4];
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

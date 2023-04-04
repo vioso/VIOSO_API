@@ -251,6 +251,11 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt( "default", "bDoNoBlack", 0, path );
 		bDoNoBlack = 0 != GetIniInt( channel, "bDoNoBlack", iDef, path );
 
+		VWB_float split[4]{};
+		GetIniMat( "default", "calibSplit", 4, 1, nullptr, vDef, path);
+		GetIniMat( channel, "calibSplit", 4, 1, vDef, split, path);
+		for (int i = 0; i != 4; i++) calibSplit[i] = VWB_word(split[i]);
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -450,7 +455,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 	logStr( 2,	"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
 				"calibFile=%s\n"
 				"calibIndex=%d\n"
-				"bTurnWithView=%d\n"
+			    "calibSplit=[%d,%d,%d,%d]\n"
+			    "bTurnWithView=%d\n"
 				"bDoNotBlend=%d\n"
 				"eyePointProvider=%s\n"
 				"eyePointProviderParam=%s\n"
@@ -478,8 +484,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
 				(*ppWarper)->path,
 				(*ppWarper)->calibFile,
-				(*ppWarper)->calibIndex,
-				(*ppWarper)->bTurnWithView ? 1 : 0,
+			    (*ppWarper)->calibIndex,
+			    (*ppWarper)->calibSplit[0], (*ppWarper)->calibSplit[1], (*ppWarper)->calibSplit[2], (*ppWarper)->calibSplit[3],
+			    (*ppWarper)->bTurnWithView ? 1 : 0,
 				(*ppWarper)->bDoNotBlend ? 1 : 0,
 				(*ppWarper)->eyeProvider,
 				(*ppWarper)->eyeProviderParam,
@@ -604,10 +611,15 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 		//	( VWB_ERROR_VWF_FILE_NOT_FOUND == err && VWB_ERROR_NONE != CreateDummyVWF( set, ((VWB_Warper_base*)pWarper)->calibFile ) ) ||
 		//    ( VWB_ERROR_NONE == err  && !VerifySet( set ) ) )
 
-		if( ( VWB_ERROR_NONE != err ) || !VerifySet( set, pWarper->calibIndex ) )
+		if (VWB_ERROR_NONE != err)
 		{
-			logStr(0, "ERROR: LoadVWF: Failed to load or verify set.\n");
+			logStr(0, "ERROR: LoadVWF: Failed to load set.\n");
 			return err;
+		}
+		if (!VerifySet(set, pWarper->calibIndex) )
+		{
+			logStr(0, "ERROR: LoadVWF: Failed to verify set.\n");
+			return VWB_ERROR_GENERIC;
 		}
 		else
 			err = VWB_ERROR_NONE;
@@ -978,14 +990,30 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			"  Devicename: \"%s\"\n"
 			"   SplitInfo: (%i,%i) of (%i,%i)\n"
 			"  Resolution: %dx%d\n"
-			"	 Position: %d,%d\n",
-			wb.header.hostname,
+		   "	 Position: %d,%d\n",
+		   wb.header.hostname,
 			wb.header.name,
 			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
 			wb.header.width, wb.header.height,
 			(int)wb.header.offsetX, (int)wb.header.offsetY
 	);
-    m_bBorder = 0 != ( FLAG_WARPFILE_HEADER_BORDER & wb.header.flags );
+
+	if (calibSplit[0])
+	{
+		ret = SplitVWF(wb, calibSplit);
+		if (ret != VWB_ERROR_NONE && ret != VWB_ERROR_FALSE)
+		{
+			logStr(0, "ERROR: Failed to split mapping");
+			return ret;
+		}
+		logStr(2, "Splitted map [%i,%i,%i,%i], new resolution (%i,%i), new position %d,%d.",
+			   calibSplit[0], calibSplit[1], calibSplit[2], calibSplit[3],
+			   wb.header.width, wb.header.height,
+			   (int)wb.header.offsetX, (int)wb.header.offsetY);
+	}
+
+
+	m_bBorder = 0 != ( FLAG_WARPFILE_HEADER_BORDER & wb.header.flags );
 	m_bDynamicEye = 0 != ( FLAG_WARPFILE_HEADER_3D & wb.header.flags );
 	if( m_bDynamicEye )
 		logStr( 2, "3D data found in mapping. Using DYNAMIC EYE settings.\n" );
@@ -1102,16 +1130,31 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			optimalRect.right = wb.header.width;
 			optimalRect.bottom =wb.header.height;
 		}
+#ifdef _DEBUG
 		// collect dimensions
 		VWB_BOXf b = VWB_BOXf::M();
 		VWB_WarpRecord* pW = wb.pWarp;
-		for( VWB_BlendRecord2* p = wb.pBlend2, *pE = wb.pBlend2 + ptrdiff_t( m_sizeMap.cx ) * m_sizeMap.cy; p != pE; p++, pW++ )
+		if (wb.pBlend2)
 		{
-			if( 0.5 <= pW->w )
+			for (VWB_BlendRecord2* p = wb.pBlend2, *pE = wb.pBlend2 + ptrdiff_t(m_sizeMap.cx) * m_sizeMap.cy; p != pE; p++, pW++)
 			{
-				b += VWB_VEC3f::ptr( &pW->x );
+				if (0.5 <= pW->w && ( p->r || p->g || p->b ) )
+				{
+					b += VWB_VEC3f::ptr(&pW->x);
+				}
 			}
 		}
+		else
+		{
+			for (VWB_WarpRecord* pWE = pW + ptrdiff_t(m_sizeMap.cx) * m_sizeMap.cy; pW != pWE; pW++)
+			{
+				if (0.5 <= pW->w)
+				{
+					b += VWB_VEC3f::ptr(&pW->x);
+				}
+			}
+		}
+#endif //def _DEBUG
 	}
 	else
 	{

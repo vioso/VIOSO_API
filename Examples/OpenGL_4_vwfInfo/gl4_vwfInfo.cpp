@@ -653,7 +653,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 	char const* calibFile = lpCmdLine;
 	if( 0 == calibFile[0] )
-		calibFile = "F:\\VIOSO.vwf";
+		calibFile = "JK_ccs.vwf";
 
 	if(!LoadVertices())
 		return -1;

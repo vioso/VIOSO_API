@@ -7,7 +7,7 @@ bool DeleteVWF( VWB_WarpBlend& wb );
 bool DeleteVWF( VWB_WarpBlendSet& set );
 bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
 
-/// @brief load or scan vef file
+/// @brief load or scan vwf file
 /// @param set [OUT] the scanned set
 /// @param path [IN] a comma separated list of paths to load
 /// @param bScanOnly [OPT|IN] scan only, if set to true, the actual loading is skipped; all data pointers are NULL. This is used to analyze the mappings and assign them to a specific channel by names and ident information in header
@@ -15,6 +15,13 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
 /// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if path null or empty string, VWB_ERROR_VWF_FILE_NOT_FOUND, if path can't be found or opened, VWB_ERROR_VWF_LOAD, if malformed, VWB_ERROR_GENERIC otherwise
 /// @param aesKey [OPT|IN] if set, encryption indication flag is set; must be char[16] array
 VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1, const uint8_t* aesKey = nullptr );
+
+/// @brief split a warpblend, 
+/// @param wb [INOUT] the warpbend to be split
+/// @return VWB_ERROR_NONE on success, VWB_ERROR_FALSE, if calibSplit is indicating no split, 
+/// VWB_ERROR_PARAMETER if set contains no data or the split will lead to uneven map (the width and hight must be devidable by the split numbers), or the split index is out of range (must be smaller than split number)
+/// VWB_ERROR_GENERIC otherwise
+VWB_ERROR SplitVWF(VWB_WarpBlend& wb, const VWB_word (& calibSplit)[4]);
 
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
 VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );
