@@ -78,7 +78,7 @@ bool SaveTex( LPCSTR path, ID3D11Device* dev, ID3D11DeviceContext* dc, ID3D11Tex
 				// swivel RGBA to BGRA
 				unsigned char t = 0;
 				const LONG padd = res.RowPitch - pitch;
-				for( unsigned char* px = (unsigned char*)res.pData, *pxE = ( (unsigned char*)res.pData ) + hdr.biSizeImage;
+				for( unsigned char* px = (unsigned char*)res.pData, *pxE = px + res.RowPitch * desc.Height;
 					 px != pxE; px+= padd )
 				{
 					for( const unsigned char* pxLE = px + pitch; px != pxLE; px += 4 )
@@ -95,7 +95,8 @@ bool SaveTex( LPCSTR path, ID3D11Device* dev, ID3D11DeviceContext* dc, ID3D11Tex
 				{
 					fwrite( &fh, sizeof( fh ), 1, f );
 					fwrite( &hdr, sizeof( hdr ), 1, f );
-					fwrite( res.pData, hdr.biSizeImage, 1, f );
+					for( unsigned char* ln = ( unsigned char* )res.pData, *lnE = ln + res.RowPitch * desc.Height; ln != lnE; ln+= res.RowPitch )
+						fwrite( ln, pitch, 1, f );
 					fclose( f );
 					ret = true;
 					logStr( 3, "Texture dumped to %s", path );

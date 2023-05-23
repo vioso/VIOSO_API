@@ -1211,7 +1211,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// we have to inverse rotate and translate
 	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
 
-	// Remind the sizes of the frustum on screenDist
+	// Remember the sizes of the frustum on screenDist
 	m_viewSizes.x = tan( DEG2RAD(fov[0] ) ) * screenDist; // left
 	m_viewSizes.y = tan( DEG2RAD(fov[1] ) ) * screenDist; // top
 	m_viewSizes.z = tan( DEG2RAD(fov[2] ) ) * screenDist; // right
@@ -1472,8 +1472,16 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 			screenDist *= -1;
 	}
 
-	logStr( 3, "View:\n[%.6f, %.6f, %.6f, %.6f ]\n[%.6f, %.6f, %.6f, %.6f]\n[%.6f, %.6f, %.6f, %.6f]\n[%.6f, %.6f, %.6f, %.6f]\n",
-			M._11, M._12, M._13, 0, M._21, M._22, M._23, 0, M._31, M._32, M._33, 0, 0, 0, 0, 1 );
+	logStr( 3,
+			"View:\n"
+			"[%.6f, %.6f, %.6f, %.6f ]\n"
+			"[%.6f, %.6f, %.6f, %.6f]\n"
+			"[%.6f, %.6f, %.6f, %.6f]\n"
+			"[%.6f, %.6f, %.6f, %.6f]\n",
+			M._11, M._12, M._13, 0.0,
+			M._21, M._22, M._23, 0.0,
+			M._31, M._32, M._33, 0.0,
+			0.0, 0.0, 0.0, 1.0 );
 
 	VWB_VEC3f::ptr( dir ) = VWB_VEC3f( ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI ) );
 
@@ -1511,7 +1519,8 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		{
 			if( 1 == pW->w && // map contains valid value
 				0 != pB->a && // not masked
-				0 != ( pB->r + pB->g + pB->b ) ) // not entirely blended black
+				0 != ( pB->r + pB->g + pB->b ) && // not entirely blended black
+				( 0 != pW->x || 0 != pW->y || 0 != pW->z ) ) // we skip (0,0,0)
 			{
 				VWB_VEC3d v( pW->x, pW->y, pW->z); // this is the 3D VIOSO coordinate
 				VWB_VEC3d vTT = T * v; // transform to display local coordinate

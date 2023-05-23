@@ -160,7 +160,7 @@ public:
     XMMATRIX const& getMProjection() const { return m_mProjection; }
     XMMATRIX& getMProjection() { return m_mProjection; }
 
-    std::shared_ptr< RenderTarget >& getRenderTarget() { return m_rt;  }
+    std::shared_ptr< RenderTarget >& getRenderTarget() { return m_rt; }
 
     void addRenderer( std::shared_ptr< Renderer > renderer );
     
@@ -197,6 +197,10 @@ class RenderToTexture : public GFXPipeline
 {
 public:
     RenderToTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
+    // gets the texture resource
+    ID3D11Resource* getResource() {
+        return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource();
+    }
 };
 
 

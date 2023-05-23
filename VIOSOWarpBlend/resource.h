@@ -3,10 +3,10 @@
 // Used by VIOSOWarpBlend.rc
 #define VWB_Version_MAJ 1
 #define VWB_Version_MIN 6
-#define VWB_Version_MAI 13
-#define VWB_Version_REV 84
-#define VWB_Version_CUR 2022
-#define VWB_Version_DATE "2022/11/10 11:24:22"
+#define VWB_Version_MAI 14
+#define VWB_Version_REV 85
+#define VWB_Version_CUR 2023
+#define VWB_Version_DATE "2023/05/23 15:14:43"
 
 // Next default values for new objects
 // 

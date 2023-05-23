@@ -719,7 +719,7 @@ bool HttpResponse::send( TCPConnection& conn )
 	if( !cnt->fail() )
 	{
 		int sps = 0;
-		size_t hdsz = s.tellp();
+		int hdsz = (int)s.tellp();
 		if( 0 == conn.getSendBuffSize(sps) && 
 			size_t( sps ) > hdsz &&
 			size_t( sps ) - hdsz > sz )

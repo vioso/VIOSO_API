@@ -51,8 +51,7 @@ public:
         }
         catch (VWB_ERROR& err)
         {
-            char buff[20]; _itoa_s((int)err, buff, 10);
-            throw exception( (string( "Creating Warper failed with error ") + buff ).c_str() );
+            throw exception( (string( "Creating Warper failed with error ") + to_string( int(err)) ).c_str() );
         }
 
         // create and initialize
@@ -71,8 +70,6 @@ public:
 
     virtual void preRender()
     {
-        //__super::preRender(); // we need to do that in postRender
-
         XMFLOAT3 vEyePt( 0.0, 0.0f, 0.0f );
         XMFLOAT3 vRot( 0.0f, 0.0f, 0.0f );
 
@@ -125,10 +122,11 @@ public:
 
     virtual void postRender()
     {
-        __super::postRender();
+        m_rtt->postRender(); // let render to texture finish
+        __super::preRender(); 
 
         // this applies warp
-        m_pWarper->Render( dynamic_cast<RenderTexture*>(m_rtt->getRenderTarget().get())->getResource(), VWB_STATEMASK_STANDARD );
+        m_pWarper->Render( m_rtt->getResource(), VWB_STATEMASK_STANDARD );
 
         __super::postRender();
     }

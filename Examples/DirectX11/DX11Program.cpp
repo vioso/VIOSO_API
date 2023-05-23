@@ -337,18 +337,17 @@ bool GFXPipeline::SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR pa
                 fh.bfOffBits = sizeof( fh ) + hdr.biSize;
                 fh.bfSize = fh.bfOffBits + hdr.biSizeImage;
 
-                // adjust padding and swivel RGBA to BGRA
-                std::vector<unsigned char> out( hdr.biSizeImage );
+                // swivel RGBA to BGRA
+                unsigned char t = 0;
                 const LONG padd = res.RowPitch - pitch;
-                for( unsigned char* px = (unsigned char*)res.pData, *pxE = px + res.RowPitch * desc.Height, *o = out.data();
+                for( unsigned char* px = ( unsigned char* )res.pData, *pxE = px + res.RowPitch * desc.Height;
                      px != pxE; px += padd )
                 {
-                    for( const unsigned char* pxLE = px + pitch; px != pxLE; px += 4, o+=4 )
+                    for( const unsigned char* pxLE = px + pitch; px != pxLE; px += 4 )
                     {
-                        o[0] = px[2];
-                        o[1] = px[1];
-                        o[2] = px[0];
-                        o[3] = px[3];
+                        t = px[0];
+                        px[0] = px[2];
+                        px[2] = t;
                     }
                 }
 
@@ -358,7 +357,8 @@ bool GFXPipeline::SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR pa
                 {
                     fwrite( &fh, sizeof( fh ), 1, f );
                     fwrite( &hdr, sizeof( hdr ), 1, f );
-                    fwrite( out.data(), out.size(), 1, f );
+                    for( unsigned char* ln = ( unsigned char* )res.pData, *lnE = ln + res.RowPitch * desc.Height; ln != lnE; ln += res.RowPitch )
+                        fwrite( ln, pitch, 1, f );
                     fclose( f );
                     ret = true;
                     fprintf( stdout, "Texture dumped to %s", path );
