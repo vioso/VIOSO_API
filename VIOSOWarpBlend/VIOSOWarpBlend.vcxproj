@@ -283,7 +283,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <OutDir>F:\X-Plane 11\Resources\plugins\$(SolutionName)\32\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Mantis|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -303,12 +303,12 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug X-Plane|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>F:\X-Plane 11\Resources\plugins\$(SolutionName)\32\</OutDir>
+    <OutDir>F:\X-Plane 12\Resources\plugins\$(SolutionName)\32\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <TargetName>$(ProjectName)64</TargetName>
-    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <OutDir>F:\X-Plane 11\Resources\plugins\$(SolutionName)\64\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Mantis|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -333,7 +333,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug X-Plane|x64'">
     <LinkIncremental>true</LinkIncremental>
     <TargetName>$(ProjectName)64</TargetName>
-    <OutDir>F:\X-Plane 11\Resources\plugins\$(SolutionName)\64\</OutDir>
+    <OutDir>F:\X-Plane 12\Resources\plugins\$(SolutionName)\64\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>

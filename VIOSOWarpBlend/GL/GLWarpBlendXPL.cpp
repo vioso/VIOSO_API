@@ -118,7 +118,7 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 
 VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
-	__super::Render( inputTexture, stateMask );
+	VWB_Warper_base::Render( inputTexture, stateMask );
 	logStr( 4, "Render XPL" );
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;

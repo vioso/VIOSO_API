@@ -825,7 +825,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	{
 		char o[MAX_PATH];
 		strcpy_s( o, g_logFilePath );
-		strcat_s( o, ".texin.tif" );
+		strcat_s( o, ".texin.bmp" );
 		savetex( o, iSrc );
 		logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
 	}

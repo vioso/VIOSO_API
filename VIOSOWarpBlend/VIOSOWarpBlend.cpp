@@ -1372,9 +1372,10 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 	{
 		for( int x = wh - wb.header.width; x != wh; x++, pW++, pB++ )
 		{
-			if( 1 == pW->w && 
-				0 != pB->a &&
-				0 != ( pB->r + pB->g + pB->b ) )
+			if( 1 == pW->w && // map contains valid value
+				0 != pB->a && // not masked
+				0 != ( pB->r + pB->g + pB->b ) && // not entirely blended black
+				( 0 != pW->x || 0 != pW->y || 0 != pW->z ) ) // we skip (0,0,0)
 			{
 				//int sq = x * x + y * y;
 				int d1 = x + y;
