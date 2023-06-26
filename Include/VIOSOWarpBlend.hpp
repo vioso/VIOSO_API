@@ -47,19 +47,50 @@ private:
 	static pfn_##name name;
 	#include "VIOSOWarpBlend.h"
 
-	static void loadDll( const TCHAR* dllPath )
+	static void loadDll( const char* dllPath )
 	{
 		try {
 			if( NULL == dllPath || 0 == dllPath[0] )
-			#if defined( _M_X64 )
-				dllPath = _T( "ViosoWarpBlend64" );
+				#if defined( _M_X64 )
+				dllPath = "ViosoWarpBlend64";
 			#else
-				dllPath = _T( "ViosoWarpBlend" );
+				dllPath = "ViosoWarpBlend";
 			#endif
 
 			if( !hMVIOSOWARPBLEND_DYNAMIC )
 			{
-				hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibrary( dllPath );
+				hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibraryA( dllPath );
+
+				#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
+				#include "VIOSOWarpBlend.h"
+
+				#define VIOSOWARPBLEND_API( ret, name, args ) if( NULL == name ) throw std::exception( #name )
+				#include "VIOSOWarpBlend.h"
+			}
+		}
+		catch( std::exception& e )
+		{
+			UNREFERENCED_PARAMETER( e );
+			instanceCounter = 0;
+			if( hMVIOSOWARPBLEND_DYNAMIC )
+				::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
+			throw VWB_ERROR_GENERIC;
+		}
+	}
+
+	static void loadDll( const wchar_t* dllPath )
+	{
+		try {
+			if( NULL == dllPath || 0 == dllPath[0] )
+				#if defined( _M_X64 )
+				dllPath = L"ViosoWarpBlend64";
+			#else
+				dllPath = L"ViosoWarpBlend";
+			#endif
+
+			if( !hMVIOSOWARPBLEND_DYNAMIC )
+			{
+				hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibraryW( dllPath );
 
 				#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
 				#include "VIOSOWarpBlend.h"
@@ -88,12 +119,22 @@ private:
 	}
 
 public:
-	VWB( const TCHAR* dllPath, void* pDxDevice, TCHAR const* szConfigFile, TCHAR const* szChannelName, VWB_int logLevel = 2, TCHAR const* szLogFile = NULL ) 
+	VWB( char const* dllPath, void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_int logLevel = 2, char const* szLogFile = NULL )
 		: m_warper( NULL )
 	{
 		if( 1 == ++instanceCounter )
 			loadDll( dllPath );
-		VWB_ERROR err = VWB_Create( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
+		VWB_ERROR err = VWB_CreateA( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
+		if( VWB_ERROR_NONE != err )
+			throw err;
+	}
+
+	VWB( wchar_t const* dllPath, void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, wchar_t const* szLogFile = NULL )
+		: m_warper( NULL )
+	{
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		VWB_ERROR err = VWB_CreateW( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
 		if( VWB_ERROR_NONE != err )
 			throw err;
 	}
@@ -119,13 +160,25 @@ public:
 	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
 	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
 	// call again with path = NULL, to release memory
-	static VWB_ERROR VwfInfo( const TCHAR* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) { 
+	static VWB_ERROR VwfInfo( const char* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( nullptr != path )
 			if( 1 == ++instanceCounter )
 				loadDll( dllPath );
 		if( instanceCounter )
-			ret = VWB_vwfInfo( path, set ); 
+			ret = VWB_vwfInfo( path, set );
+		if( nullptr == path )
+			if( 0 == --instanceCounter )
+				unloadDll();
+		return ret;
+	}
+	static VWB_ERROR VwfInfo( const wchar_t* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) {
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( nullptr != path )
+			if( 1 == ++instanceCounter )
+				loadDll( dllPath );
+		if( instanceCounter )
+			ret = VWB_vwfInfo( path, set );
 		if( nullptr == path )
 			if( 0 == --instanceCounter )
 				unloadDll();
@@ -141,7 +194,8 @@ public:
 struct VWB_EmptyData {};
 template< class _Base = VWB_EmptyData > struct VWBX: public _Base {	
 	VWB	w; 
-	VWBX( _Base const& own, const TCHAR* dllPath, void* pDxDevice, TCHAR const* szConfigFile, TCHAR const* szChannelName, VWB_int logLevel = 2, TCHAR const* szLogFile = NULL )	: _Base( own ), w( dllPath, pDxDevice, szConfigFile, szChannelName, logLevel, szLogFile ) {}
+	VWBX( _Base const& own, const char* dllPath, void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_int logLevel = 2, char const* szLogFile = NULL ) : _Base( own ), w( dllPath, pDxDevice, szConfigFile, szChannelName, logLevel, szLogFile ) {}
+	VWBX( _Base const& own, const wchar_t* dllPath, void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, wchar_t const* szLogFile = NULL ) : _Base( own ), w( dllPath, pDxDevice, szConfigFile, szChannelName, logLevel, szLogFile ) {}
 };
 template< class _Key, class _Data = VWB_EmptyData > class VWBmap : public std::map< _Key, std::shared_ptr< VWBX< _Data> > > { public: typedef VWBX< _Data> PtrT; typedef _Data BaseT; };
 

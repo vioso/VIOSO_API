@@ -990,8 +990,8 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			"  Devicename: \"%s\"\n"
 			"   SplitInfo: (%i,%i) of (%i,%i)\n"
 			"  Resolution: %dx%d\n"
-		   "	 Position: %d,%d\n",
-		   wb.header.hostname,
+			"    Position: %d,%d\n",
+			wb.header.hostname,
 			wb.header.name,
 			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
 			wb.header.width, wb.header.height,
