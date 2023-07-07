@@ -1,22 +1,33 @@
 //#define SINEWAVE
 
 #ifdef WIN32
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
-#include <sdkddkver.h>
-#include <windows.h>
+	#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+	#include <sdkddkver.h>
+	#include <windows.h>
+	#define STDCALL __stdcall
+	HMODULE g_hModDll = 0;
+	#define GETTIME( tm ) timespec_get( &tm, TIME_UTC )
 #else
+	#define STDCALL
+	#define GETTIME( tm ) clock_gettime( CLOCK_REALTIME, &tm )
+	#include <fcntl.h>
+	#include <sys/shm.h>
+	#include <sys/stat.h>
+	#include <sys/mman.h>
+	#include <unistd.h>
 #endif
+
 #include "../../Include/EyePointProvider.h"
 #include <stdint.h>
 #include <math.h>
 #include <sys/timeb.h>
 #include <string>
 #include <sstream>
+#include <thread>
 #include "../../VIOSOWarpBlend/logging.h"
 #include "../../VIOSOWarpBlend/socket.h"
 
-#pragma comment( linker, "/SECTION:.eyeshare,RWS" )
-#pragma data_seg (".eyeshare")
+struct EyeShare {
 	int instanceCounter = 0;
 	double epx = 0;
 	double epy = 0;
@@ -24,10 +35,18 @@
 	double eproll = 0;
 	double eppitch = 0;
 	double epyaw = 0;
-	HANDLE hThread = 0;
-#pragma data_seg()
+	std::thread thread;
+};
+EyeShare* pEyeShare = nullptr;
 
-HMODULE g_hModDll = 0;
+#ifdef WIN32
+#pragma comment( linker, "/SECTION:.eyeshare,RWS" )
+#pragma data_seg (".eyeshare")
+EyeShare _es;
+#pragma data_seg()
+#else
+int fd_ES = -1;
+#endif //def WIN32
 bool bSineWave = false;
 uint64_t tmStamp = 0;
 
@@ -42,7 +61,7 @@ struct Receiver
 };
  
 
-u_int __stdcall theadFn( void* param )
+u_int STDCALL theadFn( void* param )
 {
 	logStr( 2, "start listener." );
 	ifStartSockets()
@@ -55,7 +74,7 @@ u_int __stdcall theadFn( void* param )
 		if( 0 == port )
 			port = 1919;
 		if( !sIP.empty() )
-			ip = SocketAddress( sIP.c_str(), 0 ).sin_addr.S_un.S_addr;
+            ip = SocketAddress( sIP.c_str(), 0 ).sin_addr.s_addr;
 		Socket sock = Socket( SOCK_DGRAM, true, IPPROTO_UDP, false, 0, 0 );
 		SocketAddress sa( ip, port );
 		if( 0 != sock.bind( sa ) )
@@ -64,7 +83,7 @@ u_int __stdcall theadFn( void* param )
 			return -1;
 		}
 		char buff[1024];
-		while( instanceCounter )
+		while( pEyeShare->instanceCounter )
 		{
 			int res = sock.recv( buff, 1024, INFINITETIMEOUT );
 			if( SOCKET_ERROR == res )
@@ -74,17 +93,17 @@ u_int __stdcall theadFn( void* param )
 			else if( 0 != res )
 			{
 				buff[res] = 0; // make zero terminated string
-				if( 6 == sscanf_s( buff, "%lf %lf %lf %lf %lf %lf", &epx, &epy, &epz, &eproll, &eppitch, &epyaw ) )
+				if( 6 == sscanf_s( buff, "%lf %lf %lf %lf %lf %lf", &pEyeShare->epx, &pEyeShare->epy, &pEyeShare->epz, &pEyeShare->eproll, &pEyeShare->eppitch, &pEyeShare->epyaw ) )
 				{
-					epx /= 1000;
-					epy /= 1000;
-					epz /= 1000;
-					eproll *= DEG2RADd( 1 );
-					eppitch *= DEG2RADd( 1 );
-					epyaw *= DEG2RADd( 1 );
-					__timeb64 tm;
-					_ftime_s( &tm );
-					tmStamp = tm.time * 1000 + tm.millitm;
+					pEyeShare->epx /= 1000;
+					pEyeShare->epy /= 1000;
+					pEyeShare->epz /= 1000;
+					pEyeShare->eproll *= DEG2RADd( 1 );
+					pEyeShare->eppitch *= DEG2RADd( 1 );
+					pEyeShare->epyaw *= DEG2RADd( 1 );
+                    timespec tm;
+                    GETTIME( tm );
+                    tmStamp = tm.tv_sec * 1000 + tm.tv_nsec / 1000;
 				}
 			}
 		}
@@ -94,22 +113,35 @@ u_int __stdcall theadFn( void* param )
 
 void* CreateEyePointReceiver( char const* szParam )
 {
+	#ifdef WIN32
+	pEyeShare = &_es; // windows uses a shared memory section
+	#else
+		fd_ES = shm_open( "/VIOSOEyePointReceiverMemShare", O_RDWR, 0666 );
+		if( -1 == fd_ES ) // first use
+		{
+			fd_ES = shm_open( "/VIOSOEyePointReceiverMemShare", O_CREAT| O_RDWR, 0666 );
+			ftruncate( fd_ES, sizeof( EyeShare ) );
+			if( -1 == fd_ES )
+				return nullptr;
+		}
+		mmap( 0, sizeof( EyeShare ), PROT_WRITE, MAP_SHARED, fd_ES, 0 );
+	#endif;
     auto r = new Receiver;
-	instanceCounter++;
-	__timeb64 tm;
-	_ftime_s( &tm );
-	r->beginTime = tm.time * 1000 + tm.millitm;
+	pEyeShare->instanceCounter++;
+    timespec tm;
+    GETTIME( tm );
+    r->beginTime = tm.tv_sec * 1000 + tm.tv_nsec / 1000;
 	if( strstr( szParam, "sinewave" ) )
 	{
 		r->mode = 0;
 	}
 	else if( strstr( szParam, "listen" ) )
 	{
-		r->mode = 1;
-		if( 0 == hThread )
-			hThread = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE)theadFn, (void*)(strstr( szParam, "listen" ) + 7), 0, NULL );
+        r->mode = 1;
+        if( !pEyeShare->thread.joinable() )
+			pEyeShare->thread = std::thread( theadFn, (void*)(strstr( szParam, "listen" ) + 7) );
 	}
-	logStr( 2, "instance %i created.", instanceCounter );
+	logStr( 2, "instance %i created.", pEyeShare->instanceCounter );
 	return r;
 }
 
@@ -120,9 +152,9 @@ bool ReceiveEyePoint(void *receiver, EyePoint* eyePoint)
  
 	if( 0 == r->mode )
 	{
-		__timeb64 tm;
-		_ftime_s( &tm );
-		auto duration = tm.time * 1000 + tm.millitm;// - r->beginTime;
+        timespec tm;
+        GETTIME( tm );
+        auto duration = tm.tv_sec * 1000 + tm.tv_nsec / 1000;// - r->beginTime;
  
 		const double tick = 5000.0;
 
@@ -240,15 +272,15 @@ bool ReceiveEyePoint(void *receiver, EyePoint* eyePoint)
 			}
 		}
 		*/
-	}
-	else if( 1 == r->mode &&  0 != hThread )
+    }
+    else if( 1 == r->mode && pEyeShare->thread.joinable() )
 	{
-		eyePoint->x = epx;
-		eyePoint->y = epy;
-		eyePoint->z = epz;
-		eyePoint->roll = eproll;
-		eyePoint->pitch = eppitch;
-		eyePoint->yaw = epyaw;
+		eyePoint->x = pEyeShare->epx;
+		eyePoint->y = pEyeShare->epy;
+		eyePoint->z = pEyeShare->epz;
+		eyePoint->roll = pEyeShare->eproll;
+		eyePoint->pitch = pEyeShare->eppitch;
+		eyePoint->yaw = pEyeShare->epyaw;
 	}
     return true;
 }
@@ -256,15 +288,18 @@ bool ReceiveEyePoint(void *receiver, EyePoint* eyePoint)
 void DeleteEyePointReceiver(void* handle)
 {
     delete static_cast<Receiver*>(handle);
-	logStr( 2, "instance %i destroyed.", instanceCounter );
-	if( 0 == --instanceCounter )
+	logStr( 2, "instance %i destroyed.", pEyeShare->instanceCounter );
+	if( 0 == --pEyeShare->instanceCounter )
 	{
-		if( hThread )
-			WaitForSingleObject( hThread, 3000 );
+        if( pEyeShare->thread.joinable() )
+			pEyeShare->thread.join();
+		#ifndef WIN32
+		// there is no need to remove or close the mmap
+		#endif //ndef WIN32
 	}
 }
- 
 
+#ifdef WIN32
 BOOL APIENTRY DllMain( HMODULE hModule,DWORD  ul_reason_for_call,LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -281,4 +316,4 @@ BOOL APIENTRY DllMain( HMODULE hModule,DWORD  ul_reason_for_call,LPVOID lpReserv
 	}
     return TRUE;
 }
-
+#endif //def WIN32

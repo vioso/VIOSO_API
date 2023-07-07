@@ -1,5 +1,9 @@
 #if defined(VIOSOWARPBLEND_EXPORTS)
-	#define VIOSOWARPBLEND_API(ret,name,args) extern "C" __declspec(dllexport) ret name args
+	#ifdef WIN32
+		#define VIOSOWARPBLEND_API(ret,name,args) extern "C" __declspec(dllexport) ret name args
+	#else
+		#define VIOSOWARPBLEND_API(ret,name,args) extern "C" ret name args
+	#endif
 #elif defined(VIOSOWARPBLEND_DYNAMIC_DEFINE)
 
 	#ifdef WIN32
@@ -42,23 +46,18 @@
 
 		#if !defined( VIOSOWARPBLEND_FILE )
 			#if defined( _M_X64 )
-			#ifdef UNICODE
-			#define VIOSOWARPBLEND_FILE L"ViosoWarpBlend64"
+				#define VIOSOWARPBLEND_FILE "ViosoWarpBlend64"
 			#else
-			#define VIOSOWARPBLEND_FILE "ViosoWarpBlend64"
-			#endif
-			#else
-			#ifdef UNICODE
-			#define VIOSOWARPBLEND_FILE L"ViosoWarpBlend"
-			#else
-			#define VIOSOWARPBLEND_FILE "ViosoWarpBlend"
-			#endif
-		#endif //def _M_X64
-
+				#ifdef WIN32
+					#define VIOSOWARPBLEND_FILE "ViosoWarpBlend"
+				#else
+					#define VIOSOWARPBLEND_FILE "libViosoWarpBlend"
+				#endif
+			#endif //def _M_X64
 		#endif // !defined( VIOSOWARPBLEND_FILE )
 
 	#ifdef WIN32
-		hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibrary( VIOSOWARPBLEND_FILE );
+		hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibraryA( VIOSOWARPBLEND_FILE );
 	#define VIOSOWARPBLEND_API(ret,name,args) \
 		name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
 	#else

@@ -1,6 +1,22 @@
+#ifdef WIN32
+
+#define VC_EXTRALEAN
+#define NOMINMAX
 #include <windows.h>		// Header File For Windows
+
+#else
+
+#include <X11/X.h>
+#include <X11/Xlib.h>
+#define ARRAYSIZE(arr) (sizeof(arr)/sizeof(arr[0]))
+
+#endif // def WIN32
+
+#define GL_EXT_DEFINE_AND_IMPLEMENT
+#include "../../VIOSOWarpBlend/GL/GLext.h"
+
 #include <stdio.h>
-#include <tchar.h>
+#include <stdarg.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <vector>
@@ -12,23 +28,16 @@
 #include "glm/gtx/euler_angles.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-#define GL_EXT_DEFINE_AND_IMPLEMENT
-#include "../../VIOSOWarpBlend/GL/GLext.h"
-
 #define USE_VIOSO_API
 const int c_numTri = 30;
 
 #ifdef USE_VIOSO_API
 #include "../../Include/VIOSOWarpBlend.hpp"
 
-LPCTSTR s_configFile = _T( "VIOSOWarpBlendGL.ini" );
+const char* s_configFile = "VIOSOWarpBlendGL.ini";
 std::shared_ptr<VWB> pWarper;
 #endif //USE_VIOSO_API
 
-#include <gl\gl.h>			// Header File For The OpenGL32 Library
-#include <gl\glu.h>			// Header File For The GLu32 Library
-#pragma comment( lib, "opengl32.lib" )
-#pragma comment( lib, "glu32.lib" )
 typedef char GLchar;
 
 GLuint iProg = -1;				// the shader program
@@ -44,12 +53,14 @@ GLuint locVATex = -1;			// the location of the texture input
 GLuint locMatProj = -1;			// the location of the projection matrix
 GLuint locMatView = -1;			// the location of the view matrix
 
-__declspec( align( 4 ) ) struct Vertex
+#pragma pack( push, 4 )
+struct Vertex
 {
 	GLfloat x, y, z;
 	GLfloat r, g, b, a;
 	GLfloat u, v;
 };
+#pragma pack( pop )
 typedef std::vector<Vertex> Vertices;
 Vertices vertices;
 
@@ -81,29 +92,29 @@ void main()
 })END"
 };
 
-HDC			hDC = NULL;		// Private GDI Device Context
-HGLRC		hRC = NULL;		// Permanent Rendering Context
-HWND		hWnd = NULL;		// Holds Our Window Handle
-HINSTANCE	hInstance;		// Holds The Instance Of The Application
+GLvoid ReSizeGLScene( GLsizei width, GLsizei height );
+GLvoid KillGLWindow( GLvoid );
 
-GLvoid ReSizeGLScene( GLsizei width, GLsizei height );		// Resize And Initialize The GL Window
-
-#ifdef WIN32
-#include <crtdbg.h>
-#endif
-
-inline void logStr( const char* str )
+inline void logStr( const char* str, ... )
 {
 	//if( NULL != VWB__logString )
 	//	VWB__logString( 1, str );
 	//else
 	{
-		FILE* f;
+		FILE* f = nullptr;
 		{
-			if( NOERROR == fopen_s( &f, "VIOSOWarpBlend.log", "a" ) )
+			#ifdef WIN32
+			if( NOERROR == fopen_s( &f, "gl3_2.log", "a" ) )
+			#else
+			if( f = fopen( "gl3_2.log", "a" ) )
+			#endif // def WIN32
 			{
-				fprintf( f, str );
+				va_list args;
+				va_start( args, str );
+
+				vfprintf( f, str, args );
 				fclose( f );
+				va_end( args );
 			}
 		}
 	}
@@ -111,7 +122,6 @@ inline void logStr( const char* str )
 
 void APIENTRY glLog( GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam )
 {
-	char str[2047];
 	char const* szType = nullptr;
 	switch( type )
 	{
@@ -134,48 +144,7 @@ void APIENTRY glLog( GLenum source, GLenum type, GLuint id, GLenum severity, GLs
 		szType = "Other";
 		break;
 	}
-	sprintf_s( str, "GLDEBUG: %s %s: %s\n", szType, GL_DEBUG_SEVERITY_LOW == severity ? "note" : ( GL_DEBUG_SEVERITY_MEDIUM == severity ? "warning" : "ERROR" ), message );
-	logStr( str );
-}
-
-GLvoid KillGLWindow( GLvoid )								// Properly Kill The Window
-{
-	#ifdef USE_VIOSO_API
-	if( pWarper )
-		pWarper.reset();
-	#endif //def USE_VIOSO_API
-
-	if( hRC )											// Do We Have A Rendering Context?
-	{
-		if( !wglMakeCurrent( NULL, NULL ) )					// Are We Able To Release The DC And RC Contexts?
-		{
-			MessageBox( NULL, "Release Of DC And RC Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
-		}
-
-		if( !wglDeleteContext( hRC ) )						// Are We Able To Delete The RC?
-		{
-			MessageBox( NULL, "Release Rendering Context Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
-		}
-		hRC = NULL;										// Set RC To NULL
-	}
-
-	if( hDC && !ReleaseDC( hWnd, hDC ) )					// Are We Able To Release The DC
-	{
-		MessageBox( NULL, "Release Device Context Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
-		hDC = NULL;										// Set DC To NULL
-	}
-
-	if( hWnd && !DestroyWindow( hWnd ) )					// Are We Able To Destroy The Window?
-	{
-		MessageBox( NULL, "Could Not Release hWnd.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
-		hWnd = NULL;										// Set hWnd To NULL
-	}
-
-	if( !UnregisterClass( "OpenGL", hInstance ) )			// Are We Able To Unregister Class
-	{
-		MessageBox( NULL, "Could Not Unregister Class.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
-		hInstance = NULL;									// Set hInstance To NULL
-	}
+	logStr("GLDEBUG: %s %s: %s\n", szType, GL_DEBUG_SEVERITY_LOW == severity ? "note" : ( GL_DEBUG_SEVERITY_MEDIUM == severity ? "warning" : "ERROR" ), message );
 }
 
 GLvoid ReSizeGLScene( GLsizei width, GLsizei height )		// Resize And Initialize The GL Window
@@ -188,12 +157,9 @@ GLvoid ReSizeGLScene( GLsizei width, GLsizei height )		// Resize And Initialize 
 	glViewport( 0, 0, width, height );						// Reset The Current Viewport
 }
 
-int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
+bool InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 {
 	GLenum err = glGetError();
-
-	#define GL_EXT_INITIALIZE
-	#include "../../VIOSOWarpBlend/GL/GLext.h"
 
 	#if defined( _DEBUG)
 	glDebugMessageCallback( &glLog, nullptr );
@@ -215,7 +181,7 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	if( log[0] )
 	{
 		logStr( log );
-		return FALSE;
+		return false;
 	}
 
 	// fragment shader
@@ -226,7 +192,7 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	if( log[0] )
 	{
 		logStr( log );
-		return FALSE;
+		return false;
 	}
 	err = glGetError();
 
@@ -238,7 +204,7 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	if( GL_NO_ERROR != err )
 	{
 		logStr( "Failed to link shader program" );
-		return FALSE;
+		return false;
 	}
 	GLint isLinked = 0;
 	glGetProgramiv( iProg, GL_LINK_STATUS, &isLinked );
@@ -255,10 +221,8 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 		glDeleteProgram( iProg );
 		iProg = -1;
 
-		char log[1024];
-		sprintf_s( log, "ERROR: %d at glLinkProgram:\n%s\n", err, &infoLog[0] );
-		logStr( log );
-		return FALSE;
+		logStr( log, "ERROR: %d at glLinkProgram:\n%s\n", err, &infoLog[0] );
+		return false;
 	}
 
 	locMatProj = glGetUniformLocation( iProg, "matProj" );
@@ -272,7 +236,7 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	if( GL_NO_ERROR != err )
 	{
 		logStr( "Failed to create vertex position buffer" );
-		return FALSE;
+		return false;
 	}
 
 	// render some cubes around 0,0,0
@@ -377,12 +341,12 @@ int InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 	if( GL_NO_ERROR != err )
 	{
 		logStr( "Failed to set vertex position buffer" );
-		return FALSE;
+		return false;
 	}
-	return TRUE;										// Initialization Went OK
+	return true;										// Initialization Went OK
 }
 
-bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f )
+bool DrawGLScene()
 {
 	//#ifdef WIN32
 	//OutputDebugStringA( "." );
@@ -488,6 +452,15 @@ bool DrawGLScene( GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat
 	return true;
 }
 
+
+#ifdef WIN32
+
+HDC			hDC = NULL;		// Private GDI Device Context
+HGLRC		hRC = NULL;		// Permanent Rendering Context
+HWND		hWnd = NULL;		// Holds Our Window Handle
+HINSTANCE	hInstance = 0;		// Holds The Instance Of The Application
+#include <crtdbg.h>
+
 LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
 						  UINT	uMsg,			// Message For This Window
 						  WPARAM	wParam,			// Additional Message Information
@@ -496,49 +469,50 @@ LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
 	switch( uMsg )									// Check For Windows Messages
 	{
 	case WM_SYSCOMMAND:							// Intercept System Commands
-	{
-		switch( wParam )							// Check System Calls
 		{
-		case SC_SCREENSAVE:					// Screensaver Trying To Start?
-		case SC_MONITORPOWER:				// Monitor Trying To Enter Powersave?
-			return 0;							// Prevent From Happening
+			switch( wParam )							// Check System Calls
+			{
+			case SC_SCREENSAVE:					// Screensaver Trying To Start?
+			case SC_MONITORPOWER:				// Monitor Trying To Enter Powersave?
+				return 0;							// Prevent From Happening
+			}
 		}
 		break;									// Exit
-	}
 
 	case WM_CLOSE:								// Did We Receive A Close Message?
-	{
-		PostQuitMessage( 0 );						// Send A Quit Message
-		return 0;								// Jump Back
-	}
-
-	case WM_KEYDOWN:							// Did We Receive Key?
-	{
-		if( VK_ESCAPE == wParam )
 		{
 			PostQuitMessage( 0 );						// Send A Quit Message
 			return 0;								// Jump Back
 		}
-	}
+
+	case WM_KEYDOWN:							// Did We Receive Key?
+		{
+			if( VK_ESCAPE == wParam )
+			{
+				PostQuitMessage( 0 );						// Send A Quit Message
+				return 0;								// Jump Back
+			}
+		}
+		break;
 
 	case WM_SIZE:								// Resize The OpenGL Window
-	{
-		ReSizeGLScene( LOWORD( lParam ), HIWORD( lParam ) );  // LoWord=Width, HiWord=Height
-		return 0;								// Jump Back
-	}
+		{
+			ReSizeGLScene( LOWORD( lParam ), HIWORD( lParam ) );  // LoWord=Width, HiWord=Height
+			return 0;								// Jump Back
+		}
+		break;
 	}
 
 	// Pass All Unhandled Messages To DefWindowProc
 	return DefWindowProc( hWnd, uMsg, wParam, lParam );
 }
 
-/*	This Code Creates Our OpenGL Window.  Parameters Are:					*
+/*	This Code Creates Our OpenGL Window in Windows.  Parameters Are:					*
  *	title			- Title To Appear At The Top Of The Window				*
  *	width			- Width Of The GL Window Or Fullscreen Mode				*
  *	height			- Height Of The GL Window Or Fullscreen Mode			*
  *	bits			- Number Of Bits To Use For Color (8/16/24/32)			*/
-
-BOOL CreateGLWindow( char* title, int posX, int posY, int width, int height, int bits )
+BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int height, int bits )
 {
 
 	GLuint		PixelFormat;			// Holds The Results After Searching For A Match
@@ -664,6 +638,9 @@ BOOL CreateGLWindow( char* title, int posX, int posY, int width, int height, int
 	SetForegroundWindow( hWnd );						// Slightly Higher Priority
 	SetFocus( hWnd );									// Sets Keyboard Focus To The Window
 
+	#define GL_EXT_INITIALIZE
+	#include "../../VIOSOWarpBlend/GL/GLext.h"
+
 	if( !InitGL() )									// Initialize Our Newly Created GL Window
 	{
 		KillGLWindow();								// Reset The Display
@@ -673,6 +650,46 @@ BOOL CreateGLWindow( char* title, int posX, int posY, int width, int height, int
 
 	ReSizeGLScene( rc.right - rc.left, rc.bottom - rc.top );					// Set Up Our Perspective GL Screen
 	return TRUE;									// Success
+}
+
+GLvoid KillGLWindow( GLvoid )								// Properly Kill The Window
+{
+	#ifdef USE_VIOSO_API
+	if( pWarper )
+		pWarper.reset();
+	#endif //def USE_VIOSO_API
+
+	if( hRC )											// Do We Have A Rendering Context?
+	{
+		if( !wglMakeCurrent( NULL, NULL ) )					// Are We Able To Release The DC And RC Contexts?
+		{
+			MessageBox( NULL, "Release Of DC And RC Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		}
+
+		if( !wglDeleteContext( hRC ) )						// Are We Able To Delete The RC?
+		{
+			MessageBox( NULL, "Release Rendering Context Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		}
+		hRC = NULL;										// Set RC To NULL
+	}
+
+	if( hDC && !ReleaseDC( hWnd, hDC ) )					// Are We Able To Release The DC
+	{
+		MessageBox( NULL, "Release Device Context Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		hDC = NULL;										// Set DC To NULL
+	}
+
+	if( hWnd && !DestroyWindow( hWnd ) )					// Are We Able To Destroy The Window?
+	{
+		MessageBox( NULL, "Could Not Release hWnd.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		hWnd = NULL;										// Set hWnd To NULL
+	}
+
+	if( !UnregisterClass( "OpenGL", hInstance ) )			// Are We Able To Unregister Class
+	{
+		MessageBox( NULL, "Could Not Unregister Class.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		hInstance = NULL;									// Set hInstance To NULL
+	}
 }
 
 int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
@@ -725,7 +742,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		if( !PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ) // we are active, Is There A Message Waiting?
 		{
 			// Draw The Scene.  Watch For ESC Key And Quit Messages From DrawGLScene()
-			if( !DrawGLScene( -0.1280f, 0.1280f, -0.0800f, 0.0800f, 0.3f, 2048.0f ) )	// Active?  Was There A Quit Received?
+			if( !DrawGLScene() )	// Active?  Was There A Quit Received?
 			{
 				done = TRUE;							// ESC or DrawGLScene Signalled A Quit
 			}
@@ -751,3 +768,120 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	KillGLWindow();									// Kill The Window
 	return int( msg.wParam );							// Exit The Program
 }
+#else
+
+Display* dpy{ nullptr };
+Window root{ 0 };
+GLint att[]{ GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
+XVisualInfo* vi{ nullptr };
+Colormap                cmap;
+XSetWindowAttributes    swa;
+Window                  win;
+GLXContext              hRC = 0;
+XWindowAttributes       gwa;
+XEvent                  xev;
+
+
+GLvoid KillGLWindow()
+{
+	if( hRC )
+	{
+		glXMakeCurrent( dpy, None, NULL );
+		glXDestroyContext( dpy, hRC );
+		hRC = 0;
+	}
+	if( win )
+		XDestroyWindow( dpy, win );
+	win = 0;
+	if( dpy )
+		XCloseDisplay( dpy );
+	dpy = nullptr;
+}
+
+bool CreateGLWindow( char const* title, int posX, int posY, int width, int height, int bits )
+{
+	dpy = XOpenDisplay( NULL );
+	if( nullptr == dpy )
+	{
+		logStr( "Can't connect to X server.\n" );
+		return false;
+	}
+	root = DefaultRootWindow( dpy );
+    if( width == 0 || height == 0 )
+    {
+        auto sc = ScreenOfDisplay(dpy,0);
+        width = sc->width;
+        height = sc->height;
+    }
+	vi = glXChooseVisual( dpy, 0, att );
+	if( nullptr == vi )
+	{
+		logStr( "No appropriatevisual found.\n" );
+		return false;
+	}
+	cmap = XCreateColormap( dpy, root, vi->visual, AllocNone );
+	swa.colormap = cmap;
+	swa.event_mask = ExposureMask | KeyPressMask;
+	win = XCreateWindow( dpy, root, posX, posY, width, height, 0, vi->depth, InputOutput, vi->visual, CWColormap | CWEventMask, &swa );
+	XMapWindow( dpy, win );
+	XStoreName( dpy, win, title );
+
+	hRC = glXCreateContext( dpy, vi, NULL, GL_TRUE );
+	if( !hRC )
+	{
+		KillGLWindow();
+		return false;
+	}
+	glXMakeCurrent( dpy, win, hRC );
+	glEnable( GL_DEPTH_TEST );
+	return true;
+}
+
+int main( int argc, char* argv[] )
+{
+	int x = 0;
+	int y = 0;
+	int w = 0;
+	int h = 0;
+	std::string channel = "Display1";
+	if( 1 < argc )
+		channel = argv[1];
+	if( 2 < argc )
+		x = atoi( argv[2] );
+	if( 3 < argc )
+		y = atoi( argv[3] );
+	if( 4 < argc )
+		w = atoi( argv[4] );
+	if( 5 < argc )
+		h = atoi( argv[5] );
+
+	// Create Our OpenGL Window
+	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )
+		return 2;									// Quit If Window Was Not Created	
+
+	#define GL_EXT_INITIALIZE
+	#include "../../VIOSOWarpBlend/GL/GLext.h"
+
+
+	if( !InitGL() )
+		return 1;
+
+	while( true )
+	{
+		XNextEvent( dpy, &xev );
+		if( xev.type == Expose )
+		{
+			XGetWindowAttributes( dpy, win, &gwa );
+			glViewport( 0, 0, gwa.width, gwa.height );
+			DrawGLScene();
+			glXSwapBuffers( dpy, win );
+		}
+		else if( xev.type == KeyPress )
+		{
+			KillGLWindow();
+			break;
+		}
+	}
+	return 0;
+}
+#endif //dev WIN32

@@ -4,7 +4,7 @@
 #include <stdarg.h>
 #include <time.h>
 
-char g_logFilePath[MAX_PATH] = {0};
+char g_logFilePath[260] = {0};
 VWB_int g_logLevel = 2;
 #ifndef WIN32
 #define NOERROR 0

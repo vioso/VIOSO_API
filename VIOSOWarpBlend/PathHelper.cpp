@@ -4,171 +4,115 @@
 #ifndef WIN32
 #include <dlfcn.h>
 #include <stdlib.h>
-#endif
+#include <regex>
+#include <cstdlib>
+#endif // ndef WIN32
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 
-char* MkPath(char* path, VWB_uint nMaxPath, char const* ext)
+using namespace std;
+using namespace std::filesystem;
+
+char* MkPath( char* szPath, VWB_uint nMaxPath, char const* ext )
 {
-	if (NULL == path || 0 == path[0])
+	if( NULL == szPath || 0 == szPath[0] )
 		return NULL;
 
+	char* pp = szPath;
+
 	// remove leading white spaces
-	while (' ' == *path || '\t' == *path)
-		path++;
+    while( ' ' == *pp || '\t' == *pp || '\r' == *pp || '\n' == *pp || '\v' == *pp || '\f' == *pp )
+		pp++;
 
 	// remove trailing white spaces
-	char* lnwsc = path + strlen(path);
-	while (--lnwsc > path)
-		if (' ' == *lnwsc || '\t' == *lnwsc)
+	char* lnwsc = pp + strlen( pp );
+	while( --lnwsc > pp )
+        if( ' ' == *lnwsc || '\t' == *lnwsc || '\r' == *lnwsc || '\n' == *lnwsc || '\v' == *lnwsc || '\f' == *lnwsc )
 			*lnwsc = 0;
 		else
 			break;
 
 	// remove quotes
-	lnwsc = path + strlen(path) - 1;
-	if (lnwsc > path)
+    lnwsc-= - 1;
+	if( lnwsc > pp )
 	{
-		if ('"' == *path && '"' == *lnwsc)
+		if( '"' == *pp && '"' == *lnwsc )
 		{
-			path++;
+			pp++;
 			*lnwsc = 0;
 		}
-		else if ('\'' == *path && '\'' == *lnwsc)
+		else if( '\'' == *pp && '\'' == *lnwsc )
 		{
-			path++;
+			pp++;
 			*lnwsc = 0;
 		}
 	}
 
-	if (0 == path[0])
+	if( 0 == pp[0] )
 		return NULL;
 
-#ifdef WIN32
-	const char psc = '\\';
+	path fsPath( pp );
+
+	// expand environment variables
+	#ifdef WIN32
 	{
-		char* path2 = new char[nMaxPath];
-		if (::ExpandEnvironmentStringsA(path, path2, nMaxPath))
-			strcpy_s(path, nMaxPath, path2);
+		wchar_t* path2 = new wchar_t[nMaxPath];
+		if( ::ExpandEnvironmentStringsW( fsPath.c_str(), path2, nMaxPath ) )
+			fsPath = path2;
 		delete[] path2;
 	}
-#else
-	char psc = '/';
-#endif //def WIN32
-
-	size_t ss = strlen(path);
-	if (NULL != ext &&
-		0 != ext[0] &&
-		(strlen(ext) >= ss || 0 != strcmp(ext, &path[ss - strlen(ext)])))
-		strcat_s(path, nMaxPath, ext);
-	// if not canonical path
-#ifdef WIN32
-	// has less than 2 char
-	bool b1 = 3 > ss;
-	// does start with a drive letter followed by :\ 
-	bool b21 = 'a' <= path[0] && 'z' >= path[0];
-	bool b22 = 'A' <= path[0] && 'Z' >= path[0];
-	bool b23 = ':' == path[1] && '\\' == path[2];
-	bool b2 = ((b21 || b22) && b23);
-	// does start with \\ 
-	bool b3 = '\\' == path[0] || '\\' == path[1];
-	if (b1 || !(b2 || b3))
-#else
-	// ~X systems start with /
-	if ('/' != path[0])
-#endif //def WIN32
+	#else
 	{
-		char szModPath[MAX_PATH] = { 0 };
-#ifdef WIN32
-		if (::GetModuleFileNameA(g_hModDll, szModPath, MAX_PATH))
+        static const regex env_re{ R"--(\$\{([^}]+)\})--" };
+		std::smatch match;
+		path::string_type s = fsPath;
+		while( std::regex_search( s, match, env_re ) ) {
+			auto const from = match[0];
+			auto const var_name = match[1].str().c_str();
+			s.replace( from.first, from.second, std::getenv( var_name ) );
+		}
+		fsPath = s;
+	}
+	#endif //def WIN32
+
+	// add module path, as we want to be relative to the dll/so or executable
+	if( fsPath.is_relative() )
+	{
+		path::string_type sModPath( MAX_PATH, path::string_type::value_type( 0 ) );
+    #ifdef WIN32
+		if( ::GetModuleFileNameW( g_hModDll, sModPath.data(), MAX_PATH ) )
 		{
-#else
+			sModPath = path( sModPath.c_str() ).parent_path(); // using c_str() operator also cuts off all zeros
+    #else
 		Dl_info dl_info;
-		if (dladdr((void *)MkPath, &dl_info))
+		if( dladdr( ( void* )MkPath, &dl_info ) && dl_info.dli_fname[0] )
 		{
-			strcpy(szModPath, dl_info.dli_fname);
-#endif //def WIN32
-
-#ifdef WIN32
-			// we start with a \ 
-			if ('\\' == path[0])
-			{ // add a my drive letter
-				strcpy_s(&szModPath[3], MAX_PATH - 3, path);
-				strcpy_s(path, nMaxPath, szModPath);
-			}
-			else
-#endif
-			{
-				// add path from module
-				char* pS = strrchr(szModPath, psc);
-				if (pS++)
-				{
-					strcpy_s(pS, MAX_PATH - (pS - szModPath), path);
-					strcpy_s(path, nMaxPath, szModPath);
-				}
-			}
-		}
-	}
-
-	// remove all duplicate separators
-	char *b, *a;
-	for (a = path, b = path; *a; )
-	{
-		if (psc != *++a ||
-			psc != *(a + 1))
-		{
-			*++b = *a;
-		}
-	}
-
-	/* replace all \.\ with \ */
-	for (a = path, b = path; *a; a++)
-	{
-		if (psc != *a ||
-			'.' != *(a + 1) ||
-			psc != *(a + 2))
-
-			*b++ = *a;
-		else
-			a++;
-	}
-	*b = 0;
-
-	/* replace all \path\..\ with \ */
-	char* cs[MAX_PATH] = { 0 };
-	char** c = cs;
-	for (a = path; *a; a++)
-		if (psc == *a)
-		{
-			*++c = a++;
-			break;
-		}
-	for (b = a; *a; a++)
-	{
-		// keep a stack of \ positions
-		if (psc == *a)
-			*++c = a;
-		// c contains position of second last \ if any
-		 // if  is not set, this is a malformed path, we cannot replace...
-		if (NULL == *(c - 1) ||
-			'.' != *a ||
-			'.' != *(a + 1))
-		{
-			*b++ = *a;
+			sModPath = path( dl_info.dli_fname ).parent_path();
+    #endif //def WIN32
 		}
 		else
 		{
-			a += 2;
-			b = *(c - 1) + 1; // d contains a \ already
-
-			// the replaced \ is the last one 
-			*c = NULL;
-			c--;
+			sModPath = current_path();
 		}
+		fsPath = path( sModPath ) / fsPath;
 	}
-	*b = 0;
-	return path;
+
+	// update extension
+	if( ext && ext[0] && !fsPath.has_extension() )
+	{
+		fsPath.replace_extension( ext );
+	}
+
+    // make nice
+    try{
+        fsPath = weakly_canonical(fsPath);
+	}
+	catch( std::exception& e ) { ( e ); }
+
+    strcpy_s( szPath, nMaxPath , (char const*)fsPath.u8string().c_str() );
+	return szPath;
 }
 
 bool GetIniString(char const* szSection, char const* szKey, char const* szDefault, char* s, VWB_uint sz, char const* szConfigFile)
@@ -193,16 +137,11 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 			//		*c = 0;
 			//		break;
 			//	}
-			// remove white spaces at front and end
-			char* b = &line[0];
-			char* e = b;
-			for (; *b; b++)
-				if (' ' != *b && '\t' != *b)
-					break;
-			for (char* c = b; *c; c++)
-				if (' ' != *c && '\t' != *c && '\n' != *c)
-					e = c;
-			*(e + 1) = 0;
+            // remove white spaces at end
+            char const* ws = " \t\r\n\f\v";
+            line.erase( 0, line.find_first_not_of(ws));
+            line.erase( line.find_last_not_of(ws) + 1);
+            char* b = line.data();
 
 			// match section
 			if (!bInChannel)
@@ -211,7 +150,7 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 				if ('[' == *b)
 				{
 					b++;
-					e = strchr(b, ']');
+                    char* e = strchr(b, ']');
 					if (e)
 					{
 						*e = 0;

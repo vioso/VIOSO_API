@@ -2,7 +2,7 @@
 #define VWB_GLWARPBLENDXPL_HPP
 
 #include "GLWarpBlend.h"
-#include "../../include/VWBTypes.h"
+#include "../../Include/VWBTypes.h"
 
 class GLWarpBlendXPL : public GLWarpBlend
 {

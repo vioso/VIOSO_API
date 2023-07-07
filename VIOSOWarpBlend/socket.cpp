@@ -1,7 +1,10 @@
 #include "Platform.h"
 #include "socket.h"
 #include "logging.h"
-
+#ifndef WIN32
+#include <netdb.h>
+#define FAR
+#endif
 using namespace std;
 // ----------------------------------------------------------------------------------
 //                               SocketAddress
@@ -10,7 +13,7 @@ using namespace std;
 SocketAddress::SocketAddress(unsigned long addr, unsigned short port)
 	: sockaddr_in{ AF_INET, Socket::hton( port )}
 {
-	sin_addr.S_un.S_addr = addr;
+    sin_addr.s_addr = addr;
 }; 
 
 SocketAddress::SocketAddress(char const* url, unsigned short port)
@@ -81,7 +84,7 @@ SocketAddress SocketAddress::broadcast(unsigned short port)
 	memset(&sa,0,sizeof(sa));
 	sa.sin_family = AF_INET;
 	sa.sin_port   = Socket::hton(port);
-	sa.sin_addr.S_un.S_addr = INADDR_BROADCAST;
+    sa.sin_addr.s_addr = INADDR_BROADCAST;
 	return sa;
 }
 
@@ -94,14 +97,14 @@ int Socket::create(int type, bool broadcast, int protocol, bool keepAlive,u_int 
 	sock=socket( AF_INET, type, protocol);
 		
 	if(sock==INVALID_SOCKET)
-		return WSAGetLastError();
+        return lastNetError;
 
 	if(broadcast)
 	{
 		if( (SOCK_DGRAM==type) && ( (sock!=SOCKET_ERROR) || (sock!=INVALID_SOCKET) ) )
 		{
-			BOOL param=1;
-			int err=::setsockopt( sock, SOL_SOCKET, SO_BROADCAST, (const char*)&param, sizeof(BOOL));
+            int param=1;
+            int err=::setsockopt( sock, SOL_SOCKET, SO_BROADCAST, (const char*)&param, sizeof(int));
 			if(err==SOCKET_ERROR) 
 				return err;
 		} 
@@ -124,7 +127,7 @@ int Socket::create(int type, bool broadcast, int protocol, bool keepAlive,u_int 
 		if( !getRecvBuffSize(sz) && (sz<(int)qRecvBuffer))
 		{
 			sz=(int)qRecvBuffer;
-			err=::setsockopt( sock, SOL_SOCKET, SO_RCVBUF, (const char FAR*)&sz, sizeof(sz));
+            err=::setsockopt( sock, SOL_SOCKET, SO_RCVBUF, (char const FAR*)&sz, sizeof(sz));
 			if(err)
 				return err;
 		}
@@ -136,7 +139,7 @@ int Socket::create(int type, bool broadcast, int protocol, bool keepAlive,u_int 
 		if( !getSendBuffSize(sz) && (sz<(int)qSendBuffer))
 		{
 			sz=(int)qSendBuffer;
-			err=::setsockopt( sock, SOL_SOCKET, SO_SNDBUF, (const char FAR*)&sz, sizeof(sz));
+            err=::setsockopt( sock, SOL_SOCKET, SO_SNDBUF, (char const FAR*)&sz, sizeof(sz));
 			if(err)
 				return err;
 		}
@@ -152,7 +155,7 @@ int Socket::setRecvBuff(int size)
 
 int Socket::getRecvBuffSize(int& size)
 {
-	int len=sizeof(size);
+    socklen_t len=sizeof(size);
 	int err=::getsockopt( sock, SOL_SOCKET, SO_RCVBUF, (char FAR*)&size, &len);
 
 	if( err || (size<0))
@@ -166,7 +169,7 @@ int Socket::getRecvBuffSize(int& size)
 
 int Socket::getSendBuffSize(int& size)
 {
-	int len=sizeof(size);
+    socklen_t len=sizeof(size);
 	int err=::getsockopt( sock, SOL_SOCKET, SO_SNDBUF, (char FAR*)&size, &len);
 
 	if( err || (size<0))
@@ -293,7 +296,7 @@ int	Socket::recvDirect(char* pch, int size)
 SocketAddress	Socket::getpeeraddr()
 { 
 	sockaddr a;
-	int addLen=sizeof(sockaddr);
+    socklen_t addLen=sizeof(sockaddr);
 	if(::getpeername(sock,&a,&addLen) == SOCKET_ERROR)
 		a.sa_family=AF_UNSPEC;
 	return a;
@@ -302,20 +305,20 @@ SocketAddress	Socket::getpeeraddr()
 SocketAddress   Socket::getsockaddr() 
 {
 	sockaddr a;
-	int addLen=sizeof(sockaddr);
+    socklen_t addLen=sizeof(sockaddr);
 
-	ZeroMemory( &a, addLen);
+    memset( &a, 0, addLen);
 	if(::getsockname( sock, &a, &addLen)==SOCKET_ERROR)
 		a.sa_family=AF_UNSPEC;
 
 	return a;
 }
 
-int Socket::getsockaddr(sockaddr_in& addr,int& qAddr)
+int Socket::getsockaddr(sockaddr_in& addr,socklen_t& nAddr)
 {
-	qAddr=sizeof(sockaddr_in);
-	ZeroMemory( &addr, qAddr);
-	return ::getsockname( sock, (sockaddr*)&addr, &qAddr);
+    nAddr=sizeof(sockaddr_in);
+    memset( &addr, 0, nAddr);
+    return ::getsockname( sock, (sockaddr*)&addr, &nAddr);
 }
 
 int Socket::sendDatagram(const char* pch,const int iSize,SocketAddress const& sa, bool dontRoute)
@@ -323,7 +326,7 @@ int Socket::sendDatagram(const char* pch,const int iSize,SocketAddress const& sa
 	//fd_set fd={1,sock};
 
 	//if(::select( 0, NULL, &fd, NULL, NULL)==1)
-		return ::sendto( sock, pch, iSize,(dontRoute)? MSG_DONTROUTE : 0, sa, sizeof(SOCKADDR));
+        return ::sendto( sock, pch, iSize,(dontRoute)? MSG_DONTROUTE : 0, sa, sizeof(sockaddr_in));
 
 	//return 0;
 }
@@ -391,8 +394,9 @@ SocketAddress	Socket::gethostbyname(const std::string& name, const unsigned shor
 //static
 std::string Socket::gethostname()
 {
-	std::string s(257,'\0');
-	::gethostname( s.data(), 256 );
+    std::string s(257,'\0');
+    ::gethostname( (char*)s.data(), 256 );
+    s.erase( strlen(s.c_str()) );
 	return s;
 }
 
@@ -400,7 +404,7 @@ std::string Socket::gethostname()
 std::vector<in_addr> Socket::getLocalIPList()
 {
 	std::vector<in_addr> l;
-	static const in_addr lh = {127,0,0,1};
+    static const in_addr lh = {0x0100007F};
 
 	std::string s( 256, 0 );
 	if( 0 == ::gethostname( &s[0], 256 ) )
@@ -432,13 +436,13 @@ std::vector<in_addr> Socket::getLocalIPList()
 std::string	Socket::gethostbyaddr(const SocketAddress& sa)
 { 
 	char name[1096];
-	if( SOCKET_ERROR == getnameinfo((SOCKADDR*)&sa.sin_addr,sizeof(sa.sin_addr), name, 1096, NULL, 0, NI_NUMERICSERV ) )
+    if( SOCKET_ERROR == getnameinfo((sockaddr*)&sa.sin_addr,sizeof(sa.sin_addr), name, 1096, NULL, 0, NI_NUMERICSERV ) )
 		return std::string(); // returning an empty string
  	return name;
 }
 
 //static
-u_int64	Socket::ntoh(u_int64   netlong)
+uint64_t	Socket::ntoh(uint64_t   netlong)
 {
 	if(htons(1)==1)
 	{
@@ -456,12 +460,12 @@ u_int64	Socket::ntoh(u_int64   netlong)
 		c2[5]=c[2];
 		c2[6]=c[1];
 		c2[7]=c[0];
-		return reinterpret_cast<u_int64&>(*c2);
+        return reinterpret_cast<uint64_t&>(*c2);
 	}
 } 
 
 //static
-u_int64	Socket::hton(u_int64   hostlong)
+uint64_t	Socket::hton(uint64_t   hostlong)
 {
 	if(htons(1)==1) 
 	{
@@ -479,7 +483,7 @@ u_int64	Socket::hton(u_int64   hostlong)
 		c2[5]=c[2];
 		c2[6]=c[1];
 		c2[7]=c[0];
-		return reinterpret_cast<u_int64&>(*c2);
+        return reinterpret_cast<uint64_t&>(*c2);
 	}
 
 }
@@ -616,8 +620,8 @@ int Server::doModalStep()
 	int n = 0;
 	timeval to = m_sto;
 	FD_SET r;
-	FD_SET w;
-	if( 0 != m_readers.fd_count ) // there can't be any writers without readers in TCP
+    FD_SET w;
+    if( FD_IS_ANY_SET( m_readers ) ) // there can't be any writers without readers in TCP
 	{
 		Listeners tmp;
 		VWB_LockedStatement( m_mtxGlobal )

@@ -1,6 +1,31 @@
+#ifdef WIN32
+
+#define VC_EXTRALEAN
+#define NOMINMAX
 #include <windows.h>		// Header File For Windows
+HINSTANCE	g_hInstance;		// Holds The Instance Of The Application
+struct WndBase
+{
+    HDC			hDC = NULL;					// Private GDI Device Context
+    HGLRC		hRC = NULL;					// Permanent Rendering Context
+    HWND		hWnd = NULL;				// Holds Our Window Handle
+};
+
+#else
+
+#include <X11/X.h>
+#include <X11/Xlib.h>
+#define ARRAYSIZE(arr) (sizeof(arr)/sizeof(arr[0]))
+
+struct WndBase
+{
+    Display*    disp = nullptr:
+    Window		win{};
+    GLXContext	hRC = 0;					// Permanent Rendering Context
+};
+#endif // def WIN32
+
 #include <stdio.h>
-#include <tchar.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <vector>
@@ -17,15 +42,10 @@
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "../../VIOSOWarpBlend/GL/GLext.h"
 
-HINSTANCE	g_hInstance;		// Holds The Instance Of The Application
-
 const int c_numTri = 30;
-LPCTSTR s_configFile = _T( "VIOSOWarpBlendGL.ini" );
-struct MyWindow
+const char* s_configFile = "VIOSOWarpBlendGL.ini";
+struct MyWindow : WndBase
 {
-	HDC			hDC = NULL;					// Private GDI Device Context
-	HGLRC		hRC = NULL;					// Permanent Rendering Context
-	HWND		hWnd = NULL;				// Holds Our Window Handle
 	GLuint		iProg = GLuint(-1);			// the shader program
 	GLuint		iVert = GLuint(-1);			// the vertex shader program
 	GLuint		iFrag = GLuint(-1);			// the fragment shader
@@ -41,20 +61,17 @@ struct MyWindow
 };
 VWBmap< HWND, MyWindow > g_windows;
 
-
-
-#include <gl\gl.h>			// Header File For The OpenGL32 Library
-#include <gl\glu.h>			// Header File For The GLu32 Library
-#pragma comment( lib, "opengl32.lib" )
-#pragma comment( lib, "glu32.lib" )
 typedef char GLchar;
 
-__declspec( align( 4 ) ) struct Vertex
+#pragma pack( push, 4 )
+struct Vertex
 {
 	GLfloat x, y, z;
 	GLfloat r, g, b, a;
 	GLfloat u, v;
 };
+#pragma pack(pop)
+
 typedef std::vector<Vertex> Vertices;
 Vertices g_vertices;
 
@@ -378,7 +395,7 @@ LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
 
 	case WM_SIZE:								// Resize The OpenGL Window
 	{
-		auto& wnd = g_windows.find(hWnd);
+		auto wnd = g_windows.find(hWnd);
 		if(wnd != g_windows.end())
 		{
 			MyWindow const* wnd = g_windows[hWnd].get();
@@ -519,7 +536,7 @@ bool unregisterWndClass()
  *	height			- Height Of The GL Window Or Fullscreen Mode			*
  *	bits			- Number Of Bits To Use For Color (8/16/24/32)			*/
 
-BOOL CreateGLWindow( MyWindow& wnd, char* title, int posX, int posY, int width, int height, int bits )
+BOOL CreateGLWindow( MyWindow& wnd, char const* title, int posX, int posY, int width, int height, int bits )
 {
 
 	GLuint		PixelFormat;			// Holds The Results After Searching For A Match
@@ -659,7 +676,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		return -1;
 
 	VWB_WarpBlendHeaderSet set;
-	if( VWB_ERROR_NONE != VWB::VwfInfo( nullptr, calibFile, &set) )
+	if( VWB_ERROR_NONE != VWB::VwfInfo( (const char*)nullptr, calibFile, &set) )
 		return -1;
 
 	char hostname[] = "localhost";
@@ -681,7 +698,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 		std::shared_ptr<VWBX<MyWindow >> w;
 		try {
-			w = g_windows.emplace( wnd.hWnd, std::make_shared<VWBX<MyWindow>>( wnd, _T( "" ), nullptr, s_configFile, set[i]->header.name ) ).first->second;
+			w = g_windows.emplace( wnd.hWnd, std::make_shared<VWBX<MyWindow>>( wnd, "", nullptr, s_configFile, set[i]->header.name ) ).first->second;
 		}
 		catch( VWB_ERROR )
 		{
@@ -693,7 +710,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 			return FALSE;
 	}
 	// release memory
-	VWB::VwfInfo(nullptr, nullptr, &set);
+	VWB::VwfInfo( (const char*)nullptr, nullptr, &set);
 
 	while( !done )									// Loop That Runs While done=FALSE
 	{

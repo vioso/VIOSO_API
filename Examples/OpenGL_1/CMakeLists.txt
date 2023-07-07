@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.9)
 
-project(OpenGL_4 DESCRIPTION "VIOSOWarpBlend OpenGL Example")
+project(OpenGL_1)
 
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
@@ -10,15 +10,15 @@ if(NOT OPENGL_FOUND)
   message(ERROR "OPENGL not found!")
 endif(NOT OPENGL_FOUND)
 
-add_executable(OpenGL_4 gl3_2.cpp)
-set_property(TARGET OpenGL_4 PROPERTY CXX_STANDARD 20)
+add_executable(OpenGL_1 gltest.cpp)
+set_property(TARGET OpenGL_1 PROPERTY CXX_STANDARD 20)
 
 IF(WIN32)
-target_link_libraries(OpenGL_4 opengl32 glu32)
+target_link_libraries(OpenGL_1 opengl32 glu32)
 ELSE()
-target_link_libraries(OpenGL_4 X11 GL GLU libdl.so)
+target_link_libraries(OpenGL_1 X11 GL GLU libdl.so)
 ENDIF()
 include_directories(${CMAKE_SOURCE_DIR}/Include)
-install(TARGETS OpenGL_4
+install(TARGETS OpenGL_1
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

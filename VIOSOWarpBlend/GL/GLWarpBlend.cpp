@@ -97,17 +97,6 @@ GLWarpBlend::GLWarpBlend():
 {
 	logStr( 1, "INFO: Start initializing OGL-Warper...\n" );
 
-#ifndef WIN32
-	// FF 10.8.21: use GLEW and initialize it manually because the GLext.h header
-	// doesn't seem to work correctly with current Linuxen.
-	GLenum err=glewInit();
-	if(err!=GLEW_OK)
-	{
-	  //Problem: glewInit failed, something is seriously wrong.
-	  logStr( 1, "glewInit failed.\n" );
-	}
-#endif
-
 	#define GL_EXT_TEST
 	if(
 		#include "GLext.h"
@@ -706,7 +695,7 @@ VWB_ERROR GLWarpBlend::SetViewProjection( VWB_float const* pView, VWB_float cons
 
 VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
-	__super::Render( inputTexture, stateMask );
+	VWB_Warper_base::Render( inputTexture, stateMask );
 	logStr( 4, "Render GL" );
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;

@@ -30,7 +30,7 @@ HINSTANCE hInst;								// current instance
 const unsigned int MAX_LOADSTRING = 100;
 TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// the main window class name
-std::auto_ptr<DX9Renderer> renderer;              // the d3d renderer
+std::unique_ptr<DX9Renderer> renderer;              // the d3d renderer
 
 // Forward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);

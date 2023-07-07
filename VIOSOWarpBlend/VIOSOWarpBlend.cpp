@@ -113,13 +113,14 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		GetIniString( channel, "eyePointProvider", sDef, eyeProvider, MAX_PATH, path );
 #if defined( WIN32 )
 		char const* ext = ".dll";
-        MkPath( eyeProvider, MAX_PATH, ext );
 #elif defined( __APPLE__ )
         // no eye provider
+        char const* ext = "";
+        *eyeProvider = 0;
 #else
 		char const* ext = ".so";
-        MkPath( eyeProvider, MAX_PATH, ext );
 #endif // defined( WIN32 )
+        MkPath( eyeProvider, MAX_PATH, ext );
 
 		GetIniString( "default", "eyePointProviderParam", NULL, sDef, MAX_PATH, path );
 		GetIniString( channel, "eyePointProviderParam", sDef, eyeProviderParam, MAX_PATH, path );
@@ -305,7 +306,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		strcpy_s( g_logFilePath, szLogFile );
 	else
 		strcpy_s( g_logFilePath, "VIOSOWarpBlend" );
-	MkPath( g_logFilePath, MAX_PATH, ".log" );
+    MkPath( g_logFilePath, 260, ".log" );
 
 	try {
 		if (VWB_DUMMYDEVICE == pDxDevice)

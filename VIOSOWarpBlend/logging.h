@@ -3,7 +3,7 @@
 
 #include "../Include/VWBTypes.h"
 extern VWB_int g_logLevel;
-extern char g_logFilePath[MAX_PATH];
+extern char g_logFilePath[260];
 
 int logStr( VWB_int level, char const* format, ... ); // log someting, ALWAYS returns 0!
 void logClear(); // backup and purge logfile

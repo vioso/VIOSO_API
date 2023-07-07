@@ -2,12 +2,15 @@
 #ifndef VIOSOWARPBLEND_HPP
 #define VIOSOWARPBLEND_HPP
 #include "VWBTypes.h"
-#include <TCHAR.h>
 #include <memory>
 #include <map>
 #include <exception>
 #include <atomic>
-
+#ifndef WIN32
+#include <dlfcn.h>
+#include <string.h>
+#include <unistd.h>
+#endif // ndef WIN32
 /*
 	static VWB_ERROR VwfInfoC(char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC(path, set, count); }
 	// call again with path = NULL, to release memory
@@ -41,12 +44,13 @@ class VWB
 {
 private:
 	VWB_Warper* m_warper;
-	static HMODULE hMVIOSOWARPBLEND_DYNAMIC;
 	static std::atomic_int instanceCounter;
 	#define VIOSOWARPBLEND_API( ret, name, args ) typedef ret (*pfn_##name)args;\
 	static pfn_##name name;
 	#include "VIOSOWarpBlend.h"
 
+#ifdef WIN32
+	static HMODULE hMVIOSOWARPBLEND_DYNAMIC;
 	static void loadDll( const char* dllPath )
 	{
 		try {
@@ -95,7 +99,7 @@ private:
 				#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
 				#include "VIOSOWarpBlend.h"
 
-				#define VIOSOWARPBLEND_API( ret, name, args ) if( NULL == name ) throw std::exception( #name )
+				#define VIOSOWARPBLEND_API( ret, name, args ) if( NULL == name ) throw std::exception( "Could not load "#name )
 				#include "VIOSOWarpBlend.h"
 			}
 		}
@@ -117,6 +121,51 @@ private:
 			::FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
 		hMVIOSOWARPBLEND_DYNAMIC = 0;
 	}
+#else
+	#define HMODULE void*
+	static HMODULE hMVIOSOWARPBLEND_DYNAMIC;
+	static void loadDll( const char* dllPath )
+	{
+        char str[MAX_PATH]{};
+		try {
+            if( NULL == dllPath || 0 == dllPath[0] )
+			{
+                getcwd( str, MAX_PATH);
+                strcat( str, "/libViosoWarpBlend.so");
+                dllPath = str;
+			}
+
+			if( !hMVIOSOWARPBLEND_DYNAMIC )
+			{
+                hMVIOSOWARPBLEND_DYNAMIC = ::dlopen( dllPath, RTLD_LAZY );
+                if( 0 == hMVIOSOWARPBLEND_DYNAMIC)
+                {
+                    throw std::runtime_error( dlerror() );
+                }
+
+				#define VIOSOWARPBLEND_API( ret, name, args ) name = (pfn_##name)::dlsym( hMVIOSOWARPBLEND_DYNAMIC, #name )
+				#include "VIOSOWarpBlend.h"
+			}
+		}
+		catch( std::exception& e )
+		{
+			( e );
+			instanceCounter = 0;
+			if( hMVIOSOWARPBLEND_DYNAMIC )
+				::dlclose( hMVIOSOWARPBLEND_DYNAMIC );
+			throw VWB_ERROR_GENERIC;
+		}
+	}
+
+	static void unloadDll()
+	{
+		#define VIOSOWARPBLEND_API( ret, name, args ) name = NULL;
+		#include "VIOSOWarpBlend.h"
+		if( hMVIOSOWARPBLEND_DYNAMIC )
+			::dlclose( hMVIOSOWARPBLEND_DYNAMIC );
+		hMVIOSOWARPBLEND_DYNAMIC = 0;
+	}
+#endif //def WIN32
 
 public:
 	VWB( char const* dllPath, void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_int logLevel = 2, char const* szLogFile = NULL )
@@ -125,16 +174,6 @@ public:
 		if( 1 == ++instanceCounter )
 			loadDll( dllPath );
 		VWB_ERROR err = VWB_CreateA( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
-		if( VWB_ERROR_NONE != err )
-			throw err;
-	}
-
-	VWB( wchar_t const* dllPath, void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, wchar_t const* szLogFile = NULL )
-		: m_warper( NULL )
-	{
-		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
-		VWB_ERROR err = VWB_CreateW( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
 		if( VWB_ERROR_NONE != err )
 			throw err;
 	}
@@ -172,6 +211,23 @@ public:
 				unloadDll();
 		return ret;
 	}
+
+	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }
+	VWB_ERROR GetShaderVPMatrix( VWB_float* pMPV ) { return VWB_getShaderVPMatrix( m_warper, pMPV ); }
+	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
+	VWB_ERROR DestroyWarpBlendMesh( VWB_WarpBlendMesh& mesh ) { return VWB_destroyWarpBlendMesh( m_warper, mesh ); }
+	static VWB_ERROR SetCryptoKey( uint8_t const* key ) { return VWB_setCryptoKey( key ); }
+
+	#ifdef WIN32
+	VWB( wchar_t const* dllPath, void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, wchar_t const* szLogFile = NULL )
+		: m_warper( NULL )
+	{
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		VWB_ERROR err = VWB_CreateW( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
+		if( VWB_ERROR_NONE != err )
+			throw err;
+	}
 	static VWB_ERROR VwfInfo( const wchar_t* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( nullptr != path )
@@ -184,11 +240,7 @@ public:
 				unloadDll();
 		return ret;
 	}
-	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }
-	VWB_ERROR GetShaderVPMatrix( VWB_float* pMPV ) { return VWB_getShaderVPMatrix( m_warper, pMPV ); }
-	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
-	VWB_ERROR DestroyWarpBlendMesh( VWB_WarpBlendMesh& mesh ) { return VWB_destroyWarpBlendMesh( m_warper, mesh ); }
-	static VWB_ERROR SetCryptoKey( uint8_t const* key ) { return VWB_setCryptoKey( key ); }
+	#endif //def WIN32
 };
 
 struct VWB_EmptyData {};
@@ -199,8 +251,8 @@ template< class _Base = VWB_EmptyData > struct VWBX: public _Base {
 };
 template< class _Key, class _Data = VWB_EmptyData > class VWBmap : public std::map< _Key, std::shared_ptr< VWBX< _Data> > > { public: typedef VWBX< _Data> PtrT; typedef _Data BaseT; };
 
-HMODULE VWB::hMVIOSOWARPBLEND_DYNAMIC = 0;
-std::atomic_int VWB::instanceCounter = 0;
+HMODULE VWB::hMVIOSOWARPBLEND_DYNAMIC{ 0 };
+std::atomic_int VWB::instanceCounter{ 0 };
 #define VIOSOWARPBLEND_API( ret, name, args ) VWB::pfn_##name VWB::name = NULL;
 #include "VIOSOWarpBlend.h"
 

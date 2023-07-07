@@ -8,6 +8,7 @@
 #include <queue>
 #include <map>
 #include <string>
+#include <atomic>
 
 #if defined( WIN32 ) || defined( WIN64 )
 
@@ -23,8 +24,9 @@
 	typedef long suseconds_t;
 	typedef int socklen_t;
 
-#define ifStartSockets() 	for( WSADATA d = {0}; 0 == d.wVersion && 0 == WSAStartup(0x0002,&d); )
-#define closeSockets WSACleanup
+	#define ifStartSockets() 	for( WSADATA d = {0}; 0 == d.wVersion && 0 == WSAStartup(0x0002,&d); )
+	#define closeSockets WSACleanup
+	#define FD_IS_ANY_SET(fd) (fd.fd_count != 0)
 
 #else /* WIN32 */
 
@@ -39,12 +41,12 @@
 	#define INVALID_SOCKET (SOCKET)(~0)
 	#define SOCKET_ERROR (-1)
 	#define ERRINTR (10004)     //can native bsd socket's be interrupted?
-	#define lastNetError errno
-
-#define ifStartSockets() if(1)
-#define closeSockets (0)
-typedef struct WSADATA { int i; } WSADATA;
-
+    #define lastNetError errno
+    #define ifStartSockets() if(1)
+    #define closeSockets() (0)
+    typedef struct WSADATA { int i; } WSADATA;
+    typedef fd_set FD_SET;
+    #define FD_IS_ANY_SET(fd) (fd.fds_bits != 0)
 #endif /* WIN32 */
 
 class Socket;
@@ -121,21 +123,6 @@ struct SocketAddress : sockaddr_in
 	operator const sockaddr&() const
 	{
 		return (const sockaddr&)*((sockaddr*) this);
-	}
-
-	operator sockaddr_in() 
-	{
-		return *((sockaddr_in*) this);
-	}
-
-	operator sockaddr_in*() 
-	{
-		return (sockaddr_in*) this;
-	}
-
-	operator sockaddr_in&() 
-	{
-		return *((sockaddr_in*) this);
 	}
 
 // public asignement and compare operators
@@ -286,7 +273,7 @@ public:
 
 	// returns bound local address
 	SocketAddress getsockaddr();
-	int getsockaddr(sockaddr_in& addr,int& qAddr);
+    int getsockaddr(sockaddr_in& addr,socklen_t& nAddr);
 
 // public static methods
 
@@ -358,8 +345,8 @@ public:
 protected:
 	Listeners	m_listeners;
 	FD_SET		m_readers;
-	FD_SET		m_writers;
-	std::atomic_int_fast32_t m_modalState;
+    FD_SET		m_writers;
+    std::atomic_int m_modalState;
 	std::thread	m_thread;
 	std::mutex	m_mtxGlobal;
 public:

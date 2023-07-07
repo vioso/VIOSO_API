@@ -23,18 +23,27 @@
 	//}
 	//else
 
+#if defined( WIN32 )
+#define XAPICALL WINAPI
+#else
+#define XAPICALL 
+#endif
+
 #if !defined( GL_EXT_EXP )
 	#if defined( GL_EXT_IMPLEMENT )
 		#define GL_EXT_EXP( ret, name, args ) pfn_##name name = NULL;
-		#undef GL_EXT_IMPLEMENT
-	#elif defined( GL_EXT_DEFINE_AND_IMPLEMENT )
-		#define GL_EXT_EXP( ret, name, args ) typedef ret ( __stdcall *pfn_##name)args;pfn_##name name = NULL;
+        #undef GL_EXT_IMPLEMENT
+    #elif defined( GL_EXT_DEFINE )
+        #define GL_EXT_EXP( ret, name, args ) typedef ret ( XAPICALL *pfn_##name)args;pfn_##name name;
+       #undef GL_EXT_DEFINE
+    #elif defined( GL_EXT_DEFINE_AND_IMPLEMENT )
+		#define GL_EXT_EXP( ret, name, args ) typedef ret ( XAPICALL *pfn_##name)args;pfn_##name name = NULL;
 		#undef GL_EXT_DEFINE_AND_IMPLEMENT
 	#elif defined( GL_EXT_INITIALIZE )
         #if defined(WIN32)
             #define GL_EXT_EXP( ret, name, args ) name = (pfn_##name)::wglGetProcAddress( #name );
         #else
-            // use Glew
+            #define GL_EXT_EXP( ret, name, args ) name = (pfn_##name)::glXGetProcAddressARB( (const GLubyte*)#name );
         #endif
 		#undef GL_EXT_INITIALIZE
 	#elif defined( GL_EXT_TEST )
@@ -46,32 +55,31 @@
 	#define GL_EXT_EXP( ret, name, args ) && ( NULL != name || logStr( 0, "ERROR: GLext function " #name " not loaded.\n" ) )
 		#undef GL_EXT_TEST_VERBOSE
 	#else
-		#define GL_EXT_EXP( ret, name, args ) typedef ret ( __stdcall *pfn_##name)args;extern pfn_##name name;
+		#define GL_EXT_EXP( ret, name, args ) typedef ret ( XAPICALL *pfn_##name)args;extern pfn_##name name;
 	#endif
 #endif //!defined( GL_EXT_EXP )
 
 #if !defined( GLEXT_DEFINES_DEFINED )
 #define GLEXT_DEFINES_DEFINED
 
-#ifdef __APPLE__
+#if defined( __APPLE__ )
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
-#elif WIN32
+#elif defined( WIN32 )
 #include <GL/gl.h>
 #include <GL/glu.h>
-#else
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
-#endif
-
-#if defined(WIN32)
 #pragma comment( lib, "opengl32.lib" )
 #pragma comment( lib, "glu32.lib" )
+typedef int GLsizeiptrARB;
+#else
+#include <unistd.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <GL/glx.h>
+#endif
 
 typedef char GLchar;
-typedef int GLsizeiptrARB;
-typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam );
+typedef void (XAPICALL  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam );
 
 #define GL_ZERO									0
 #define GL_ONE									1
@@ -279,8 +287,6 @@ typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum 
 #define WGL_CONTEXT_PROFILE_MASK_ARB            0x9126
 #define WGL_ARB_multisample 1
 
-#endif
-
 #if defined( GL_EXT_LOAD_AMD_EXT )
 
 #define GL_DOPP_GRID_ROW                0x931A
@@ -291,9 +297,15 @@ typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum 
 
 #endif // !defined( GLEXT_DEFINES_DEFINED )
 
+// windows specific defines
 #ifdef WIN32
 	GL_EXT_EXP( void,	glActiveTexture, ( GLenum texture ) )		//!< Pointer to glActiveTexture function. 
 	GL_EXT_EXP( void,	glClientActiveTexture, ( GLenum texture ) )		//!< Pointer to glActiveTexture function. 
+	GL_EXT_EXP( HGLRC,  wglCreateContextAttribsARB, (HDC hDC, HGLRC hshareContext, const int *attribList) )
+	GL_EXT_EXP( BOOL,   wglGetPixelFormatAttribivARB, (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, const int *piAttributes, int *piValues))
+	GL_EXT_EXP( BOOL,   wglChoosePixelFormatARB, (HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats))
+#endif //def WIN32
+
 	GL_EXT_EXP( void,	glUniform1i, ( GLint location, GLint v1 ) )
 	GL_EXT_EXP( void,	glUniform4f, ( GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3 ) )
 	GL_EXT_EXP( void,	glUniform1f, ( GLint location, GLfloat v ) )
@@ -345,11 +357,7 @@ typedef void (WINAPI  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum 
 	GL_EXT_EXP( void,	glGetRenderbufferParameteriv, ( 	GLuint renderbuffer,  	GLenum pname,  	GLint *params) )
 	GL_EXT_EXP( void,	glGetBufferParameteriv, (GLenum target,  GLenum value,  GLint * data) )
 	GL_EXT_EXP( void,	glGetProgramiv, (GLuint program, GLenum pname, GLint* params ) )
-	GL_EXT_EXP( HGLRC,  wglCreateContextAttribsARB, (HDC hDC, HGLRC hshareContext, const int *attribList) )
-	GL_EXT_EXP( BOOL,   wglGetPixelFormatAttribivARB, (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, const int *piAttributes, int *piValues))
-	GL_EXT_EXP( BOOL,   wglChoosePixelFormatARB, (HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats))
 	GL_EXT_EXP( void,   glDebugMessageCallback, (DEBUGPROC callback, void* userParam) )
-#endif
 
 #if defined( GL_EXT_LOAD_AMD_EXT )
 	GL_EXT_EXP( GLuint,	wglGetDesktopTextureAMD, () )
