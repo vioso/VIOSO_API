@@ -2837,8 +2837,8 @@ struct SPPair3fWrangler : public SPPair3f
 };
 
 // test functions
-bool testW( VWB_WarpRecord const& w ) { return 0.5 <= w.w; }
-bool testZ( VWB_WarpRecord const& w ) { return 0.5 <= w.z; }
+bool testW( VWB_WarpRecord const& w ) { return 0.5 <= w.w && ( w.x != 0.0f || w.y != 0.0f || w.z != 0.0 ); } // for 3D vwf
+bool testZ( VWB_WarpRecord const& w ) { return 0.5 <= w.z; } // for 2D vwf
 
 
 template< class W, auto f, class TP, class TI>
