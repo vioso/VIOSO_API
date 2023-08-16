@@ -288,12 +288,33 @@ public:
 	static std::string getErrorMessage(int err);
 
 	// the ntoh and hton functions are now polymorph
-	static _inline_ u_short ntoh(u_short netshort) { return ::ntohs(netshort); } 
-	static _inline_ u_short hton(u_short hostshort){ return ::htons(hostshort);} 
-	static _inline_ u_int   ntoh(u_int   netint)   { return ::ntohl(netint);  } 
-	static _inline_ u_int   hton(u_int   hostint)  { return ::htonl(hostint); } 
-	static _inline_ uint64_t ntoh(uint64_t netlong); 
-	static _inline_ uint64_t hton(uint64_t  hostlong);
+	static _inline_ u_short ntoh(u_short netshort) { return ::ntohs(netshort); }
+	static _inline_ u_short hton(u_short hostshort) { return ::htons(hostshort); }
+	static _inline_ short ntoh(short netshort) { return *(short*)::ntohs( *(u_short*)&netshort); }
+	static _inline_ short hton(short hostshort) { return *(short*)::htons(*(u_short*)&hostshort); }
+	static _inline_ u_int   ntoh(u_int   netint) { return ::ntohl(netint); }
+	static _inline_ u_int   hton(u_int   hostint) { return ::htonl(hostint); }
+	static _inline_ int   ntoh(int   netint) { return *(int*)::ntohl(*(u_int*)&netint); }
+	static _inline_ int   hton(int   hostint) { return *(int*)::htonl(*(u_int*)&hostint); }
+	static _inline_ u_int64 ntoh(u_int64 netlong) { return ::ntohll(netlong); }
+	static _inline_ u_int64 hton(u_int64 hostlong) { return ::htonll(hostlong); }
+	static _inline_ int64_t ntoh(int64_t netlong) { return *(int64_t*)::ntohll(*(u_int64*)&netlong); }
+	static _inline_ int64_t hton(int64_t  hostlong) { return *(int64_t*)::htonll(*(u_int64*)&hostlong); }
+	static _inline_ in_addr makeInAddr(UCHAR b1, UCHAR b2, UCHAR b3, UCHAR b4)
+	{
+		in_addr ret;
+		ret.s_net = b1;
+		ret.s_host = b2;
+		ret.s_lh = b3;
+		ret.s_impno = b4;
+		return ret;
+	}
+	static _inline_ in_addr makeInAddr(ULONG addr)
+	{
+		in_addr ret;
+		ret.s_addr = addr;
+		return ret;
+	}
 
 	// public asignmet and compare operators
 	const Socket& operator=(const Socket& s) { sock=s.sock; return *this; };

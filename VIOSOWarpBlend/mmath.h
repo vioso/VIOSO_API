@@ -473,6 +473,13 @@ struct VWB_MATRIX
 		_T ReciprocalWidth = _T(1) / ( pClip[0] + pClip[2] );
 		_T ReciprocalHeight = _T(1) / ( pClip[1] + pClip[3] );
 		_T fRange = pClip[5] / ( pClip[5] - pClip[4] );
+		
+		// nDisplay: Support unlimited far plane (f==n)
+		const _T n = pClip[4];
+		const _T f = pClip[5];
+		static const _T Z_PRECISION = 0;
+		const _T mc = (f == n) ? (1.0f - Z_PRECISION) : fRange;
+		const _T md = (f == n) ? (-n * (1.0f - Z_PRECISION)) : (-fRange * pClip[4]);
 
 		return VWB_MATRIX(
 			TwoNearZ * ReciprocalWidth,
@@ -487,12 +494,12 @@ struct VWB_MATRIX
 
 			( pClip[0] - pClip[2] ) * ReciprocalWidth,
 			( pClip[3] - pClip[1] ) * ReciprocalHeight,
-			fRange,
+			mc,
 			(_T)1,
 
 			(_T)0,
 			(_T)0,
-			-fRange * pClip[4],
+			md,
 			(_T)0 );
 	}
 

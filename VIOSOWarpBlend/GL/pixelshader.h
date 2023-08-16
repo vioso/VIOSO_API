@@ -1,14 +1,9 @@
 GLchar const* s_szPasstrough_vertex_shader_v110 = R"END(
 #version 110
-uniform vec4 offsScale;
 void main()
 {
 	gl_Position=gl_Vertex;			
 	gl_TexCoord[0]=gl_MultiTexCoord0;
-	gl_TexCoord[0].x-=offsScale.x;	
-	gl_TexCoord[0].y-=offsScale.y;	
-	gl_TexCoord[0].x*=offsScale.z;	
-	gl_TexCoord[0].x*=offsScale.w;	
 }
 )END";
 
@@ -35,14 +30,11 @@ vec2[4](
 	vec2(1,1)
 );
 
-uniform vec4 offsScale;
 uniform vec4 size;
 
 void main(void) {
 	gl_Position = vec4((pos[gl_VertexID].x + pos[gl_VertexID].x * size.x) * size.z, (pos[gl_VertexID].y + pos[gl_VertexID].y * size.y) * size.w, 0.0, 1.0);
 	texcoord = tex[gl_VertexID];
-	texcoord-= offsScale.xy;
-	texcoord*= offsScale.zw;
 }
 )END";
 
@@ -54,6 +46,7 @@ uniform bool bDoNotBlend;
 uniform bool bDoNoBlack;		
 uniform mat4 matView;		
 uniform vec4 blackBias;
+uniform vec4 offsScale;
 #define texcoord gl_TexCoord[0]
 #define FragColor gl_FragColor
 vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture2D( sam, tex ); }
@@ -67,6 +60,7 @@ uniform bool bDoNotBlend;
 uniform bool bDoNoBlack;
 uniform mat4 matView;	
 uniform vec4 blackBias;
+uniform vec4 offsScale;
 in vec2 texcoord;		
 out vec4 FragColor;	
 vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }
@@ -138,9 +132,9 @@ void main()
 		    tex.x-= 0.01;										
 		    tex.y*= 1.02;										
 		    tex.y-= 0.01;										
-		}														
+		}	
 		tex.xy/= blend.a;
-		FragColor = _texture2D( samContent, tex.xy );			
+		FragColor = _texture2D( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );			
 		if( !bDoNotBlend )					
 			FragColor.rgb*= blend.rgb;		
 		if( !bDoNoBlack )               
@@ -185,7 +179,7 @@ void main()
 //			FragColor = vec4( tex.x, 1 - tex.y, 0, 1 );
 //		else
 //			FragColor = vec4( 0, 0, 0, 1 );
-		FragColor = _texture2D( samContent, tex.xy );
+		FragColor = _texture2D( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );
 		if( !bDoNotBlend )
 			FragColor.rgb*= blend.rgb;
 		if( !bDoNoBlack )

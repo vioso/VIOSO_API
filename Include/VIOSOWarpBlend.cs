@@ -88,25 +88,40 @@ namespace VIOSOWarpBlend
             }
         };
 
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
         public struct SIZE
         {
             public Int32 cx, cy;
-            SIZE(Int32 vcx, Int32 vcy)
+            public SIZE(Int32 vcx, Int32 vcy)
             {
                 cx = vcx;
                 cy = vcy;
             }
         };
 
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
         public struct RECT
         {
             public Int32 left, top, right, bottom;
-            RECT(Int32 l, Int32 t, Int32 r, Int32 b)
+            public RECT(Int32 l, Int32 t, Int32 r, Int32 b)
             {
                 left = l;
                 top = t;
                 right = r;
                 bottom = b;
+            }
+        };
+
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
+        public struct SPLIT
+        {
+            public Int16 rows, columns, rowIndex, columnIndex;
+            public SPLIT( Int16 r, Int16 c, Int16 ri, Int16 ci )
+            {
+                rows = r;
+                columns = c;
+                rowIndex = ri;
+                columnIndex = ci;
             }
         };
 
@@ -235,6 +250,14 @@ namespace VIOSOWarpBlend
             /// set to true to disable black level offset, defaults to false
             [MarshalAs(UnmanagedType.I1)]
             public bool bDoNoBlack;
+
+            /// set to a port a UDP broadcast is sent every 3 seconds, defaults to 0, which means no heartbeat is sent; only avaliable if "port" is set
+            public UInt16 heartBeatPort;
+
+            /// split info, a vector4 x: number of columns y: number of rows, z: column index, w: row index, defaults to [0,0,0,0]
+            /// If you want to split a map into 2 side-by side parts set to [2,1,0,0] for the left side and [2,1,1,0] for the right part
+            /// setting x or y to 0, indicates no split and z and w are not evaluated
+            public SPLIT calibSplit;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]

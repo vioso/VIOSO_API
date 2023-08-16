@@ -689,25 +689,43 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		if( set[i]->header.hostname[0] && _stricmp( hostname, set[i]->header.hostname ) ) // hostname set but different
 			continue;
 
-		MyWindow wnd{};
-		// Create Our OpenGL Window
-		if( !CreateGLWindow( wnd, "NeHe's Solid Object Tutorial", (int)set[i]->header.offsetX, (int)set[i]->header.offsetY, (int)set[i]->header.width, (int)set[i]->header.height, 32 ) )
+		const int rows = 2;
+		const int cols = 2;
+		for (int row = 0; row != rows; row++)
 		{
-			return 0;									// Quit If Window Was Not Created	
-		}
+			int h = int(set[i]->header.height) / rows;
+			int y = int(set[i]->header.offsetY) + row * h;
+			for (int col = 0; col != cols; col++)
+			{
+				MyWindow wnd{};
+				// Create Our OpenGL Window
+				int w = int(set[i]->header.width) / cols;
+				int x = int(set[i]->header.offsetX) + col * w;
+				if (!CreateGLWindow(wnd, "NeHe's Solid Object Tutorial", x, y, w, h, 32))
+				{
+					return 0;									// Quit If Window Was Not Created	
+				}
 
-		std::shared_ptr<VWBX<MyWindow >> w;
-		try {
-			w = g_windows.emplace( wnd.hWnd, std::make_shared<VWBX<MyWindow>>( wnd, "", nullptr, s_configFile, set[i]->header.name ) ).first->second;
+				std::shared_ptr<VWBX<MyWindow >> w;
+				try
+				{
+					w = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(wnd, _T(""), nullptr, s_configFile, set[i]->header.name)).first->second;
+				}
+				catch (VWB_ERROR)
+				{
+					return FALSE;
+				}
+				auto& ww = w->w.get();
+				strcpy_s(ww.calibFile, calibFile);
+				ww.calibIndex = (int)i;
+				ww.calibSplit[0] = rows;
+				ww.calibSplit[1] = cols;
+				ww.calibSplit[2] = row;
+				ww.calibSplit[3] = col;
+				if (VWB_ERROR_NONE != w->w.Init())
+					return FALSE;
+			}
 		}
-		catch( VWB_ERROR )
-		{
-			return FALSE;
-		}
-		strcpy_s( w->w.get().calibFile, calibFile );
-		w->w.get().calibIndex = (int)i;
-		if( VWB_ERROR_NONE != w->w.Init() )
-			return FALSE;
 	}
 	// release memory
 	VWB::VwfInfo( (const char*)nullptr, nullptr, &set);

@@ -965,7 +965,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		glPopAttrib();
 	}
 
-	if( -1 != url )
+	if( 0 != url && -1 != url )
 		glPixelStorei( GL_UNPACK_ROW_LENGTH, url );
     return VWB_ERROR_NONE;
 }

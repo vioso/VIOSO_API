@@ -404,7 +404,7 @@ std::string Socket::gethostname()
 std::vector<in_addr> Socket::getLocalIPList()
 {
 	std::vector<in_addr> l;
-    static const in_addr lh = {0x0100007F};
+    static const in_addr lh = makeInAddr(0x0100007F);
 
 	std::string s( 256, 0 );
 	if( 0 == ::gethostname( &s[0], 256 ) )
@@ -420,9 +420,9 @@ std::vector<in_addr> Socket::getLocalIPList()
 		{
 			for( addrinfo* p = pai; p; p = p->ai_next )
 			{
-				if( AF_INET == p->ai_family && 4 == p->ai_addrlen )
+				if( AF_INET == p->ai_family && 4 >= p->ai_addrlen )
 				{
-					l.push_back((( struct sockaddr_in* )pai->ai_addr)->sin_addr);
+					l.push_back((( struct sockaddr_in* )p->ai_addr)->sin_addr);
 				}
 			}
 			freeaddrinfo( pai );
@@ -439,53 +439,6 @@ std::string	Socket::gethostbyaddr(const SocketAddress& sa)
     if( SOCKET_ERROR == getnameinfo((sockaddr*)&sa.sin_addr,sizeof(sa.sin_addr), name, 1096, NULL, 0, NI_NUMERICSERV ) )
 		return std::string(); // returning an empty string
  	return name;
-}
-
-//static
-uint64_t	Socket::ntoh(uint64_t   netlong)
-{
-	if(htons(1)==1)
-	{
-		return netlong;
-	} 
-	else 
-	{
-		char* c=reinterpret_cast<char*>(&netlong);
-		char c2[8];
-		c2[0]=c[7];
-		c2[1]=c[6];
-		c2[2]=c[5];
-		c2[3]=c[4];
-		c2[4]=c[3];
-		c2[5]=c[2];
-		c2[6]=c[1];
-		c2[7]=c[0];
-        return reinterpret_cast<uint64_t&>(*c2);
-	}
-} 
-
-//static
-uint64_t	Socket::hton(uint64_t   hostlong)
-{
-	if(htons(1)==1) 
-	{
-		return hostlong;
-	} 
-	else 
-	{
-		char* c=reinterpret_cast<char*>(&hostlong);
-		char c2[8];
-		c2[0]=c[7];
-		c2[1]=c[6];
-		c2[2]=c[5];
-		c2[3]=c[4];
-		c2[4]=c[3];
-		c2[5]=c[2];
-		c2[6]=c[1];
-		c2[7]=c[0];
-        return reinterpret_cast<uint64_t&>(*c2);
-	}
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
