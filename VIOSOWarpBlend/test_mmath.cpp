@@ -1,4 +1,4 @@
-#include mmath.h
+#include "mmath.h"
 bool test_mmath()
 {
 	using namespace DirectX;

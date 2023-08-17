@@ -706,23 +706,23 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 					return 0;									// Quit If Window Was Not Created	
 				}
 
-				std::shared_ptr<VWBX<MyWindow >> w;
+				std::shared_ptr<VWBX<MyWindow >> win;
 				try
 				{
-					w = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(wnd, _T(""), nullptr, s_configFile, set[i]->header.name)).first->second;
+					win = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(wnd, "", nullptr, s_configFile, set[i]->header.name)).first->second;
 				}
 				catch (VWB_ERROR)
 				{
 					return FALSE;
 				}
-				auto& ww = w->w.get();
+				auto& ww = win->w.get();
 				strcpy_s(ww.calibFile, calibFile);
 				ww.calibIndex = (int)i;
 				ww.calibSplit[0] = rows;
 				ww.calibSplit[1] = cols;
 				ww.calibSplit[2] = row;
 				ww.calibSplit[3] = col;
-				if (VWB_ERROR_NONE != w->w.Init())
+				if (VWB_ERROR_NONE != win->w.Init())
 					return FALSE;
 			}
 		}

@@ -13,6 +13,7 @@
 #if defined( WIN32 ) || defined( WIN64 )
 
 	#define NOMINMAX
+	#define INCL_EXTRA_HTON_FUNCTIONS
 	#include <WS2tcpip.h>
 	#include <winsock2.h>
 	#undef NOMINMAX
@@ -290,16 +291,16 @@ public:
 	// the ntoh and hton functions are now polymorph
 	static _inline_ u_short ntoh(u_short netshort) { return ::ntohs(netshort); }
 	static _inline_ u_short hton(u_short hostshort) { return ::htons(hostshort); }
-	static _inline_ short ntoh(short netshort) { return *(short*)::ntohs( *(u_short*)&netshort); }
-	static _inline_ short hton(short hostshort) { return *(short*)::htons(*(u_short*)&hostshort); }
-	static _inline_ u_int   ntoh(u_int   netint) { return ::ntohl(netint); }
-	static _inline_ u_int   hton(u_int   hostint) { return ::htonl(hostint); }
-	static _inline_ int   ntoh(int   netint) { return *(int*)::ntohl(*(u_int*)&netint); }
-	static _inline_ int   hton(int   hostint) { return *(int*)::htonl(*(u_int*)&hostint); }
-	static _inline_ u_int64 ntoh(u_int64 netlong) { return ::ntohll(netlong); }
-	static _inline_ u_int64 hton(u_int64 hostlong) { return ::htonll(hostlong); }
-	static _inline_ int64_t ntoh(int64_t netlong) { return *(int64_t*)::ntohll(*(u_int64*)&netlong); }
-	static _inline_ int64_t hton(int64_t  hostlong) { return *(int64_t*)::htonll(*(u_int64*)&hostlong); }
+	static _inline_ short ntoh(short netshort) { u_short r = ::ntohs(*reinterpret_cast<u_short*>(&netshort)); return *reinterpret_cast<short*>(&r); }
+	static _inline_ short hton(short hostshort) { u_short r = ::htons(*reinterpret_cast<u_short*>(&hostshort)); return *reinterpret_cast<short*>(&r); }
+	static _inline_ u_long   ntoh(u_long   netint) { return ::ntohl(netint); }
+	static _inline_ u_long   hton(u_long   hostint) { return ::htonl(hostint); }
+	static _inline_ long   ntoh(long   netint) { u_long r = ::ntohl(*reinterpret_cast<u_long*>(&netint)); return *reinterpret_cast<long*>(&r); }
+	static _inline_ long   hton(long   hostint) { u_long r = ::htonl(*reinterpret_cast<u_long*>(&hostint)); return *reinterpret_cast<long*>(&r); }
+	//static _inline_ u_int64 ntoh(u_int64 netlong) { return ntohll(netlong); }
+	//static _inline_ u_int64 hton(u_int64 hostlong) { return htonll(hostlong); }
+	//static _inline_ int64_t ntoh(int64_t netlong) { return *(int64_t*)::ntohll(*(u_int64*)&netlong); }
+	//static _inline_ int64_t hton(int64_t  hostlong) { return *(int64_t*)::htonll(*(u_int64*)&hostlong); }
 	static _inline_ in_addr makeInAddr(UCHAR b1, UCHAR b2, UCHAR b3, UCHAR b4)
 	{
 		in_addr ret;
