@@ -6,7 +6,7 @@
 #include <sstream>
 #include <utility>
 
-class JASONWrapper
+class JSONWrapper
 {
 public:
 	enum class NODE_TYPE
@@ -393,10 +393,10 @@ protected:
 	Node params;
 
 public:
-	JASONWrapper();
-	JASONWrapper( std::string s );
-	JASONWrapper( std::istream s );
-	virtual ~JASONWrapper();
+	JSONWrapper();
+	JSONWrapper( std::string s );
+	JSONWrapper( std::istream s );
+	virtual ~JSONWrapper();
 	std::string to_string() const;
 };
 

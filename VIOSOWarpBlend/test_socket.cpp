@@ -1,11 +1,12 @@
-#include "socket.h
+#include "socket.h"
 #include "TCP.h"
 #include "UDP.h"
 #include "HTTP.h"
 #include "JSON.h"
 
-bool test_socket
+bool test_socket()
 {
+	using namespace std;
 	bool isSecure;
 	string host;
 	uint16_t port;

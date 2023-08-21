@@ -1,13 +1,13 @@
-#include "JASONWrapper.h"
+#include "JSONWrapper.h"
 #include <sstream>
 
 
-JASONWrapper::JASONWrapper()
+JSONWrapper::JSONWrapper()
 	: m_id(0)
 {
 }
 
-JASONWrapper::JASONWrapper( std::string s )
+JSONWrapper::JSONWrapper( std::string s )
 {
 	// check version
 
@@ -16,7 +16,7 @@ JASONWrapper::JASONWrapper( std::string s )
 // 
 }
 
-JASONWrapper::JASONWrapper( std::istream s )
+JSONWrapper::JSONWrapper( std::istream s )
 {
 	// check version
 
@@ -26,11 +26,11 @@ JASONWrapper::JASONWrapper( std::istream s )
 }
 
 
-JASONWrapper::~JASONWrapper()
+JSONWrapper::~JSONWrapper()
 {
 }
 
-std::string JASONWrapper::to_string() const
+std::string JSONWrapper::to_string() const
 {
 	return params.to_string();
 }

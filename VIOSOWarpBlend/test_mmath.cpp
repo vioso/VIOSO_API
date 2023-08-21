@@ -1,4 +1,6 @@
 #include "mmath.h"
+#include <DirectXMath.h>
+
 bool test_mmath()
 {
 	using namespace DirectX;
