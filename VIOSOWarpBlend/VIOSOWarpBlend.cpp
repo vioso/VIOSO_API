@@ -272,7 +272,6 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 
 
 /////////////////////////////////////////////////////////////////////////////////////
-
 VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile )
 {
 	if( NULL == ppWarper )
@@ -447,17 +446,18 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				"bPartialInput=%d\n"
 				"splice=%u\n"
 				"trans=[%.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f]\n"
-				"autoViewC=%.5f;\n"
-				"bAutoView=%d;\n"
+				"autoViewC=%.5f\n"
+				"bAutoView=%d\n"
 				"dir=[%.5f, %.5f, %.5f]\n"
 				"fov=[%.5f, %.5f, %.5f, %.5f]\n"
 				"screen=%.5f\n"
 				"optimalRes=[%d, %d]\n"
 				"optimalRect=[%d, %d, %d, %d]\n"
 				"port=%d\n"
+				"heartbeatPort=%d\n"
 				"address=%s\n"
 				"mouseMode=%d\n"
-			    "bDoNoBlack=%d"
+			    "bDoNoBlack=%d\n"
 				"\n",
 				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
@@ -488,6 +488,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
 				(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
 				(*ppWarper)->port,
+				(*ppWarper)->heartBeatPort,
 				(*ppWarper)->addr,
 				(*ppWarper)->mouseMode,
 			    (*ppWarper)->bDoNoBlack

@@ -612,6 +612,76 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		descSam.AddressU = descSam.AddressV = descSam.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		m_device->CreateSamplerState( &descSam, &m_SSClamp );
 
+		// dump used settings
+		logStr(2, "%.4s-Warper \"%s\" initialized. Used parameters:\n"
+			   "calibFile=%s\n"
+			   "calibIndex=%d\n"
+			   "calibSplit=[%d,%d,%d,%d]\n"
+			   "bTurnWithView=%d\n"
+			   "bDoNotBlend=%d\n"
+			   "eyePointProvider=%s\n"
+			   "eyePointProviderParam=%s\n"
+			   "eye=[%.5f, %.5f, %.5f]\n"
+			   "near=%.5f\n"
+			   "far=%.5f\n"
+			   "bBicubic=%d\n"
+			   "bUseGL110=%d\n"
+			   "bPartialInput=%d\n"
+			   "splice=%u\n"
+			   "trans=[%.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f]\n"
+			   "autoViewC=%.5f\n"
+			   "bAutoView=%d\n"
+			   "dir=[%.5f, %.5f, %.5f]\n"
+			   "fov=[%.5f, %.5f, %.5f, %.5f]\n"
+			   "screen=%.5f\n"
+			   "optimalRes=[%d, %d]\n"
+			   "optimalRect=[%d, %d, %d, %d]\n"
+			   "port=%d\n"
+			   "heartBeatPort=%d\n"
+			   "address=%s\n"
+			   "mouseMode=%d\n"
+			   "bDoNoBlack=%d\n"
+			   "blackScale=%f\n"
+			   "blackDark=%f\n"
+			   "blackBright=%f\n"
+			   "\n",
+			   this->GetType(), channel,
+			   calibFile,
+			   calibIndex,
+			   calibSplit[0], calibSplit[1], calibSplit[2], calibSplit[3],
+			   bTurnWithView ? 1 : 0,
+			   bDoNotBlend ? 1 : 0,
+			   eyeProvider,
+			   eyeProviderParam,
+			   eye[0], eye[1], eye[2],
+			   nearDist,
+			   farDist,
+			   bBicubic ? 1 : 0,
+			   bUseGL110 ? 1 : 0,
+			   bPartialInput ? 1 : 0,
+			   splice,
+			   trans[0], trans[1],   trans[2],  trans[3],
+			   trans[4], trans[5],   trans[6],  trans[7],
+			   trans[8], trans[9],   trans[10], trans[11],
+			   trans[12], trans[13], trans[14], trans[15],
+			   autoViewC,
+			   bAutoView ? 1 : 0,
+			   dir[0], dir[1], dir[2],
+			   fov[0], fov[1], fov[2], fov[3],
+			   screenDist,
+			   optimalRes.cx, optimalRes.cy,
+			   optimalRect.left, optimalRect.top, optimalRect.right, optimalRect.bottom,
+			   port,
+			   heartBeatPort,
+			   addr,
+			   mouseMode,
+			   bDoNoBlack,
+			   wb.header.blackScale,
+			   wb.header.blackDark,
+			   wb.header.blackBright
+		);
+
+
 		logStr( 1, "SUCCESS: DX11-Warper initialized.\n" );
 	} catch( VWB_ERROR e )
 	{
@@ -1012,6 +1082,8 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	memcpy( cb.matView, m_mVP.Transposed(), sizeof( cb.matView ) );
 	cb.border[0] = m_bBorder;
 	cb.border[1] = bDoNotBlend ? 0.0f : 1.0f;
+	cb.border[2] = bDoNoBlack ? 0.0f : 1.0f;
+	cb.border[3] = 0;
 	cb.params[0] = (FLOAT)m_sizeIn.cx;
 	cb.params[1] = (FLOAT)m_sizeIn.cy;
 	cb.params[2] = 1.0f/(FLOAT)m_sizeIn.cx;

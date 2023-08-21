@@ -996,7 +996,6 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="socket.h" />
     <ClInclude Include="TCP.h" />
-    <ClInclude Include="threadpool.h" />
     <ClInclude Include="UDP.h" />
     <ClInclude Include="VWF.h" />
   </ItemGroup>

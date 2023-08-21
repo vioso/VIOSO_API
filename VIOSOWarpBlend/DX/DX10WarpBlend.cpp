@@ -710,6 +710,7 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	cb.border[0] = m_bBorder;
 	cb.border[1] = bDoNotBlend ? 0.0f : 1.0f;
 	cb.border[2] = bDoNoBlack ? 0.0f : 1.0f;
+	cb.border[3] = 0.0f;
 	cb.params[0] = (FLOAT)m_sizeIn.cx;
 	cb.params[1] = (FLOAT)m_sizeIn.cy;
 	cb.params[2] = 1.0f/(FLOAT)m_sizeIn.cx;

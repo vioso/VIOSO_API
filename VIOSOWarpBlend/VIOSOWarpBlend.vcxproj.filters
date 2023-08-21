@@ -117,9 +117,6 @@
     <ClInclude Include="TCP.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="threadpool.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DX\DX9WarpBlend.cpp">
