@@ -1,8 +1,3 @@
 #include "threadpool.h"
 
-bool threadpool::test()
-{
-	threadpool pool;
-
-	return true;
-}
+std::unique_ptr<threadpool> threadpool::_instance;

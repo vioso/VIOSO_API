@@ -1,4 +1,7 @@
 #include "../VIOSOWarpBlend/logging.cpp"
+#include <iostream>
+#include <chrono>
+#include <random>
 
 #include "../VIOSOWarpBlend/test_socket.cpp"
 #include "../VIOSOWarpBlend/test_mmath.cpp"
