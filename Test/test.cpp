@@ -2,6 +2,11 @@
 #include <iostream>
 #include <chrono>
 #include <random>
+#include <list>
+#include <numbers>
+#include <cmath>
+#include <limits>
+#include "../VIOSOWarpBlend/mmath.h"
 
 #include "../VIOSOWarpBlend/test_socket.cpp"
 #include "../VIOSOWarpBlend/test_mmath.cpp"
