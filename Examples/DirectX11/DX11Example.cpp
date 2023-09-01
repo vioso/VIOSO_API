@@ -77,18 +77,18 @@ public:
         // VWB_getPosDir can yield a symmetric frustum. Image quality suffers, if view angle is
         // far off from perpendicular to the screen. Try using asymetric frustum, especially in 
         // dynamic eye-point scenarios. If a symmetric frustum is requested.
-        XMMATRIX mv1; // , mv2, mv3;
-        XMMATRIX mp1; // , mp2, mp3;
- //       static unsigned int pass = 2;
-//        if( 3 == ++pass )
+        XMMATRIX mv1, mv2, mv3;
+        XMMATRIX mp1, mp2, mp3;
+        static unsigned int pass = 2;
+        if( 0 == pass )
         {
- //           pass = 0;
+            pass = 0;
             // get view and projection matrix directly
             m_pWarper->GetViewProj( &vEyePt.x, &vRot.x, (float*)mv1.r, (float*)mp1.r );
             m_mView = mv1;
             m_mProjection = mp1;
         }
- /*       else if( 1 == pass )
+        else if( 1 == pass )
         {
             float clip[6];
             m_pWarper->GetViewClip( &vEyePt.x, &vRot.x, (float*)mv2.r, clip );
@@ -97,7 +97,7 @@ public:
             m_mProjection = mp2;
         }
         else
-        {
+        {  // make symmetric frustum
             float pos[3];
             float dir[3];
             float clip[6];
@@ -106,7 +106,7 @@ public:
             mp3 = XMMatrixPerspectiveLH( clip[0] + clip[2], clip[1] + clip[3], clip[4], clip[5] );
             m_mView = mv3;
             m_mProjection = mp3;
-        }*/
+        }
 
 
         m_rtt->setMProjection( m_mProjection );
@@ -217,7 +217,7 @@ int WINAPI wWinMain(
         for (auto& window : g_windows)
         {
     #ifdef CONFIG_ASSIMP
-            wstring path = L"scene.dae";
+            wstring path = L"cavemodel.dae";
             cmd >> path;
             window->addRenderer( make_shared< AssimpRenderer >( window->getDevice(), CStringA( path.c_str() ) ) );
     #endif

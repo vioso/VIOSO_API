@@ -717,67 +717,72 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	ID3D11DepthStencilView* pDSV = NULL;
 	ID3D11RenderTargetView* pRTV = NULL;
-	m_dc->OMGetRenderTargets( 1, &pRTV, &pDSV );
-	if( NULL == pRTV )
-	{
-		logStr( 3, "Render target not available.\n" );
-		return VWB_ERROR_GENERIC;
-	}
-	else
-	{
-		if( m_texRT != pRTV )
+	if( NULL == inputTexture ||
+		VWB_UNDEFINED_GL_TEXTURE == inputTexture ||
+		!m_texRT ||
+		( VWB_STATEMASK_CLEARBACKBUFFER & stateMask ) )
+	{ // we don't need to query, if we don't need it
+		m_dc->OMGetRenderTargets( 1, &pRTV, &pDSV );
+		if( NULL == pRTV )
 		{
-			ID3D11Resource* pRes = NULL;
-			pRTV->GetResource( &pRes );
-			if( pRes )
-			{
-				ID3D11Texture2D* pTex;
-				if( SUCCEEDED( pRes->QueryInterface( &pTex ) ) )
-				{
-					D3D11_TEXTURE2D_DESC desc;
-					pTex->GetDesc( &desc );
-					pTex->Release();
-					m_vp.Width = (FLOAT)desc.Width;
-					m_vp.Height = (FLOAT)desc.Height;
-					m_vp.TopLeftX = 0.0f;
-					m_vp.TopLeftY = 0.0f;
-					m_vp.MinDepth = 0.0f;
-					m_vp.MaxDepth = 1.0f;
+			logStr( 3, "Render target not available.\n" );
+			return VWB_ERROR_GENERIC;
+		}
+	}
 
-					logStr( 3, "found render target:\n"
-							"Width           = %i\n"
-							"Height          = %i\n"
-							"MipLevels       = %i\n"
-							"ArraySize       = %i\n"
-							"Format          = %i\n"
-							"SampleDesc      = {Count = %i, Quality = %i}\n"
-							"Usage           = %i\n"
-							"BindFlags       = %i\n"
-							"CPUAccessFlags  = %i\n"
-							"MiscFlags       = %i\n"
-							, desc.Width
-							, desc.Height
-							, desc.MipLevels
-							, desc.ArraySize
-							, desc.Format
-							, desc.SampleDesc.Count
-							, desc.SampleDesc.Quality
-							, desc.Usage
-							, desc.BindFlags
-							, desc.CPUAccessFlags
-							, desc.MiscFlags
-					);
-					static bool once = true;
-					if( once &&
-						( desc.Width != m_sizeMap.cx || desc.Height != m_sizeMap.cy ) )
-					{
-						logStr( 1, "WARNING: Render target size does not match mapping size. This will produce sampling artefacts." );
-						once = false;
-					}
+	if( pRTV && m_texRT != pRTV )
+	{
+		m_texRT = pRTV;
+		ID3D11Resource* pRes = NULL;
+		pRTV->GetResource( &pRes );
+		if( pRes )
+		{
+			ID3D11Texture2D* pTex;
+			if( SUCCEEDED( pRes->QueryInterface( &pTex ) ) )
+			{
+				D3D11_TEXTURE2D_DESC desc;
+				pTex->GetDesc( &desc );
+				pTex->Release();
+				m_vp.Width = (FLOAT)desc.Width;
+				m_vp.Height = (FLOAT)desc.Height;
+				m_vp.TopLeftX = 0.0f;
+				m_vp.TopLeftY = 0.0f;
+				m_vp.MinDepth = 0.0f;
+				m_vp.MaxDepth = 1.0f;
+
+				logStr( 3, "found render target:\n"
+						"Width           = %i\n"
+						"Height          = %i\n"
+						"MipLevels       = %i\n"
+						"ArraySize       = %i\n"
+						"Format          = %i\n"
+						"SampleDesc      = {Count = %i, Quality = %i}\n"
+						"Usage           = %i\n"
+						"BindFlags       = %i\n"
+						"CPUAccessFlags  = %i\n"
+						"MiscFlags       = %i\n"
+						, desc.Width
+						, desc.Height
+						, desc.MipLevels
+						, desc.ArraySize
+						, desc.Format
+						, desc.SampleDesc.Count
+						, desc.SampleDesc.Quality
+						, desc.Usage
+						, desc.BindFlags
+						, desc.CPUAccessFlags
+						, desc.MiscFlags
+				);
+				static bool once = true;
+				if( once &&
+					( desc.Width != m_sizeMap.cx || desc.Height != m_sizeMap.cy ) )
+				{
+					logStr( 1, "WARNING: Render target size does not match mapping size. This will produce sampling artefacts." );
+					once = false;
 				}
 			}
-			pRes->Release();
 		}
+		pRes->Release();
 	}
 
 	// do backbuffer copy if necessary

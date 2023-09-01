@@ -202,7 +202,7 @@ VWB_ERROR DXWarpBlend::GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float*
 		if( pDir )
 		{
 			// extract rotation angles from upper View matrix
-			VWB_VEC3f::ptr( pDir ) = V.Upper().GetR();
+			VWB_VEC3f::ptr( pDir ) = V.Upper().Transposed().GetR();
 			if( !m_bRH )
 				VWB_VEC3f::ptr( pDir ) *= -1;
 

@@ -85,7 +85,7 @@ u_int STDCALL theadFn( void* param )
 		char buff[1024];
 		while( pEyeShare->instanceCounter )
 		{
-			int res = sock.recv( buff, 1024, INFINITETIMEOUT );
+			int res = sock.recv( buff, 1024, 0.1 );
 			if( SOCKET_ERROR == res )
 			{
 				return -2;
