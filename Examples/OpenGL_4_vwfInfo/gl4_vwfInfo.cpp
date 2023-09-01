@@ -670,7 +670,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 	char const* calibFile = lpCmdLine;
 	if( 0 == calibFile[0] )
-		calibFile = "JK_ccs.vwf";
+		calibFile = "vioso.vwf";
 
 	if(!LoadVertices())
 		return -1;
@@ -689,8 +689,8 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		if( set[i]->header.hostname[0] && _stricmp( hostname, set[i]->header.hostname ) ) // hostname set but different
 			continue;
 
-		const int rows = 2;
-		const int cols = 2;
+		const int rows = 1;
+		const int cols = 1;
 		for (int row = 0; row != rows; row++)
 		{
 			int h = int(set[i]->header.height) / rows;
@@ -709,7 +709,12 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 				std::shared_ptr<VWBX<MyWindow >> win;
 				try
 				{
-					win = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(wnd, "", nullptr, s_configFile, set[i]->header.name)).first->second;
+					std::string channelname = set[i]->header.name;
+					if( cols > 1 )
+						channelname += "_" + std::to_string( col );
+					if( rows > 1 )
+						channelname += "_" + std::to_string( row );
+					win = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(wnd, "", nullptr, s_configFile, channelname.c_str())).first->second;
 				}
 				catch (VWB_ERROR)
 				{

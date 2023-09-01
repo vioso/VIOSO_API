@@ -132,7 +132,7 @@ AssimpRenderer::AssimpRenderer( ID3D11Device* dev, char const* path )
 
 	D3D11_BUFFER_DESC bd{};
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof( VSConstantBufferB );
+	bd.ByteWidth = sizeof( m_vsConstants );
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	bd.CPUAccessFlags = 0;
 	hr = dev->CreateBuffer( &bd, NULL, &m_cb );
@@ -157,6 +157,7 @@ AssimpRenderer::AssimpRenderer( ID3D11Device* dev, char const* path )
 
 	Load( path, dev );
 	LoadBase( dev );
+	//LoadQuad( dev );
 }
 
 int LoadNode( aiScene const& scene, aiNode const& node, ID3D11Device* dev, aiMatrix4x4 const& preTransform, AssimpRenderer::MeshInfoList& l )
@@ -436,7 +437,37 @@ HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
 							}
 							else // load from file
 							{
-								throw exception( "load texture from file not implemented" );
+								CPng png( texPath.C_Str() );
+								texDesc.Width = png.m_width;
+								texDesc.Height = png.m_height;
+								texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+								sd.SysMemPitch = 4 * texDesc.Width;
+								sd.SysMemSlicePitch = sd.SysMemPitch * texDesc.Height;
+
+								if( png.m_colorType == PNG_COLOR_TYPE_RGBA && png.m_bitDepth == 8 )
+								{
+									data.swap( png.m_imageData );
+								}
+								else if( png.m_colorType == PNG_COLOR_TYPE_RGB && png.m_bitDepth == 8 )
+								{
+									data.resize( size_t( texDesc.Width ) * texDesc.Height * 4 );
+									png.convertRGB8toRGBA8( data.data() );
+								}
+								else if( png.m_colorType == PNG_COLOR_TYPE_RGB && png.m_bitDepth == 16 )
+								{
+									data.resize( size_t( texDesc.Width ) * texDesc.Height * 4 );
+									png.convertRGB16toRGBA8( data.data() );
+								}
+								else if( png.m_colorType == PNG_COLOR_TYPE_RGBA && png.m_bitDepth == 16 )
+								{
+									data.resize( size_t( texDesc.Width ) * texDesc.Height * 4 );
+									png.convertRGBA16toRGBA8( data.data() );
+								}
+								else
+									throw exception( "unknown png texture format" );
+
+								sd.pSysMem = data.data();
+								//throw exception( (string("Trying to load ") + texPath.C_Str() + " -- load texture from file not implemented").c_str() );
 							}
 
 							if( tex )
@@ -500,6 +531,50 @@ HRESULT AssimpRenderer::LoadBase( ID3D11Device* dev )
 		throw exception( "failed to create vertex buffer" );
 
 	mi.numIndices = (UINT)indices.size();
+
+	m_meshes.push_back( mi );
+	return S_OK;
+}
+
+HRESULT AssimpRenderer::LoadQuad( ID3D11Device* dev )
+{
+	MeshInfo mi;
+	mi.modelViewT = XMMatrixSet( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 );
+	mi.topo = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	mi.texIndex = UINT_MAX;
+	std::vector<SimpleVertexTex> vertices;
+
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 10.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 10.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } } );
+	vertices.emplace_back( SimpleVertexTex{ { 10.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } } );
+
+	// create vertex buffer
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory( &bd, sizeof( bd ) );
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof( SimpleVertexTex ) * ( UINT )vertices.size();
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = 0;
+	D3D11_SUBRESOURCE_DATA InitData{ vertices.data() };
+	HRESULT hr = dev->CreateBuffer( &bd, &InitData, &mi.vb );
+	if( FAILED( hr ) )
+		throw exception( "failed to create vertex buffer" );
+
+	vector<unsigned int> indices( { 0, 1 , 2, 3, 4, 5 } );    // create index buffer
+	ZeroMemory( &bd, sizeof( bd ) );
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof( unsigned int ) * ( UINT )indices.size();
+	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bd.CPUAccessFlags = 0;
+	InitData.pSysMem = indices.data();
+	hr = dev->CreateBuffer( &bd, &InitData, &mi.ib );
+	if( FAILED( hr ) )
+		throw exception( "failed to create vertex buffer" );
+
+	mi.numIndices = ( UINT )indices.size();
 
 	m_meshes.push_back( mi );
 	return S_OK;

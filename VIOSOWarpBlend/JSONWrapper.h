@@ -364,7 +364,7 @@ public:
 					s << "\"" << *reinterpret_cast<std::string const*>( nested ) << "\"";
 					break;
 				case NODE_TYPE::BOOL:
-					s << boolean ? "\"true\"" : "\"false\"";
+					s << boolean ? "true" : "false";
 					break;
 				case NODE_TYPE::UINT:
 					s << uint;
@@ -388,9 +388,10 @@ public:
 	};
 
 protected:
-	int m_id;
+	int id;
 	std::string method;
 	Node params;
+	bool prettyPrint;
 
 public:
 	JSONWrapper();

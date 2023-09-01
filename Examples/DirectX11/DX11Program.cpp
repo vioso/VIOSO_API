@@ -140,6 +140,15 @@ RenderTexture::RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FOR
 	if( FAILED( dev->CreateRenderTargetView( m_tex, nullptr, &m_rtv ) ) )
 		throw std::exception( "failed to create render target view for render texture" );
 
+    D3D11_SHADER_RESOURCE_VIEW_DESC srDesc{};
+    srDesc.Format = desc.Format;
+    srDesc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D;
+    srDesc.Texture2D.MipLevels = 1;
+    srDesc.Texture2D.MostDetailedMip = 0;
+
+    if( FAILED( dev->CreateShaderResourceView( m_tex, &srDesc, &m_srv ) ) )
+        throw exception( "failed to create shader resource view" );
+
     // Create the depth stencil view if specified
     if( withDepth )
     {
@@ -172,6 +181,12 @@ const D3D11_RASTERIZER_DESC GFXPipeline::s_rasterDescWire{
 const D3D11_RASTERIZER_DESC GFXPipeline::s_rasterDescSolid{
     D3D11_FILL_SOLID,
     D3D11_CULL_BACK,
+    FALSE,
+    0, 0.0f, 0.0f,
+    TRUE, FALSE, FALSE, FALSE };
+const D3D11_RASTERIZER_DESC GFXPipeline::s_rasterDescSolidNoCull{
+    D3D11_FILL_SOLID,
+    D3D11_CULL_NONE,
     FALSE,
     0, 0.0f, 0.0f,
     TRUE, FALSE, FALSE, FALSE };
@@ -702,5 +717,96 @@ RenderToTexture::RenderToTexture( ID3D11Device* dev, int width, int height, DXGI
 {
     m_rt = make_shared<RenderTexture>( dev, width, height, format, withDepth );
     m_vp = m_rt->getFullViewport();
+}
+
+size_t RenderToTexture::copyToBuffer( void* buff, size_t nBytes, D3D11_TEXTURE2D_DESC* pDesc ) const
+{
+    size_t s = 0;
+
+    // get desc
+    D3D11_TEXTURE2D_DESC descI = { 0 };
+    auto tex = dynamic_cast< RenderTexture* >( m_rt.get() )->getTexture();
+    tex->GetDesc( &descI );
+    // get bytes per pixel
+    size_t nBPP = 0;
+    if( DXGI_FORMAT_R32G32B32A32_TYPELESS == descI.Format ||
+        DXGI_FORMAT_R32G32B32A32_FLOAT == descI.Format ||
+        DXGI_FORMAT_R32G32B32A32_UINT == descI.Format ||
+        DXGI_FORMAT_R32G32B32A32_SINT == descI.Format
+        )
+    {
+        nBPP = 16;
+    }
+    else if( DXGI_FORMAT_R8G8B8A8_UNORM == descI.Format ||
+             DXGI_FORMAT_R8G8B8A8_TYPELESS == descI.Format ||
+             DXGI_FORMAT_R8G8B8A8_UNORM_SRGB == descI.Format ||
+             DXGI_FORMAT_R8G8B8A8_UINT == descI.Format ||
+             DXGI_FORMAT_R8G8B8A8_SNORM == descI.Format ||
+             DXGI_FORMAT_R8G8B8A8_SINT == descI.Format
+             )
+    {
+        nBPP = 4;
+    }
+    else if( DXGI_FORMAT_R16G16B16A16_TYPELESS == descI.Format ||
+             DXGI_FORMAT_R16G16B16A16_UNORM == descI.Format ||
+             DXGI_FORMAT_R16G16B16A16_UINT == descI.Format ||
+             DXGI_FORMAT_R16G16B16A16_SNORM == descI.Format ||
+             DXGI_FORMAT_R16G16B16A16_SINT == descI.Format
+             )
+    {
+        nBPP = 8;
+    }
+    else
+    {
+        return 0;
+    }
+    // get total size
+    s = nBPP * descI.Width * descI.Height;
+
+    // create desc for CPU accessable texture
+    D3D11_TEXTURE2D_DESC desc = { 0 };
+    desc.Format = descI.Format;
+    desc.Width = descI.Width;
+    desc.Height = descI.Height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
+    // copy desc
+    if( pDesc )
+        memcpy( pDesc, &desc, sizeof( *pDesc ) );
+
+    // return if buffer is not set
+    if( !buff )
+        return s;
+    // or not big enough, which is an error
+    if( nBytes < s )
+        return 0;
+
+    // create CPU accessable texture
+    ID3D11Texture2D* pTexMem = NULL;
+    HRESULT hr = m_dev->CreateTexture2D( &desc, NULL, &pTexMem );
+    if( SUCCEEDED( hr ) )
+    {
+        // map texture
+        m_ic->CopyResource( pTexMem, tex );
+        D3D11_MAPPED_SUBRESOURCE res = { 0 };
+        if( SUCCEEDED( m_ic->Map( pTexMem, 0, D3D11_MAP_READ, 0, &res ) ) )
+        {
+            // copy content
+            for( UINT y = 0; y != desc.Height; y++ )
+            {
+                memcpy( ( char* )buff + nBPP * y * desc.Width, ( char* )res.pData + y * res.RowPitch, nBPP * desc.Width );
+            }
+            m_ic->Unmap( pTexMem, 0 );
+        }
+        else
+        {
+            return 0;
+        }
+        pTexMem->Release();
+    }
+    return s;
 }
 

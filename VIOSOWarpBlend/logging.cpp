@@ -65,7 +65,7 @@ int logStr( VWB_int level, char const* format, ... )
 			time( &t );
 			struct tm tm;
 			localtime_s( &tm, &t );
-			int n = fprintf( f, "%02d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec );
+			fprintf( f, "%02d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec );
             va_start( params, format );
             vfprintf(f, format, params);
             va_end(params);
@@ -87,7 +87,8 @@ void logClear()
 	strcpy_s( szBakFile, g_logFilePath );
 	strcat_s( szBakFile, ".bak" );
 	remove( szBakFile );
-	int i = rename( g_logFilePath, szBakFile ); // removes warinig C6031
+	if( 0 == rename( g_logFilePath, szBakFile ) )
+		(nullptr); // removes warinig C6031
 
 	if( 0 == fopen_s( &f, g_logFilePath, "w+" ) )
 		fclose(f);

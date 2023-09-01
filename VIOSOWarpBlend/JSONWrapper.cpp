@@ -3,11 +3,13 @@
 
 
 JSONWrapper::JSONWrapper()
-	: m_id(0)
+	: id(0)
+	, prettyPrint(false)
 {
 }
 
 JSONWrapper::JSONWrapper( std::string s )
+	: JSONWrapper()
 {
 	// check version
 
@@ -17,6 +19,7 @@ JSONWrapper::JSONWrapper( std::string s )
 }
 
 JSONWrapper::JSONWrapper( std::istream s )
+	: JSONWrapper()
 {
 	// check version
 

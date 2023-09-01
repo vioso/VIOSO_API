@@ -132,7 +132,7 @@ VWB_ERROR convertFromBitmapData( VWB_BlendRecord*& pB, char* pBMData, int w, int
 		int bmStep = depth / 8;
 		int bmPitch = ( ( ( ( w * depth ) + 31 ) & ~31 ) >> 3 );
 		int bmPadding = bmPitch - w * bmStep;
-		int bmSize = bmPitch * h;
+		//int bmSize = bmPitch * h;
 		VWB_BlendRecord2*& pB2 = *(VWB_BlendRecord2**)&pB;
 		VWB_BlendRecord3*& pB3 = *(VWB_BlendRecord3**)&pB;
 		if( 64 < depth )
@@ -570,7 +570,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 
 template<typename T> inline void splitMap(T*& in, size_t wIn, size_t hIn, size_t oxIn, size_t oyIn, size_t wOut, size_t hOut )
 {
-	size_t nIn = wIn * hIn;
+	UNREFERENCED_PARAMETER( hIn );
 	size_t nOut = wOut * hOut;
 	auto out = new T[nOut];
 	const size_t padd = wIn - wOut;
@@ -920,6 +920,10 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 				if( aesKey && aesKey[0] )
 					setIt->header.flags |= FLAG_WARPFILE_HEADER_ENCRYPTED;
 
+				setIt->header.magicNumber[0] = 'v';
+				setIt->header.magicNumber[1] = 'w';
+				setIt->header.magicNumber[2] = 'f';
+				setIt->header.magicNumber[3] = '0';
 				setIt->header.szHdr = sizeof( setIt->header );
 				os.write( (const char*)&setIt->header, setIt->header.szHdr );
 				size_t sz = sizeof( VWB_WarpRecord ) * size_t( setIt->header.width ) * setIt->header.height;
@@ -969,7 +973,6 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 		logStr( 0, "ERROR: SaveVWF: no maps in set, nothing to save." );
 		return VWB_ERROR_PARAMETER;
 	}
-	return VWB_ERROR_GENERIC;
 }
 
 VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path, const char* aesKey )
@@ -1099,8 +1102,6 @@ bool VerifySet( VWB_WarpBlendSet& set, int iScanIndex )
 						(*it)->header.height == (*it2)->header.height &&
 						(*it)->pWarp && (*it2)->pWarp )
 					{
-						int iBlend = (*it)->pBlend && (*it2)->pBlend ? 1 : 0;
-
 						for( ptrdiff_t d = 0, dE = (ptrdiff_t)(*it)->header.width * (ptrdiff_t)(*it)->header.height; d != dE; d++ )
 						{
 							VWB_WarpRecord* pW2 = ( *it2 )->pWarp + d;

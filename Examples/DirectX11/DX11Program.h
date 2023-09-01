@@ -101,13 +101,13 @@ class RenderTexture : public RenderTarget
 {
 protected:
     CComPtr< ID3D11Texture2D > m_tex;
+    CComPtr< ID3D11ShaderResourceView > m_srv;
 public:
     RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
 
-    ID3D11Resource* getResource()
-    {
-        return m_tex.p;
-    }
+    ID3D11Resource* getResource() { return m_tex.p; }
+    ID3D11Texture2D* getTexture() { return m_tex.p; }
+    ID3D11ShaderResourceView* getView() { return m_srv; }
 };
 
 class Renderer
@@ -127,6 +127,7 @@ public:
     // Turn off culling, so we see the front and back of the triangle
     static const D3D11_RASTERIZER_DESC s_rasterDescWire;
     static const D3D11_RASTERIZER_DESC s_rasterDescSolid;
+    static const D3D11_RASTERIZER_DESC s_rasterDescSolidNoCull;
     static const D3D11_BLEND_DESC s_blendDescStd;
 
 protected:
@@ -163,7 +164,7 @@ public:
 
     std::shared_ptr< RenderTarget >& getRenderTarget() { return m_rt; }
 
-    void addRenderer( std::shared_ptr< Renderer > renderer );
+    virtual void addRenderer( std::shared_ptr< Renderer > renderer );
     
     virtual void preRender();
     virtual void render( XMMATRIX const& world );
@@ -187,11 +188,11 @@ public:
 
     virtual LRESULT wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
-    virtual void preRender();
+    virtual void preRender() override;
 
     virtual void render() { __super::render(m_mWorld); };
 
-    virtual void postRender();
+    virtual void postRender() override;
 };
 
 class RenderToTexture : public GFXPipeline
@@ -199,9 +200,10 @@ class RenderToTexture : public GFXPipeline
 public:
     RenderToTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
     // gets the texture resource
-    ID3D11Resource* getResource() {
-        return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource();
-    }
+    ID3D11Resource* getResource() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource(); }
+    ID3D11Texture2D* getTexture() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getTexture(); }
+    ID3D11ShaderResourceView* getView() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getView(); }
+    size_t copyToBuffer( void* buff, size_t nBytes, D3D11_TEXTURE2D_DESC* pDesc ) const;
 };
 
 

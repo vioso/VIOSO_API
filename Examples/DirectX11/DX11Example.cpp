@@ -5,7 +5,7 @@
 //#define CONFIG_NOWARP
 
 // use at least one of the below configs
-//#define CONFIG_PNG // this renders a quad qith a texture, this always will win the z-test, so nothing else will show
+//#define CONFIG_PNG // this renders a quad with a texture, this always will win the z-test, so nothing else will show
 #define CONFIG_ASSIMP
 //#define CONFIG_CUBES
 
