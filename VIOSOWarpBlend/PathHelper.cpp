@@ -15,7 +15,7 @@
 using namespace std;
 using namespace std::filesystem;
 
-char* MkPath( char* szPath, VWB_uint nMaxPath, char const* ext )
+char* MkPath( char* szPath, size_t nMaxPath, char const* ext )
 {
 	if( NULL == szPath || 0 == szPath[0] )
 		return NULL;
@@ -59,7 +59,8 @@ char* MkPath( char* szPath, VWB_uint nMaxPath, char const* ext )
 	#ifdef WIN32
 	{
 		wchar_t* path2 = new wchar_t[nMaxPath];
-		if( ::ExpandEnvironmentStringsW( fsPath.c_str(), path2, nMaxPath ) )
+		DWORD max = nMaxPath > MAXDWORD ? MAXDWORD : (DWORD)nMaxPath;
+		if( ::ExpandEnvironmentStringsW( fsPath.c_str(), path2, max ) )
 			fsPath = path2;
 		delete[] path2;
 	}
@@ -113,6 +114,16 @@ char* MkPath( char* szPath, VWB_uint nMaxPath, char const* ext )
 
     strcpy_s( szPath, nMaxPath , (char const*)fsPath.u8string().c_str() );
 	return szPath;
+}
+
+std::string MkPath(std::string const pathIn, char const* ext)
+{
+	std::string pathOut;
+	pathOut = pathIn;
+	pathOut.resize(MAX_PATH);
+	MkPath(pathOut.data(), pathOut.size(), ext );
+	pathOut.erase(pathOut.find('\0'));
+	return pathOut;
 }
 
 bool GetIniString(char const* szSection, char const* szKey, char const* szDefault, char* s, VWB_uint sz, char const* szConfigFile)

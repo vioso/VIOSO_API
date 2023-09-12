@@ -2,7 +2,7 @@
 #define VWB_PATH_HELPER_HPP
 
 #include "../Include/VWBTypes.h"
-
+#include <string>
 /// @brief creates a full canonical path from a filename
 /// @description if it does not start with a / or a drive letter (no root path)
 /// it is set relative to the module currently set in g_hModule
@@ -19,7 +19,10 @@
 /// removes dir/../
 /// adds .ext in case \b ext isn't null and the extension isn't already present
 char* 
-MkPath(char* path, VWB_uint nMaxPath, char const* ext = NULL);
+MkPath(char* path, size_t nMaxPath, char const* ext = NULL);
+std::string
+MkPath(std::string const pathIn, char const* ext = NULL);
+
 
 /// @brief reads a string from a Windows ini style text file
 /// @param [IN] szSection the section to search for a value,
