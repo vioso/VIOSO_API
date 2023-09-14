@@ -698,6 +698,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT;
 
+	if (overrideStatemask != 0)
+		stateMask = overrideStatemask;
+
 	logStr( 4, "RenderDX11..." );
 	if( NULL == m_PixelShader || NULL == m_device )
 	{

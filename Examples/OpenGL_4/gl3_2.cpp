@@ -707,7 +707,6 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	std::string channel = "Display1";
 	std::istringstream cmd( lpCmdLine );
 	cmd >> channel >> x >> y >> w >> h;
-	channel = "Display25";
 
 	// Create Our OpenGL Window
 	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )

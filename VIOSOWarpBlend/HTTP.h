@@ -124,9 +124,11 @@ protected:
 	bool contentIsPath;
 	ParamMap headers;
 public:
+	static const std::map<int, std::string> responseCodes;
+	static std::string documentRoot;
 	HttpResponse( TCPConnection& conn );
 	// setting ctype empty tries to guess it from content
-	HttpResponse( int code, std::string const& content, bool contentIsPath = false, std::string const& ctype = "", ParamMap const& headers = {});
+	HttpResponse( int code = 200, std::string const& content = "", bool contentIsPath = false, std::string const& ctype = "", ParamMap const& headers = {});
 	
 	HttpResponse( HttpResponse const& other ) noexcept
 		: TCPProto( other )

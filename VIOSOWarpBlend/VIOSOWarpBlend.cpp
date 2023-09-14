@@ -19,7 +19,7 @@
 #include <limits.h>
 #include <float.h>
 #include <list>
-
+#include <fstream>
 #ifdef WIN32
 #include <crtdbg.h>
 #endif
@@ -29,7 +29,7 @@
 #include <limits.h>
 
 #include "logging.h"
-#include "3rdparty/delauney/DelaunayTriangles.h"
+//#include "3rdparty/delauney/DelaunayTriangles.h"
 
 using namespace std;
 
@@ -257,6 +257,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		GetIniMat( channel, "calibSplit", 4, 1, vDef, split, path);
 		for (int i = 0; i != 4; i++) calibSplit[i] = VWB_word(split[i]);
 
+		iDef = GetIniInt("default", "overrideStatemask", 0, path);
+		overrideStatemask = GetIniInt(channel, "overrideStatemask", iDef, path);
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -458,6 +461,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				"address=%s\n"
 				"mouseMode=%d\n"
 			    "bDoNoBlack=%d\n"
+			    "overrideStatemask=%d\n"
 				"\n",
 				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
@@ -491,8 +495,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				(*ppWarper)->heartBeatPort,
 				(*ppWarper)->addr,
 				(*ppWarper)->mouseMode,
-			    (*ppWarper)->bDoNoBlack
-			);
+				(*ppWarper)->bDoNoBlack,
+				(*ppWarper)->overrideStatemask
+		   );
 
 	return VWB_ERROR_NONE;
 }
@@ -1189,7 +1194,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	// translation/rotation to VIOSO's eye point is done via base matrix later
 
 	// we have to inverse rotate and translate
-	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * ( M_PI / 180.0 ) );
+	m_mViewIG = m_bRH ? VWB_MAT44f::R( VWB_VEC3f::ptr( dir ) * VWB_float( M_PI / 180.0 ) ) : VWB_MAT44f::R_LH( VWB_VEC3f::ptr( dir ) * VWB_float( M_PI / 180.0 ) );
 
 	// Remember the sizes of the frustum on screenDist
 	m_viewSizes.x = tan( DEG2RAD(fov[0] ) ) * screenDist; // left
@@ -1692,41 +1697,58 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 					if( req->getType() == HttpRequest::myType )
 					{
 						auto http = (HttpRequest const*)req;
-						if( nullptr != http )
+						if (nullptr != http)
 						{
-							if( http->getContent() == "/upload.htm" )
+							if (http->getContent() == "/upload.htm")
 							{
-								auto it = http->postData.find( "inifile" );
-								if( it != http->postData.end() && !it->second.file.empty() )
+								auto it = http->postData.find("inifile");
+								if (it != http->postData.end() && !it->second.file.empty())
 								{
-									it->second.file;
 									// TODO ovrewrite current ini file
+									it->second.file;
+									ofstream ofs(path);
+									if (ofs.is_open())
+									{
+										ofs.write(it->second.file.c_str(), it->second.file.size());
+										HttpResponse resp(201, "", false, "text/plain", { {"Location","/download.htm?file=inifile"} });
+										resp.send(*conn);
+									}
 								}
-								//it = http->postData.find( "jsonrpc" );
-								//if( it != http->postData.end() && !it->second.value.empty() )
-								//{
-								//	it->second.value;
-								//}
 							}
-							//if( http->getContent() == "/download.htm" )
-							//{
-							//	auto it = http->postData.find( "inifile" );
-							//	if( it != http->postData.end() )
-							//	{
-							//		// send current ini file
-							//		HttpResponse resp();
-							//		resp.send( conn );
-							//	}
-							//	//it = http->postData.find( "jsonrpc" );
-							//	//if( it != http->postData.end() && !it->second.value.empty() )
-							//	//{
-							//	//	it->second.value;
-							//	//}
-							//}
-							else if( http->getContent() == "/getconfig.htm" )
+							else if (http->getContent() == "/download.htm")
 							{
+								auto it = http->postData.find("file");
+								if (it != http->postData.end() && it->second.value == "inifile")
+								{
+									// send current ini file
+									// we must load it, as it is outside htdocs
+									ifstream ifs(path);
+									if (ifs.is_open())
+									{
+										ifs.seekg(0, ios::end);
+										auto len = ifs.tellg();
+										ifs.seekg(0);
+										string cnt(len, 0);
+										ifs.read(cnt.data(), len);
+										HttpResponse resp(200, cnt, false, "text/plain");
+										resp.send(*conn);
+									}
+									else
+									{
+										HttpResponse resp(404);
+										resp.send(*conn);
+									}
+								}
+							}
+							else if (http->getContent() == "/jsonrpc.htm")
+							{
+								JSON json(http->body);
+								
 							}
 						}
+					}
+					else if (req->getType() == JSON::myType)
+					{
 					}
 				}
 			}

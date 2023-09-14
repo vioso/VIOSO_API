@@ -12,119 +12,184 @@ public:
 	enum class NODE_TYPE
 	{
 		EMPTY,
-		HASH,
-		LIST,
-		STRING,
 		BOOL,
 		UINT,
 		INT,
 		FLOAT,
+		OBJECT,
+		LIST,
+		STRING,
 		END
 	};
 	
-	struct Node
+	static const std::string whitespaces;
+
+	struct Value
 	{
 		NODE_TYPE type;
+
+		typedef std::vector<Value> List;
+		typedef std::map< std::string, Value > Object;
+
 		union {
-			void* nested;
+			Object object;
+			List lst;
+			std::string str;
 			bool boolean;
 			uint64_t uint;
 			int64_t integer;
 			double floating;
 		};
 
-		Node() : type( NODE_TYPE::EMPTY ), floating( 0.0 ) {}
-		Node(std::string const& s ) : type( NODE_TYPE::STRING ), nested( new std::string( s ) ) {}
-		Node(std::map <std::string, Node> const& hash ) : type( NODE_TYPE::HASH ), nested( new std::map < std::string, Node>( hash ) ) {}
-		Node(std::vector <Node> const& list ) : type( NODE_TYPE::LIST ), nested( new  std::vector <Node>( list ) ) {}
-		Node(bool b ) : type( NODE_TYPE::BOOL ), boolean( b ) {}
-		Node(int64_t i ) : type( NODE_TYPE::INT ), integer( i ) {}
-		Node(double d ) : type( NODE_TYPE::FLOAT ), floating( d ) {}
-		Node( Node const& other ) : type( NODE_TYPE::EMPTY )
+		Value() : type(NODE_TYPE::EMPTY), floating( 0.0 ) {}
+		Value( Object const& obj ) : type( NODE_TYPE::OBJECT ) 
+		{
+			new(&object) Object( obj ); 
+		}
+		Value( std::vector<Value> const& list ) : type( NODE_TYPE::LIST ) 
+		{ 
+			new(&lst) List( list ); 
+		}
+		Value( std::string const& s ) : type( NODE_TYPE::STRING )
+		{
+			new(&str) std::basic_string( s ); 
+		}
+		Value( bool b ) : type( NODE_TYPE::BOOL ), boolean( b ) {}
+		Value( int64_t i ) : type( NODE_TYPE::INT ), integer( i ) {}
+		Value( uint64_t i ) : type( NODE_TYPE::UINT ), uint( i ) {}
+		Value( double d ) : type( NODE_TYPE::FLOAT ), floating( d ) {}
+		Value( Value const& other )  noexcept : type(other.type)
 		{
 			// we need to deep copy all the data
-			switch( type )
+			switch (type)
 			{
-			case NODE_TYPE::HASH:
-				nested = new std::map<std::string, Node>( *reinterpret_cast<std::map<std::string, Node>*>( other.nested ) );
+			case NODE_TYPE::OBJECT:
+				new( &object ) Object( other.object );
 				break;
 			case NODE_TYPE::LIST:
-				nested = new std::vector<Node> ( *reinterpret_cast<std::vector<Node>*>( other.nested ) );
+				new( &lst ) List( other.lst );
 				break;
 			case NODE_TYPE::STRING:
-				nested = new std::string( *reinterpret_cast<std::string*>( other.nested ) );
+				new( &str ) std::basic_string( other.str );
 				break;
 			default:
 				floating = other.floating;
 			};
-			type = other.type;
 		}
 
-		//std::map < std::string, Node> hash;
-		//std::vector< Node > list;
-		//std::string string;
+		Value(Value&& other)  noexcept : type(other.type)
+		{
+			// no need to deep copy, we just move
+			switch (type)
+			{
+			case NODE_TYPE::OBJECT:
+				memcpy( &object, &other.object, sizeof( object ) );
+				break;
+			case NODE_TYPE::LIST:
+				memcpy( &lst, &other.lst, sizeof(lst) );
+				break;
+			case NODE_TYPE::STRING:
+				memcpy( &str, &other.str, sizeof(str) );
+				break;
+			default:
+				floating = other.floating;
+			};
+			other.type = NODE_TYPE::EMPTY; // prevent destruction of complex members
+		}
 
-		~Node()
+		~Value()  noexcept
 		{
 			// clean up
-			if( NODE_TYPE::HASH == type )
+			switch (type)
 			{
-				if( nullptr != nested )
-					delete reinterpret_cast<std::map<std::string, Node>*>( nested );
-			}
-			else if( NODE_TYPE::LIST == type )
-			{
-				if( nullptr != nested )
-					delete reinterpret_cast<std::vector< Node>*>( nested );
-			}
-			else if( NODE_TYPE::STRING == type )
-			{
-				if( nullptr != nested )
-					delete reinterpret_cast<std::string*>( nested );
+			case NODE_TYPE::OBJECT:
+				object.~Object();
+				break;
+			case NODE_TYPE::LIST:
+				lst.~vector<Value>();
+				break;
+			case NODE_TYPE::STRING:
+				str.~basic_string();
+				break;
 			}
 		}
 
-		Node& operator[]( std::string hashtag )
+		Value& operator=(Value&& other) noexcept
+		{ 
+			std::swap(*this, other); 
+			return *this; 
+		};
+		Value& operator=(Value const& other)  noexcept
 		{
-			if( nullptr != nested && NODE_TYPE::HASH == type )
+			// destruct me
+			this->~Value();
+			type = other.type;
+
+			// we need to deep copy all the data
+			switch (type)
 			{
-				return reinterpret_cast<std::map<std::string, Node>*>( nested )->operator[](hashtag);
+			case NODE_TYPE::OBJECT:
+				new( &object ) Object( other.object );
+				break;
+			case NODE_TYPE::LIST:
+				new( &lst ) List( other.lst );
+				break;
+			case NODE_TYPE::STRING:
+				new( &str ) std::string( other.str );
+				break;
+			default:
+				floating = other.floating;
+			};
+			return *this;
+		};
+
+		Value const& operator[]( std::string tag ) const
+		{
+			if( NODE_TYPE::OBJECT == type )
+			{
+				if( auto v = object.find(tag); v != object.end() )
+					return v->second;
+				else
+					return Value();
 			}
-			throw std::invalid_argument("node type need to be hash");
+			throw std::invalid_argument( "node type need to be object" );
 			return *this;
 		}
 
-		Node const& operator[]( std::string hashtag ) const
+		Value& operator[]( std::string tag )
 		{
-			if( nullptr != nested && NODE_TYPE::HASH == type )
+			if( NODE_TYPE::OBJECT == type )
 			{
-				auto found = reinterpret_cast<std::map<std::string, Node>*>( nested )->find( hashtag );
-				if( reinterpret_cast<std::map<std::string, Node>*>( nested )->end() != found )
-				{
-					return found->second;
-				}
+				if( auto v = object.find(tag); v != object.end() )
+					return v->second;
+				throw std::overflow_error("object member not found");
 			}
-			throw std::invalid_argument( "node type need to be hash" );
+			throw std::invalid_argument( "node type need to be object" );
 			return *this;
 		}
 
-		Node& operator[]( size_t index )
+		Value const& operator[](size_t index) const
 		{
-			if( nullptr != nested && NODE_TYPE::LIST == type )
+			if (NODE_TYPE::LIST == type)
 			{
-				return reinterpret_cast<std::vector<Node>*>( nested )->operator[](index);
+				if (lst.size() > index)
+					return lst[index];
+				else
+					return Value();
 			}
-			throw std::invalid_argument( "node type need to be list" );
+			throw std::invalid_argument("node type need to be list");
 			return *this;
 		}
 
-		Node const& operator[]( size_t index ) const
+		Value const operator[](size_t index)
 		{
-			if( nullptr != nested && NODE_TYPE::LIST == type )
+			if (NODE_TYPE::LIST == type)
 			{
-				return reinterpret_cast<std::vector<Node>*>( nested )->operator[]( index );
+				if (lst.size() > index)
+					return lst[index];
+				throw std::overflow_error("list index out of bounds");
 			}
-			throw std::invalid_argument( "node type need to be list" );
+			throw std::invalid_argument("node type need to be list");
 			return *this;
 		}
 
@@ -136,11 +201,7 @@ public:
 			{
 				if( isIntegral() )
 				{
-					Node e = *this;
-					if( e.changeTypeTo( NODE_TYPE::BOOL ) )
-					{
-						return e.boolean;
-					}
+					return uint != 0;
 				}
 			}
 			return false;
@@ -158,27 +219,28 @@ public:
 				{
 				case NODE_TYPE::STRING:
 				{
-					if( nullptr == nested )
-						throw std::overflow_error( "fatal: not set" );
-					std::string& str = *reinterpret_cast<std::string*>( nested );
+					if( type == NODE_TYPE::STRING )
+						break;
+
+					std::string tmp;
+					std::swap( tmp, str );
+					str.~basic_string();
+					
 					switch( newType )
 					{
-					case NODE_TYPE::STRING:
-						break;
 					case NODE_TYPE::BOOL:
 					{
-						type = NODE_TYPE::BOOL;
 						const char* s( "TRUE" );
 						boolean = std::equal( str.begin(), str.end(), s, s + 5,
 											  []( char const& c1, char const& c2 )
 						{
 							return c1 == c2 || toupper( c1 ) == toupper( c2 );
 						} );
+						type = NODE_TYPE::BOOL;
 						break;
 					}
 					case NODE_TYPE::UINT:
 						uint = std::stoull( str );
-						type = NODE_TYPE::UINT;
 						break;
 					case NODE_TYPE::INT:
 						integer = std::stoll( str );
@@ -197,7 +259,7 @@ public:
 					switch( newType )
 					{
 					case NODE_TYPE::STRING:
-						nested = new std::string( boolean ? "true" : "false" );
+						new( &str ) std::basic_string( boolean ? "true" : "false" );
 						type = NODE_TYPE::STRING;
 						break;
 					case NODE_TYPE::BOOL:
@@ -221,7 +283,7 @@ public:
 					switch( newType )
 					{
 					case NODE_TYPE::STRING:
-						nested = new std::string( std::to_string( uint ) );
+						new( &str ) std::basic_string( std::to_string( uint ) );
 						type = NODE_TYPE::STRING;
 						break;
 					case NODE_TYPE::BOOL:
@@ -244,7 +306,7 @@ public:
 					switch( newType )
 					{
 					case NODE_TYPE::STRING:
-						nested = new std::string( std::to_string( integer ) );
+						new(&str) std::basic_string( std::to_string( integer ) );
 						type = NODE_TYPE::STRING;
 						break;
 					case NODE_TYPE::BOOL:
@@ -267,7 +329,7 @@ public:
 					switch( newType )
 					{
 					case NODE_TYPE::STRING:
-						nested = new std::string( std::to_string( floating ) );
+						new( &str ) std::basic_string( std::to_string( floating ) );
 						type = NODE_TYPE::STRING;
 						break;
 					case NODE_TYPE::BOOL:
@@ -301,17 +363,17 @@ public:
 
 		size_t size() const
 		{
-			if( nullptr != nested && NODE_TYPE::LIST == type )
-				return reinterpret_cast<std::vector<Node> const*>( nested )->size();
+			if( NODE_TYPE::LIST == type )
+				return lst.size();
 			throw std::invalid_argument( "invald type to convert to" );
 		}
 
-		std::vector<std::string> tags() const
+		std::vector<std::string> names() const
 		{
-			if( nullptr != nested && NODE_TYPE::HASH == type )
+			if( NODE_TYPE::OBJECT == type )
 			{
 				std::vector<std::string> vs;
-				for( auto const& p : *reinterpret_cast<std::map< std::string, Node> const*>( nested ) )
+				for( auto const& p : object )
 					vs.push_back( p.first );
 				
 			}
@@ -319,49 +381,43 @@ public:
 			return std::vector<std::string>();
 		}
 
-		std::string to_string( int ident = 0) const
+		std::string to_string( int indent = 0) const
 		{
 			std::string ss;
 			std::ostringstream s(ss);
 			try {
 				switch( type )
 				{
-				case NODE_TYPE::HASH:
-					if( nullptr == nested )
-						throw std::overflow_error( "empty parameter not allowed" );
-					for( int i = 0; i != ident; i++ )
+				case NODE_TYPE::OBJECT:
+					for( int i = 0; i != indent; i++ )
 						s << " ";
 					s << "{\n";
-					for( auto const& p : *reinterpret_cast<std::map< std::string, Node > const*>( nested ) )
+					for( auto p = object.begin(); p != object.end(); p++ )
 					{
-						if( p != *reinterpret_cast<std::map< std::string, Node > const*>( nested )->begin() )
+						if( p != object.begin() )
 							s << ",\n";
-						for( int i = 0; i != ident; i++ )
+						for( int i = 0; i != indent; i++ )
 							s << " ";
-						s << "  \"" << p.first << "\" : " << p.second.to_string( ident + 2 );
+						s << "  \"" << p->first << "\" : " << p->second.to_string( indent + 2 );
 					}
-					for( int i = 0; i != ident; i++ )
+					for( int i = 0; i != indent; i++ )
 						s << " ";
-					s << "\n}";
+					s << "}";
 					break;
 				case NODE_TYPE::LIST:
-					if( nullptr == nested )
-						throw std::overflow_error( "empty parameter not allowed" );
-					for( int i = 0; i != ident; i++ )
+					for( int i = 0; i != indent; i++ )
 						s << " ";
 					s << "[";
-					for( auto const& p : *reinterpret_cast<std::vector<Node > const*>( nested ) )
+					for( auto p = lst.begin(); p != lst.end(); p++ )
 					{
-						if( p != *reinterpret_cast<std::vector< Node > const*>( nested )->begin() )
+						if( p != lst.begin() )
 							s << ", ";
-						s << p.to_string( ident );
+						s << p->to_string( indent );
 					}
-					s << "\n]";
+					s << " ]";
 					break;
 				case NODE_TYPE::STRING:
-					if( nullptr == nested )
-						throw std::overflow_error( "empty parameter not allowed" );
-					s << "\"" << *reinterpret_cast<std::string const*>( nested ) << "\"";
+					s << "\"" << str << "\"";
 					break;
 				case NODE_TYPE::BOOL:
 					s << boolean ? "true" : "false";
@@ -376,7 +432,7 @@ public:
 					s << floating;
 					break;
 				default:
-					throw std::invalid_argument( "invald type to convert from" );
+					throw std::invalid_argument( "invald type" );
 				};
 			}
 			catch( std::exception& e )
@@ -385,19 +441,33 @@ public:
 			}
 			return ss;
 		};
+
+		// parses a string into an object
+		bool parse();
+		bool parse(std::istream& ss);
 	};
 
 protected:
-	int id;
-	std::string method;
-	Node params;
+	Value root;
 	bool prettyPrint;
 
 public:
 	JSONWrapper();
+	JSONWrapper( std::istream&& s );
 	JSONWrapper( std::string s );
-	JSONWrapper( std::istream s );
 	virtual ~JSONWrapper();
 	std::string to_string() const;
 };
 
+//class JSONRPC : public JSONWrapper
+//{
+//public:
+//	JSONWrapper();
+//	JSONWrapper(std::string s);
+//	JSONWrapper(std::istream s);
+//	virtual ~JSONWrapper();
+//
+//protected:
+//	int id;
+//	std::string method;
+//};

@@ -192,6 +192,9 @@ struct VWB_Warper
 	/// If you want to split a map into 2 side-by side parts set to [2,1,0,0] for the left side and [2,1,1,0] for the right part
 	/// setting x or y to 0, indicates no split and z and w are not evaluated
 	VWB_word	calibSplit[4];
+
+	/// override statemask, set to some value other than 0 to bring this into effect; implemented only for DX11 so far
+	VWB_uint	overrideStatemask;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

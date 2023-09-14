@@ -633,6 +633,40 @@ bool HttpRequest::send( TCPConnection& conn )
 
 /////////////////////////////////////////////////////////////////////////////
 
+const std::map<int, std::string> HttpResponse::responseCodes{
+	{ 100, "Continue" },
+	{ 101, "Switching Protocols" },
+	{ 200, "OK" },
+	{ 201, "Created" },
+	{ 202, "Accepted" },
+	{ 204, "No Content" },
+	{ 300, "Multiple Choices" },
+	{ 301, "Moved Permanently" },
+	{ 302, "Found" },
+	{ 303, "See Other" },
+	{ 304, "Not Modified" },
+	{ 307, "Temporary Redirect" },
+	{ 308, "Permanent Redirect" },
+	{ 400, "Bad Request" },
+	{ 401, "Unauthorized" },
+	{ 403, "Forbidden" },
+	{ 404, "Not Found" },
+	{ 405, "Method Not Allowed" },
+	{ 406, "Not Acceptable" },
+	{ 408, "Request Timeout" },
+	{ 410, "Gone" },
+	{ 411, "Length Required" },
+	{ 413, "Content Too Large" },
+	{ 414, "URI Too Long" },
+	{ 415, "Unsupported Media Type" },
+	{ 500, "Internal Server Error" },
+	{ 501, "Not Implemented" },
+	{ 503, "Service Unavailable" },
+	{ 505, "HTTP Version Not Supported" },
+};
+
+string HttpResponse::documentRoot{ "htdocs" };
+
 HttpResponse::HttpResponse( TCPConnection& conn )
 	: TCPProto( TYPE( "HTTPRESP" ) )
 	, code( 0 )
@@ -646,6 +680,8 @@ HttpResponse::HttpResponse( int code_, std::string const& content, bool contentI
 , contentIsPath( contentIsPath_ )
 , headers( headers_ )
 {
+	if (responseCodes.end() == responseCodes.find(code))
+		code = 200;
 	if( ctype.empty() )
 	{
 		if( contentIsPath )
@@ -657,6 +693,7 @@ HttpResponse::HttpResponse( int code_, std::string const& content, bool contentI
 				{ ".png",  "image/png" },
 				{ ".gif",  "image/gif" },
 				{ ".txt",  "text/plain" },
+				{ ".ini",  "text/plain" },
 				{ ".js",   "text/javascript" },
 				{ ".json", "text/json" },
 				{ ".css",  "text/css" },
@@ -693,7 +730,7 @@ bool HttpResponse::send( TCPConnection& conn )
 	int sz = 0;
 	if( contentIsPath )
 	{
-		cnt = make_unique<ifstream>( content, std::ios_base::in | std::ios_base::binary );
+		cnt = make_unique<ifstream>( filesystem::path(documentRoot) / content, std::ios_base::in | std::ios_base::binary );
 	}
 	else
 		cnt = make_unique<istringstream>( content );
@@ -709,7 +746,7 @@ bool HttpResponse::send( TCPConnection& conn )
 			cnt->seekg( 0 );
 			headers["Content-Length"] = to_string( sz );
 		}
-		s << "200 OK" << "\015\012";
+		s << code << " " << responseCodes.find(code)->second << "\015\012";
 		for( auto const& header : headers )
 		{
 			s << header.first << ": " << header.second << "\015\012";
@@ -737,7 +774,6 @@ bool HttpResponse::send( TCPConnection& conn )
 			}
 		}
 	}
-
 
 	return 0;
 }

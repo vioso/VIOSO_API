@@ -4,21 +4,21 @@
 
 using namespace std;
 
-TCPProto::ParserAdder Json::_adder( parse );
-TCPProto::TYPE Json::myType( "JSON" );
+TCPProto::ParserAdder JSON::_adder( parse );
+TCPProto::TYPE JSON::myType( "JSON" );
 
-TCPProto::ptr_t Json::parse( TCPConnection& conn )
+TCPProto::ptr_t JSON::parse( TCPConnection& conn )
 {
 	
 	if( conn.cmpFront( "{" ) || conn.cmpFront( "[" ) )
 	{
-		return make_unique<Json>( conn );
+		return make_unique<JSON>( conn );
 	}
 
 	return ptr_t();
 }
 
-bool Json::send( TCPConnection& conn )
+bool JSON::send( TCPConnection& conn )
 {
 	return false;
 }
