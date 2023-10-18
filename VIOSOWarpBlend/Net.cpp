@@ -144,8 +144,8 @@ int VWBTCPListener::cbError( Server* pServer, int err )
 	return 0;
 }
 
-VWBTCPConnection::VWBTCPConnection( Socket const& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer )
-: TCPConnection( other, peerAddress, pL, pServer )
+VWBTCPConnection::VWBTCPConnection( Socket&& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer )
+: TCPConnection( std::move(other), peerAddress, pL, pServer )
 , m_pWarper( NULL )
 , m_state(0)
 , m_iCalls(0)

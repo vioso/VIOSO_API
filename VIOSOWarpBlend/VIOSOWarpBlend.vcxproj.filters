@@ -75,9 +75,6 @@
     <ClInclude Include="DX\DX9EXWarpBlend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="JSONWrapper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DX\DX12WarpBlend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -111,10 +108,10 @@
     <ClInclude Include="HTTP.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="JSON.h">
+    <ClInclude Include="TCP.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TCP.h">
+    <ClInclude Include="JSONRPC.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -152,9 +149,6 @@
     <ClCompile Include="DX\DX9EXWarpBlend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="JSONWrapper.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DX\DX12WarpBlend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -176,13 +170,13 @@
     <ClCompile Include="HTTP.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="JSON.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="TCP.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="UDP.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="JSONRPC.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

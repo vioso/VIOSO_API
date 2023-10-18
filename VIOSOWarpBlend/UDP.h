@@ -9,7 +9,7 @@ protected:
 	RecvQueue m_received;
 	int m_szRcvBuff;
 
-	UDPListener( UDPListener const& other ) : SockIn( other ), m_szRcvBuff( 0 ) {}
+	UDPListener( UDPListener&& other ) : SockIn( std::move(other) ), m_szRcvBuff( 0 ) {}
 	UDPListener() : SockIn(), m_szRcvBuff( 0 ) {}
 public:
 

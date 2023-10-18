@@ -47,6 +47,7 @@ typedef enum VWB_ERROR
 	VWB_ERROR_VWF_FILE_NOT_FOUND = -8, /// cannot find mapping file
 	VWB_ERROR_NOT_IMPLEMENTED = -9,		/// Not implemented, this function is yet to come
 	VWB_ERROR_NETWORK = -10,		/// Network could not be initialized
+	VWB_ERROR_NDI = -11,		/// NDI could not be initialized
 	VWB_ERROR_FALSE = -16,		/// No error, but nothing has been done
 } VWB_ERROR;
 
@@ -193,8 +194,13 @@ struct VWB_Warper
 	/// setting x or y to 0, indicates no split and z and w are not evaluated
 	VWB_word	calibSplit[4];
 
-	/// override statemask, set to some value other than 0 to bring this into effect; implemented only for DX11 so far
+	/// override statemask, set to some value other than 0 to bring this into effect; implemented only for DX11 so far, defaults to 0
 	VWB_uint	overrideStatemask;
+
+	/// set the address of a ndi stream. If other than "" (empty string), as soon as it becomes available, the stream is shown instead of the applications output, if "*", it uses the channel name. Defaults to "".
+	char	ndiCalibStream[MAX_PATH];
+	/// use to announce server IPs, comma separated. defaults to "" (empty string)
+	char	ndiExtraIPs[MAX_PATH];
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

@@ -109,6 +109,7 @@ protected:
 											/// [1] is black cut; range 0..1, set to 0 to clip values darker as blacklevel offset, 1 will lift all values above black level, default is 1
 											/// [2] is uplift-downscale; range 0..1, set to 0 to clip whites that are shifted out of range, set to 1 to scale values to stay in range, default is 1
 											/// [3] is not used, set to 0
+	std::string		m_overlay;				/// a path or ndi locator to show instead of IG input
 #ifdef WIN32
 	HMODULE			m_hmEPP;					/// the eye point provider module handle
 #else
@@ -118,6 +119,11 @@ protected:
 	pfn_CreateEyePointReceiver	 m_fnEPPCreate; /// eye point provider create function pointer
 	pfn_ReceiveEyePoint	m_fnEPPGet;			/// eye point provider getter function pointer
 	pfn_DeleteEyePointReceiver m_fnEPPRelease;	/// eye point provider release function pointer
+
+#ifdef _NDI_DISP
+	void*	m_ndi_recv;						/// a ndi receiver
+	void*	m_ndi_frame;						/// a ndi frame, if set, it will be shown instead of the host application's input
+#endif //def _NDI_DISP
 	
 public:
 	VWB_Warper_base();						/// constructor

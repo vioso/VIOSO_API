@@ -20,8 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VIOSOWarpBlend\HTTP.cpp" />
-    <ClCompile Include="..\VIOSOWarpBlend\JSON.cpp" />
-    <ClCompile Include="..\VIOSOWarpBlend\JSONWrapper.cpp" />
+    <ClCompile Include="..\VIOSOWarpBlend\JSONRPC.cpp" />
     <ClCompile Include="..\VIOSOWarpBlend\socket.cpp" />
     <ClCompile Include="..\VIOSOWarpBlend\TCP.cpp" />
     <ClCompile Include="..\VIOSOWarpBlend\threadpool.cpp" />
@@ -31,7 +30,7 @@
   <ItemGroup>
     <ClInclude Include="..\VIOSOWarpBlend\HTTP.h" />
     <ClInclude Include="..\VIOSOWarpBlend\JSON.h" />
-    <ClInclude Include="..\VIOSOWarpBlend\JSONWrapper.h" />
+    <ClInclude Include="..\VIOSOWarpBlend\JSONRPC.h" />
     <ClInclude Include="..\VIOSOWarpBlend\socket.h" />
     <ClInclude Include="..\VIOSOWarpBlend\TCP.h" />
     <ClInclude Include="..\VIOSOWarpBlend\threadpool.h" />

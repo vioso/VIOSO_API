@@ -22,6 +22,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <iomanip>
 #include <memory>
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -649,6 +650,8 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 	}
 
 	ReSizeGLScene( rc.right - rc.left, rc.bottom - rc.top );					// Set Up Our Perspective GL Screen
+
+	glEnable( GL_DEBUG_OUTPUT );
 	return TRUE;									// Success
 }
 
@@ -706,7 +709,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	int h = 0;
 	std::string channel = "Display1";
 	std::istringstream cmd( lpCmdLine );
-	cmd >> channel >> x >> y >> w >> h;
+	cmd >> quoted(channel) >> x >> y >> w >> h;
 
 	// Create Our OpenGL Window
 	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )

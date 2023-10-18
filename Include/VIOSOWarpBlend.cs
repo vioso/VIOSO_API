@@ -258,6 +258,14 @@ namespace VIOSOWarpBlend
             /// If you want to split a map into 2 side-by side parts set to [2,1,0,0] for the left side and [2,1,1,0] for the right part
             /// setting x or y to 0, indicates no split and z and w are not evaluated
             public SPLIT calibSplit;
+
+            /// set the address of a ndi stream. If other than "" (empty string), as soon as it becomes available, the stream is shown instead of the applications output, defaults to ""
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+            public String ndiCalibStream;
+
+            /// use to announce NDI server IPs outside own sub-net, comma separated. defaults to "" (empty string)
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+            public String ndiExtraIPs;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -404,6 +412,7 @@ namespace VIOSOWarpBlend
             VWF_FILE_NOT_FOUND = -8, /// cannot find mapping file
             NOT_IMPLEMENTED = -9,     /// Not implemented, this function is yet to come
             NETWORK = -10,        /// Network could not be initialized
+            VWB_ERROR_NDI = -11,		/// NDI could not be initialized
             FALSE = -16,		/// No error, but nothing has been done
         };
         public enum FLAGS

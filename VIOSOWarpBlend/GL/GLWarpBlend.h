@@ -40,10 +40,9 @@ protected:
     GLuint				    m_FragmentShaderBypass;
     GLuint				    m_Program;
     GLuint				    m_ProgramBypass;
+	GLuint					m_texOverlay;
+	GLuint					m_locOverlay;
 
-#ifdef _DEBUG
-	VWB_WarpRecord			m_vTests[5];
-#endif
 
 public:
  	GLWarpBlend();

@@ -36,17 +36,11 @@
     <ClCompile Include="..\VIOSOWarpBlend\HTTP.cpp">
       <Filter>Quelldateien\Moduls</Filter>
     </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\JSON.cpp">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\JSONWrapper.cpp">
+    <ClCompile Include="..\VIOSOWarpBlend\JSONRPC.cpp">
       <Filter>Quelldateien\Moduls</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VIOSOWarpBlend\JSONWrapper.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
     <ClInclude Include="..\VIOSOWarpBlend\socket.h">
       <Filter>Quelldateien\Moduls</Filter>
     </ClInclude>
@@ -60,6 +54,9 @@
       <Filter>Quelldateien\Moduls</Filter>
     </ClInclude>
     <ClInclude Include="..\VIOSOWarpBlend\HTTP.h">
+      <Filter>Quelldateien\Moduls</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VIOSOWarpBlend\JSONRPC.h">
       <Filter>Quelldateien\Moduls</Filter>
     </ClInclude>
     <ClInclude Include="..\VIOSOWarpBlend\JSON.h">

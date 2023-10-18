@@ -45,8 +45,8 @@ int TCPListener::getPeerIndex( TCPConnection const* pC ) const
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-TCPConnection::TCPConnection( Socket const& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer )
-	: SockIn( other )
+TCPConnection::TCPConnection( SockIn&& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer )
+	: SockIn( std::move(other) )
 	, m_iRcvBuffSize( 0 )
 	, m_iSndBuffSize( 0 )
 	, m_iReadOffs( 0 )

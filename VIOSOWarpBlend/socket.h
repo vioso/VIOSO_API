@@ -177,16 +177,23 @@ public:
 	// construct empty socket
 	Socket() { sock = 0; }
 
-	// copy constructor s
-	Socket(SOCKET const& s) { sock = s; }
-	Socket(Socket const& s) { sock=s.sock; }
+	// manage native
+	Socket( SOCKET const& s ) { sock = s; }
 
 	// construct and create socket of type i.e. SOCK_DGRAM or SOCK_STREAM
-	Socket(int type/*=SOCK_STREAM*/, bool broadcast/*=FALSE*/, int protocol/*=0*/, bool keepAlive/*=FALSE*/,u_int qRecvBuffer/*=0*/,u_int qSendBuffer/*=0*/)
+	Socket( int type/*=SOCK_STREAM*/, bool broadcast/*=FALSE*/, int protocol/*=0*/, bool keepAlive/*=FALSE*/, u_int qRecvBuffer/*=0*/, u_int qSendBuffer/*=0*/ )
 	{
-		if( SOCKET_ERROR == create( type, broadcast, protocol, keepAlive, qRecvBuffer, qSendBuffer) )
-			throw SOCKET_ERROR; 
+		if( SOCKET_ERROR == create( type, broadcast, protocol, keepAlive, qRecvBuffer, qSendBuffer ) )
+			throw SOCKET_ERROR;
 	};
+
+	// copy constructor
+	Socket( Socket const& ) = delete;
+	Socket& operator=( Socket const& ) = delete;
+
+	Socket( Socket&& other ) noexcept : sock( other.sock ) { other.sock = 0; }
+	Socket& operator=( Socket&& other ) noexcept { std::swap( sock, other.sock ); return *this; };
+	~Socket() { close(); }
 
 // public methods
 
@@ -266,8 +273,8 @@ public:
 	} 
 
 	// receives datagram from socket, peer address will be stored in 'sa' if specified
-	int recvDatagram(char* buf, const int iSize, SocketAddress* sa=NULL);
-	template<int sz> int recvDatagram( char( &buf )[sz], SocketAddress* sa ) { return recvDatagram( buf, sz, sa ); }
+	int recvDatagram(char* buf, const int iSize, SocketAddress* sa=NULL, const double timeout = INFINITETIMEOUT );
+	template<int sz> int recvDatagram( char( &buf )[sz], SocketAddress* sa, const double timeout = INFINITETIMEOUT ) { return recvDatagram( buf, sz, sa, timeout ); }
 
 	// returns connected peer address
 	SocketAddress getpeeraddr();
@@ -317,11 +324,6 @@ public:
 		return ret;
 	}
 
-	// public asignmet and compare operators
-	const Socket& operator=(const Socket& s) { sock=s.sock; return *this; };
-	const Socket& operator=(const SOCKET s) { sock=s;  return *this; };
-	//void operator=(const Socket& s) { sock=s.sock; };
-	//void operator=(const SOCKET s) { sock=s; };
 	operator SOCKET() { return sock; };
 	bool operator==(const Socket& s) const { return sock == s.sock; };
 	bool operator==(const SOCKET s) const { return sock == s; };
@@ -333,13 +335,11 @@ class Server;
 class SockIn : public Socket
 {
 	friend Server;
-protected:
-	SockIn( SockIn const& other ) : Socket( other ) {}
 public:
-	SockIn() : Socket() {}
-	SockIn( Socket const& s ) : Socket( s ) {}
+	SockIn() = default;
 	SockIn( int protocol, SocketAddress const& sa );
-	virtual ~SockIn();
+	SockIn( SockIn&& ) = default;
+	SockIn( Socket&& other ) : Socket( std::move(other) ) {}
 	Socket detach() { Socket s(sock); sock = 0; return s; }
 
 	virtual int cbRead( Server* pServer ) {return 0;}

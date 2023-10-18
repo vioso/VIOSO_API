@@ -14,7 +14,7 @@ public:
 protected:
 	PeerList m_peers;
 
-	TCPListener( TCPListener const& other ) : SockIn( other ) {}
+	TCPListener( TCPListener&& other ) : SockIn( std::move(other) ) {}
 	TCPListener() : SockIn() {}
 public:
 	int size() { ( int )m_peers.size(); }
@@ -52,7 +52,7 @@ protected:
 	timeval m_sto;
 
 public:
-	TCPConnection( Socket const& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer );
+	TCPConnection( SockIn&& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer );
 	TCPConnection( SocketAddress connectTo );
 	virtual ~TCPConnection();
 

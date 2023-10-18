@@ -68,7 +68,7 @@ public:
         m_rtt->addRenderer( renderer );
     }
 
-    virtual void preRender()
+    virtual void preRender() override
     {
         XMFLOAT3 vEyePt( 0.0, 0.0f, 0.0f );
         XMFLOAT3 vRot( 0.0f, 0.0f, 0.0f );
@@ -79,7 +79,7 @@ public:
         // dynamic eye-point scenarios. If a symmetric frustum is requested.
         XMMATRIX mv1, mv2, mv3;
         XMMATRIX mp1, mp2, mp3;
-        static unsigned int pass = 2;
+        static unsigned int pass = 1;
         if( 0 == pass )
         {
             pass = 0;
@@ -115,12 +115,12 @@ public:
         m_rtt->preRender();
     }
 
-    virtual void render( XMMATRIX const& world )
+    virtual void render() override
     {
-        m_rtt->render( world );
+        m_rtt->render( m_mWorld );
     }
 
-    virtual void postRender()
+    virtual void postRender() override
     {
         m_rtt->postRender(); // let render to texture finish
         __super::preRender(); 
@@ -209,6 +209,7 @@ int WINAPI wWinMain(
 
         #ifdef CONFIG_NOWARP
             g_windows.push_back(make_shared<OutputWindow>(hInstance, CString(channel.c_str()), x, y, w, h, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false));
+            g_windows.back()->getRenderTarget()->setClearColor( RenderTarget::s_sky );
         #else
             g_windows.push_back( make_shared<VIOSOWarperWindow>( CString(channel.c_str()), hInstance, x, y, w, h, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
         #endif //def CONFIG_NOWARP

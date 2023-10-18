@@ -331,13 +331,22 @@ int Socket::sendDatagram(const char* pch,const int iSize,SocketAddress const& sa
 	//return 0;
 }
 
-int Socket::recvDatagram(char* pch,const int iSize, SocketAddress* sa)
+int Socket::recvDatagram(char* pch,const int iSize, SocketAddress* sa, const double timeout )
 {
 	FD_SET fd;
 	FD_ZERO( &fd );
 	FD_SET( sock, &fd );
 	socklen_t size=sizeof(SocketAddress);
-	int res=::select( 0, &fd, NULL, NULL, 0);
+	int res;
+	if( timeout != INFINITETIMEOUT )
+	{
+		timeval to{ long( timeout ), long( ( timeout - long( timeout ) ) * 1000000 ) };
+		res = ::select( 0, &fd, NULL, NULL, &to );
+	}
+	else
+	{
+		res = ::select( 0, &fd, NULL, NULL, nullptr );
+	}
 
 	if( (res!=SOCKET_ERROR) && (res>0) )
 	{
@@ -456,11 +465,6 @@ SockIn::SockIn( int protocol, SocketAddress const& sa )
 	else
 		throw -1;
 	bind( sa );
-}
-
-SockIn::~SockIn()
-{
-	if( 0 != sock ) close();	
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////

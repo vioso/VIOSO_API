@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include "HTTP.h"
-#include "JSON.h"
+#include "JSONRPC.h"
 #include <map>
 #include <queue>
 #include <chrono>
@@ -64,7 +64,7 @@ public:
 		STATE_WRITEPENDING = 16
 	} STATE;
 
-	VWBTCPConnection( Socket const& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer );
+	VWBTCPConnection( Socket&& other, SocketAddress const& peerAddress, TCPListener* pL, Server* pServer );
 	//explicit VWBTCPConnection( SockIn& other );
 	int getState() const { return m_state | ( m_bPendingSend ? STATE_WRITEPENDING : 0 ); }
 	int readRequest();
