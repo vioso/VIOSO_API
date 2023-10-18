@@ -260,6 +260,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt("default", "overrideStatemask", 0, path);
 		overrideStatemask = GetIniInt(channel, "overrideStatemask", iDef, path);
 
+		iDef = GetIniInt( "default", "bFixWraparound", 0, path );
+		bFixWraparound = 0 != GetIniInt( channel, "bFixWraparound", iDef, path );
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -461,7 +464,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				"address=%s\n"
 				"mouseMode=%d\n"
 			    "bDoNoBlack=%d\n"
-			    "overrideStatemask=%d\n"
+				"overrideStatemask=%d\n"
+				"bFixWraparound=%d\n"
 				"\n",
 				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
@@ -496,7 +500,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				(*ppWarper)->addr,
 				(*ppWarper)->mouseMode,
 				(*ppWarper)->bDoNoBlack,
-				(*ppWarper)->overrideStatemask
+				(*ppWarper)->overrideStatemask,
+				(*ppWarper)->bFixWraparound
 		   );
 
 	return VWB_ERROR_NONE;
@@ -1145,32 +1150,41 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	{
 		if( bAutoView )
 		{
-			if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
+			if( bFixWraparound )
 			{
-				optimalRes.cx = (VWB_int)(1.0f / wb.header.vCntDispPx[4]);
-				optimalRes.cy = (VWB_int)(1.0f / wb.header.vCntDispPx[5]);
+				VWB_ERROR res = FixWraparound( *wbs[calibIndex] );
+				if( VWB_ERROR_NONE != res )
+					logStr( 0, "ERROR: Autoview returns error %d.\n", res );
 			}
 			else
 			{
-				optimalRes.cx = wb.header.width;
-				optimalRes.cy = wb.header.height;
-				logStr( 2, "WARNING: AutoView could not calculate optimal resolution due to missing information in warp file\n" );
-			}
-			if( 0 != wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] &&
-				0 != wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] )
-			{
-				optimalRect.left =	(VWB_int)(wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4]);
-				optimalRect.top =	(VWB_int)(wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5]);
-				optimalRect.right = (VWB_int)(wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4]);
-				optimalRect.bottom =(VWB_int)(wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5]);
-			}
-			else
-			{
-				optimalRect.left =	0;
-				optimalRect.top =	0;
-				optimalRect.right = wb.header.width;
-				optimalRect.bottom =wb.header.height;
-				logStr( 2, "WARNING: AutoView could not calculate optimal partial rect due to missing information in warp file\n" );
+				if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
+				{
+					optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
+					optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
+				}
+				else
+				{
+					optimalRes.cx = wb.header.width;
+					optimalRes.cy = wb.header.height;
+					logStr( 2, "WARNING: AutoView could not calculate optimal resolution due to missing information in warp file\n" );
+				}
+				if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
+					0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
+				{
+					optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
+					optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
+					optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
+					optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+				}
+				else
+				{
+					optimalRect.left = 0;
+					optimalRect.top = 0;
+					optimalRect.right = wb.header.width;
+					optimalRect.bottom = wb.header.height;
+					logStr( 2, "WARNING: AutoView could not calculate optimal partial rect due to missing information in warp file\n" );
+				}
 			}
 			logStr( 1, "INFO: AutoView for channel [%s] yields:\n"
 				"optimalRes=[%d, %d]\n"
@@ -1678,6 +1692,218 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		optimalRect.left, optimalRect.top, optimalRect.right, optimalRect.bottom,
 		m_bRH ? "right" : "left",
 		VWB_int( borderFit.x * wb.header.width ), VWB_int( borderFit.y * wb.header.height ), VWB_int( borderFit.z * wb.header.width ), VWB_int( borderFit.w * wb.header.height ) );
+	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
+{
+	VWB_WarpRecord* pW = wb.pWarp;
+
+	// check for wrap-arounds
+	typedef struct { long x, y; float xF, yF; float vLTRB[4]; } SSPCoord;
+
+	size_t qCand;
+	vector<int32_t> rgn;
+	long i, k, kS, kE, l, lS, lE;
+	VWB_WarpRecord const* pWR, * pWL;
+	float xF, yF, * pMain, * pTest;
+	int32_t* pR, * pRS, * pRR, * pRL;
+	std::vector<SSPCoord> lCand;
+	const long _Width = wb.header.width;
+	const long _Height = wb.header.height;
+	const long qPx = _Width * _Height;
+	const long lastX = _Width - 1;
+	const long lastY = _Height - 1;
+	VWB_WarpRecord* pWS = pW;
+	VWB_WarpRecord const* pWE = pWS + qPx;
+	long qRgn = 0;
+
+	try
+	{
+		rgn.resize( qPx );
+		lCand.resize( ( size_t )qPx );
+	}
+	catch( ... )
+	{
+		return VWB_ERROR_GENERIC;
+	}
+
+	pR = rgn.data();
+	pRS = pR;
+
+	do
+	{
+		for( ; ( pW < pWE ) && ( ( pW->z <= 0.5f ) || ( *pR > 0 ) ); pW++, pR++ );
+		if( pW >= pWE )
+			break;
+
+		SSPCoord& c = lCand[0];
+
+		i = ( long )( pW - pWS );
+		c.y = i / _Width;
+		c.x = i % _Width;
+		c.xF = pW->x;
+		c.yF = pW->y;
+		qCand = 1;
+		*pR = ++qRgn;
+
+		do
+		{
+			SSPCoord& c = lCand[--qCand];
+
+			kS = MAX( c.y - 1, 0 );
+			kE = MIN( c.y + 1, lastY );
+			lS = MAX( c.x - 1, 0 );
+			lE = MIN( c.x + 1, lastX );
+			xF = c.xF;
+			yF = c.yF;
+			i = kS * _Width + lS;
+
+			for( pRL = pRS + i, pWL = pWS + i, k = kS; k <= kE; k++, pWL += _Width, pRL += _Width )
+				for( pRR = pRL, pWR = pWL, l = lS; l <= lE; l++, pWR++, pRR++ )
+					if( ( pWR->z > 0.5f ) && ( *pRR == 0 ) &&
+						( ::fabsf( xF - pWR->x ) <= 0.5f ) && ( ::fabsf( yF - pWR->y ) <= 0.5f )
+						)
+					{
+						SSPCoord& c = lCand[qCand++];
+
+						c.y = k;
+						c.x = l;
+						c.xF = pWR->x;
+						c.yF = pWR->y;
+						*pRR = qRgn;
+					}
+		} while( qCand );
+
+	} while( 1 );
+
+	if( qRgn == 0 )
+	{
+		logStr( 1, "WARINIG: FixWraparound cannot find any region. Is this an empty map?\n" );
+		return VWB_ERROR_GENERIC;
+	}
+
+	if( qRgn == 1 )
+	{
+		logStr( 2, "NOTE: FixWraparound found one region. No seam detected - nothing to do.\n" );
+		return VWB_ERROR_NONE;
+	}
+
+	logStr( 2, "NOTE: FixWraparound found %d regions. Wrapping UVs.\n", qRgn );
+	for( i = 1; i <= qRgn; i++ )
+		lCand[i].x = 0;
+
+	for( pR = pRS, pW = pWS; pW < pWE; pW++, pR++ )
+		if( *pR > 0 )
+		{
+			SSPCoord& c = lCand[*pR];
+
+			if( c.x == 0 )
+			{
+				c.vLTRB[0] = c.vLTRB[2] = pW->x;
+				c.vLTRB[1] = c.vLTRB[3] = pW->y;
+			}
+			else
+			{
+				xF = pW->x;
+				if( xF < c.vLTRB[0] )
+					c.vLTRB[0] = xF;
+				else if( xF > c.vLTRB[2] )
+					c.vLTRB[2] = xF;
+				yF = pW->y;
+				if( yF < c.vLTRB[1] )
+					c.vLTRB[1] = yF;
+				else if( yF > c.vLTRB[3] )
+					c.vLTRB[3] = yF;
+			}
+			c.x++;
+		}
+
+	k = 1;
+	kS = lCand[1].x;
+	for( i = 2; i <= qRgn; i++ )
+		if( lCand[i].x > kS )
+		{
+			k = i;
+			kS = lCand[i].x;
+		}
+
+	pMain = lCand[k].vLTRB;
+	for( i = 1; i <= qRgn; i++ )
+		if( i != k )
+		{
+			pTest = lCand[i].vLTRB;
+
+			if( ( pMain[0] - ( pTest[2] - 1.0f ) ) < ( pTest[0] - pMain[2] ) )
+				lCand[i].xF = -1.0f;
+			else if( ( ( pTest[0] + 1.0f ) - pMain[2] ) < ( pMain[0] - pTest[2] ) )
+				lCand[i].xF = 1.0f;
+			else
+				lCand[i].xF = 0.0f;
+
+			if( ( pMain[1] - ( pTest[3] - 1.0f ) ) < ( pTest[1] - pMain[3] ) )
+				lCand[i].yF = -1.0f;
+			else if( ( ( pTest[1] + 1.0f ) - pMain[3] ) < ( pMain[1] - pTest[3] ) )
+				lCand[i].yF = 1.0f;
+			else
+				lCand[i].yF = 0.0f;
+		}
+		else
+		{
+			lCand[i].xF = 0.0f;
+			lCand[i].yF = 0.0f;
+		}
+
+	for( pR = pRS, pW = pWS; pW < pWE; pW++, pR++ )
+		if( *pR > 0 )
+		{
+			SSPCoord& c = lCand[*pR];
+
+			pW->x += c.xF;
+			pW->y += c.yF;
+		}
+
+	{
+		// we need to recalculate...
+		float minU = FLT_MAX, minV = FLT_MAX;
+		float maxU = -FLT_MAX, maxV = -FLT_MAX;
+		for( auto const* p = wb.pWarp, *pE = p + wb.header.width * wb.header.height; p != pE; p++ )
+		{
+			if( 0.5f < p->z )
+			{
+				if( minU > p->x )
+					minU = p->x;
+				if( maxU < p->x )
+					maxU = p->x;
+				if( minV > p->y )
+					minV = p->y;
+				if( maxV < p->y )
+					maxV = p->y;
+			}
+		}
+		if( minU != FLT_MAX && minV != FLT_MAX &&
+			maxU != -FLT_MAX && maxV != -FLT_MAX )
+		{
+			wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
+			wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
+			wb.header.vPartialCnt[0] = minU;
+			wb.header.vPartialCnt[1] = minV;
+			wb.header.vPartialCnt[2] = maxU;
+			wb.header.vPartialCnt[3] = maxV;
+		}
+		else
+		{
+			logStr( 1, "WARINIG: FixWraparound cannot find min-max bound of screen.\n" );
+			return VWB_ERROR_GENERIC;
+		}
+	}
+	optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
+	optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
+	optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
+	optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
+	optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
+	optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+
 	return VWB_ERROR_NONE;
 }
 

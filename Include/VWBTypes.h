@@ -195,6 +195,12 @@ struct VWB_Warper
 
 	/// override statemask, set to some value other than 0 to bring this into effect; implemented only for DX11 so far
 	VWB_uint	overrideStatemask;
+
+	/// set to true to generate one coherent content space on wrap-arounds (360° panorama). Defaults to false.
+	/// note: In case there is a seam in the warp map, the optimal content rect will be the whole content, as we need content from both ends.
+	/// We try to fix that, by translating high to negative uv-coordinates, so the optimal content rect becomes small but contains negative coordinates.
+	/// As we need to sample uv-wraped anyway, this is not a problem and a texture to feed has aprox. projector resolution again, even though it has been filled from up to 4 corners
+	bool		bFixWraparound;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

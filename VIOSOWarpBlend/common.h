@@ -171,7 +171,9 @@ protected:
 	/// set all default values to the VWB_Warper struct
 	void Defaults();
 	/// update view parameters from warp bland set
-	VWB_ERROR AutoView(	VWB_WarpBlend const& wb );
+	VWB_ERROR AutoView( VWB_WarpBlend const& wb );
+	/// update view parameters from warp bland set
+	VWB_ERROR FixWraparound( VWB_WarpBlend& wb );
 	// calculate clipping planes
 	void getClip( VWB_VEC3f const& e, VWB_float* pClip );
 };
