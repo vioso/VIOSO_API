@@ -118,13 +118,13 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 			g_bFirstInstance = false;
 		}
 
-		iDef = GetIniInt( "default", "bTurnWithView", 0, path );
+		iDef = GetIniInt( "default", "bTurnWithView", bTurnWithView, path );
 		bTurnWithView = 0 != GetIniInt( channel, "bTurnWithView", iDef, path );
 
-		iDef = GetIniInt( "default", "bDoNotBlend", 0, path );
+		iDef = GetIniInt( "default", "bDoNotBlend", bDoNotBlend, path );
 		bDoNotBlend = 0 != GetIniInt( channel, "bDoNotBlend", iDef, path );
 
-		GetIniString( "default", "eyePointProvider", NULL, sDef, MAX_PATH, path );
+		GetIniString( "default", "eyePointProvider", eyeProvider, sDef, MAX_PATH, path );
 		GetIniString( channel, "eyePointProvider", sDef, eyeProvider, MAX_PATH, path );
 #if defined( WIN32 )
 		char const* ext = ".dll";
@@ -137,13 +137,13 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 #endif // defined( WIN32 )
         MkPath( eyeProvider, MAX_PATH, ext );
 
-		GetIniString( "default", "eyePointProviderParam", NULL, sDef, MAX_PATH, path );
+		GetIniString( "default", "eyePointProviderParam", eyeProviderParam, sDef, MAX_PATH, path );
 		GetIniString( channel, "eyePointProviderParam", sDef, eyeProviderParam, MAX_PATH, path );
 
-		GetIniString( "default", "calibFile", "vioso.vwf", sDef, MAX_PATH, path );
+		GetIniString( "default", "calibFile", calibFile, sDef, MAX_PATH, path );
 		GetIniString( channel, "calibFile", sDef, calibFile, 12 * MAX_PATH, path );
 
-		iDef = GetIniInt( "default", "calibIndex", -1, path );
+		iDef = GetIniInt( "default", "calibIndex", calibIndex, path );
 		calibIndex = GetIniInt( channel, "calibIndex", iDef, path );
 		if( -1 == calibIndex )
 		{
@@ -151,39 +151,31 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 			calibIndex = -1 * ( GetIniInt( channel, "calibAdapterOrdinal", iDef, path ) );
 		}
 	
-		fDef = GetIniFloat( "default", "near", 0.125f, path );
+		fDef = GetIniFloat( "default", "near", nearDist, path );
 		nearDist = GetIniFloat( channel, "near", fDef, path );
 
-		fDef = GetIniFloat( "default", "far", 20000.0f, path );
+		fDef = GetIniFloat( "default", "far", farDist, path );
 		farDist = GetIniFloat( channel, "far", fDef, path );
 
-		fDef = GetIniFloat( "default", "screen", 1.0f, path );
+		fDef = GetIniFloat( "default", "screen", screenDist, path );
 		screenDist = GetIniFloat( channel, "screen", fDef, path );
-
-		VWB_float const _defFoV[4] = { 35.0f,30.0f,35.0f,30.0f };
-		VWB_float const _defMat[16] = { 
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f
-		};
 
 		VWB_float vDef[16] = { 0 };
 
-		GetIniMat( "default", "eye", 3, 1, nullptr, vDef, path );
+		GetIniMat( "default", "eye", 3, 1, eye, vDef, path );
 		GetIniMat( channel, "eye", 3, 1, vDef, eye, path );
 
-		GetIniMat( "default", "dir", 3, 1, nullptr, vDef, path );
+		GetIniMat( "default", "dir", 3, 1, dir, vDef, path );
 		GetIniMat( channel, "dir", 3, 1, vDef, dir, path );
 
-		GetIniMat( "default", "fov", 4, 1, _defFoV, vDef, path );
+		GetIniMat( "default", "fov", 4, 1, fov, vDef, path );
 		GetIniMat( channel, "fov", 4, 1, vDef, fov, path );
 
 		if( NULL == GetIniMat( "default", "trans", 4, 4, nullptr, vDef, path, false ) )
 		{
 			if( NULL == GetIniMat( channel, "trans", 4, 4, nullptr, trans, path, false ) )
 			{
-				GetIniMat( "default", "base", 4, 4, _defMat, vDef, path, true );
+				GetIniMat( "default", "base", 4, 4, trans, vDef, path, true );
 				GetIniMat( channel, "base", 4, 4, vDef, trans, path, true );
 			}
 		}
@@ -210,7 +202,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		}
 		else
 		{
-			iDef = GetIniInt( "default", "splice", 0, path );
+			iDef = GetIniInt( "default", "splice", splice, path );
 			splice = GetIniInt( channel, "splice", iDef, path );
 		}
 
@@ -218,26 +210,26 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt( channel, "bBicubic", iDef, path );
 		if( -1 == iDef )
 		{
-			iDef = GetIniInt( "default", "bicubic", 0, path );
+			iDef = GetIniInt( "default", "bicubic", bBicubic, path );
 			bBicubic = 0 != GetIniInt( channel, "bicubic", iDef, path );
 		}
 		else
 			bBicubic = 0 != iDef;
 
-		iDef = GetIniInt( "default", "bUseGL110", 0, path );
+		iDef = GetIniInt( "default", "bUseGL110", bUseGL110, path );
 		bUseGL110 = 0 != GetIniInt( channel, "bUseGL110", iDef, path );
 
-		iDef = GetIniInt("default", "bPartialInput", 0, path);
+		iDef = GetIniInt("default", "bPartialInput", bPartialInput, path);
 		bPartialInput = 0 != GetIniInt(channel, "bPartialInput", iDef, path);
 
-		iDef = GetIniInt("default", "mouseMode", 0, path);
+		iDef = GetIniInt("default", "mouseMode", mouseMode, path);
 		mouseMode = GetIniInt(channel, "mouseMode", iDef, path);
 
 		GetIniString( "default", "autoViewC", "1.0", sDef, 1024, path );
 		GetIniString( channel, "autoViewC", sDef, s, 1024, path );
 		sscanf_s( s, "%f", &autoViewC );
 
-		iDef = GetIniInt( "default", "bAutoView", 1, path );
+		iDef = GetIniInt( "default", "bAutoView", bAutoView, path );
 		bAutoView = 0 != GetIniInt( channel, "bAutoView", iDef, path );
 
 		GetIniString( "default", "optimalRes", "[0,0]", sDef, 1024, path );
@@ -252,19 +244,19 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		GetIniString( channel, "optimalRect", sDef, s, 1024, path );
 		sscanf_s( s, "[%d,%d,%d,%d]", &optimalRect.left, &optimalRect.top, &optimalRect.right, &optimalRect.bottom );
 
-		gamma = GetIniFloat( "default", "gamma", 1.0f, path );
+		gamma = GetIniFloat( "default", "gamma", gamma, path );
 		gamma = GetIniFloat( channel, "gamma", gamma, path );
 
-		iDef = GetIniInt( "default", "port", 0, path );
+		iDef = GetIniInt( "default", "port", port, path );
 		port = GetIniInt( channel, "port", iDef, path );
 
-		iDef = GetIniInt( "default", "heartBeatPort", 0, path );
+		iDef = GetIniInt( "default", "heartBeatPort", heartBeatPort, path );
 		heartBeatPort = GetIniInt( channel, "heartBeatPort", iDef, path );
 
-		GetIniString( "default", "addr", "0.0.0.0", sDef, MAX_PATH, path );
+		GetIniString( "default", "addr", addr, sDef, MAX_PATH, path );
 		GetIniString( channel, "addr", sDef, addr, MAX_PATH, path );
 
-		iDef = GetIniInt( "default", "bDoNoBlack", 0, path );
+		iDef = GetIniInt( "default", "bDoNoBlack", bDoNoBlack, path );
 		bDoNoBlack = 0 != GetIniInt( channel, "bDoNoBlack", iDef, path );
 
 		VWB_float split[4]{};
@@ -272,11 +264,14 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		GetIniMat( channel, "calibSplit", 4, 1, vDef, split, path);
 		for (int i = 0; i != 4; i++) calibSplit[i] = VWB_word(split[i]);
 
-		iDef = GetIniInt( "default", "overrideStatemask", 0, path );
+		iDef = GetIniInt( "default", "overrideStatemask", overrideStatemask, path );
 		overrideStatemask = GetIniInt( channel, "overrideStatemask", iDef, path );
 
-		GetIniString( "default", "ndiCalibStream", "", sDef, path );
+		GetIniString( "default", "ndiCalibStream", ndiCalibStream, sDef, path );
 		GetIniString( channel, "ndiCalibStream", sDef, ndiCalibStream, path );
+
+		iDef = GetIniInt( "default", "bFixWraparound", bFixWraparound, path );
+		bFixWraparound = 0 != GetIniInt( channel, "bFixWraparound", iDef, path );
 
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
@@ -479,7 +474,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				"address=%s\n"
 				"mouseMode=%d\n"
 			    "bDoNoBlack=%d\n"
-			    "overrideStatemask=%d\n"
+				"overrideStatemask=%d\n"
+				"bFixWraparound=%d\n"
 				"\n",
 				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
@@ -514,7 +510,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				(*ppWarper)->addr,
 				(*ppWarper)->mouseMode,
 				(*ppWarper)->bDoNoBlack,
-				(*ppWarper)->overrideStatemask
+				(*ppWarper)->overrideStatemask,
+				(*ppWarper)->bFixWraparound
 		   );
 
 	return VWB_ERROR_NONE;
@@ -1284,32 +1281,41 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	{
 		if( bAutoView )
 		{
-			if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
+			if( bFixWraparound )
 			{
-				optimalRes.cx = (VWB_int)(1.0f / wb.header.vCntDispPx[4]);
-				optimalRes.cy = (VWB_int)(1.0f / wb.header.vCntDispPx[5]);
+				VWB_ERROR res = FixWraparound( *wbs[calibIndex] );
+				if( VWB_ERROR_NONE != res )
+					logStr( 0, "ERROR: Autoview returns error %d.\n", res );
 			}
 			else
 			{
-				optimalRes.cx = wb.header.width;
-				optimalRes.cy = wb.header.height;
-				logStr( 2, "WARNING: AutoView could not calculate optimal resolution due to missing information in warp file\n" );
-			}
-			if( 0 != wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] &&
-				0 != wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] )
-			{
-				optimalRect.left =	(VWB_int)(wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4]);
-				optimalRect.top =	(VWB_int)(wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5]);
-				optimalRect.right = (VWB_int)(wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4]);
-				optimalRect.bottom =(VWB_int)(wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5]);
-			}
-			else
-			{
-				optimalRect.left =	0;
-				optimalRect.top =	0;
-				optimalRect.right = wb.header.width;
-				optimalRect.bottom =wb.header.height;
-				logStr( 2, "WARNING: AutoView could not calculate optimal partial rect due to missing information in warp file\n" );
+				if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
+				{
+					optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
+					optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
+				}
+				else
+				{
+					optimalRes.cx = wb.header.width;
+					optimalRes.cy = wb.header.height;
+					logStr( 2, "WARNING: AutoView could not calculate optimal resolution due to missing information in warp file\n" );
+				}
+				if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
+					0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
+				{
+					optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
+					optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
+					optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
+					optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+				}
+				else
+				{
+					optimalRect.left = 0;
+					optimalRect.top = 0;
+					optimalRect.right = wb.header.width;
+					optimalRect.bottom = wb.header.height;
+					logStr( 2, "WARNING: AutoView could not calculate optimal partial rect due to missing information in warp file\n" );
+				}
 			}
 			logStr( 1, "INFO: AutoView for channel [%s] yields:\n"
 				"optimalRes=[%d, %d]\n"
@@ -1451,18 +1457,22 @@ void VWB_Warper_base::Defaults()
 	::memset( &this->path, 0, sz1 );
 	strcpy_s( calibFile, "vioso.vwf" );
 	strcpy_s( channel, "channel 1" );
-	nearDist = 0.1f;
-	farDist = 200.0f;
-	fov[0]=30;
-	fov[1]=20;
-	fov[2]=30;
-	fov[3]=20;
+	strcpy_s( addr, "0.0.0.0" );
+	nearDist = 0.125f;
+	farDist = 20000.0f;
+	fov[0]=35;
+	fov[1]=30;
+	fov[2]=35;
+	fov[3]=30;
 	trans[0] = 1;
 	trans[5] = 1;
 	trans[10] = 1;
 	trans[15] = 1;
 	screenDist = 1;
 	autoViewC = 1;
+	calibIndex = -1;
+	bAutoView = true;
+	gamma = 1;
 }
 
 VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
@@ -1817,6 +1827,218 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 		optimalRect.left, optimalRect.top, optimalRect.right, optimalRect.bottom,
 		m_bRH ? "right" : "left",
 		VWB_int( borderFit.x * wb.header.width ), VWB_int( borderFit.y * wb.header.height ), VWB_int( borderFit.z * wb.header.width ), VWB_int( borderFit.w * wb.header.height ) );
+	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
+{
+	VWB_WarpRecord* pW = wb.pWarp;
+
+	// check for wrap-arounds
+	typedef struct { long x, y; float xF, yF; float vLTRB[4]; } SSPCoord;
+
+	size_t qCand;
+	vector<int32_t> rgn;
+	long i, k, kS, kE, l, lS, lE;
+	VWB_WarpRecord const* pWR, * pWL;
+	float xF, yF, * pMain, * pTest;
+	int32_t* pR, * pRS, * pRR, * pRL;
+	std::vector<SSPCoord> lCand;
+	const long _Width = wb.header.width;
+	const long _Height = wb.header.height;
+	const long qPx = _Width * _Height;
+	const long lastX = _Width - 1;
+	const long lastY = _Height - 1;
+	VWB_WarpRecord* pWS = pW;
+	VWB_WarpRecord const* pWE = pWS + qPx;
+	long qRgn = 0;
+
+	try
+	{
+		rgn.resize( qPx );
+		lCand.resize( ( size_t )qPx );
+	}
+	catch( ... )
+	{
+		return VWB_ERROR_GENERIC;
+	}
+
+	pR = rgn.data();
+	pRS = pR;
+
+	do
+	{
+		for( ; ( pW < pWE ) && ( ( pW->z <= 0.5f ) || ( *pR > 0 ) ); pW++, pR++ );
+		if( pW >= pWE )
+			break;
+
+		SSPCoord& c = lCand[0];
+
+		i = ( long )( pW - pWS );
+		c.y = i / _Width;
+		c.x = i % _Width;
+		c.xF = pW->x;
+		c.yF = pW->y;
+		qCand = 1;
+		*pR = ++qRgn;
+
+		do
+		{
+			SSPCoord& c = lCand[--qCand];
+
+			kS = MAX( c.y - 1, 0 );
+			kE = MIN( c.y + 1, lastY );
+			lS = MAX( c.x - 1, 0 );
+			lE = MIN( c.x + 1, lastX );
+			xF = c.xF;
+			yF = c.yF;
+			i = kS * _Width + lS;
+
+			for( pRL = pRS + i, pWL = pWS + i, k = kS; k <= kE; k++, pWL += _Width, pRL += _Width )
+				for( pRR = pRL, pWR = pWL, l = lS; l <= lE; l++, pWR++, pRR++ )
+					if( ( pWR->z > 0.5f ) && ( *pRR == 0 ) &&
+						( ::fabsf( xF - pWR->x ) <= 0.5f ) && ( ::fabsf( yF - pWR->y ) <= 0.5f )
+						)
+					{
+						SSPCoord& c = lCand[qCand++];
+
+						c.y = k;
+						c.x = l;
+						c.xF = pWR->x;
+						c.yF = pWR->y;
+						*pRR = qRgn;
+					}
+		} while( qCand );
+
+	} while( 1 );
+
+	if( qRgn == 0 )
+	{
+		logStr( 1, "WARINIG: FixWraparound cannot find any region. Is this an empty map?\n" );
+		return VWB_ERROR_GENERIC;
+	}
+
+	if( qRgn == 1 )
+	{
+		logStr( 2, "NOTE: FixWraparound found one region. No seam detected - nothing to do.\n" );
+		return VWB_ERROR_NONE;
+	}
+
+	logStr( 2, "NOTE: FixWraparound found %d regions. Wrapping UVs.\n", qRgn );
+	for( i = 1; i <= qRgn; i++ )
+		lCand[i].x = 0;
+
+	for( pR = pRS, pW = pWS; pW < pWE; pW++, pR++ )
+		if( *pR > 0 )
+		{
+			SSPCoord& c = lCand[*pR];
+
+			if( c.x == 0 )
+			{
+				c.vLTRB[0] = c.vLTRB[2] = pW->x;
+				c.vLTRB[1] = c.vLTRB[3] = pW->y;
+			}
+			else
+			{
+				xF = pW->x;
+				if( xF < c.vLTRB[0] )
+					c.vLTRB[0] = xF;
+				else if( xF > c.vLTRB[2] )
+					c.vLTRB[2] = xF;
+				yF = pW->y;
+				if( yF < c.vLTRB[1] )
+					c.vLTRB[1] = yF;
+				else if( yF > c.vLTRB[3] )
+					c.vLTRB[3] = yF;
+			}
+			c.x++;
+		}
+
+	k = 1;
+	kS = lCand[1].x;
+	for( i = 2; i <= qRgn; i++ )
+		if( lCand[i].x > kS )
+		{
+			k = i;
+			kS = lCand[i].x;
+		}
+
+	pMain = lCand[k].vLTRB;
+	for( i = 1; i <= qRgn; i++ )
+		if( i != k )
+		{
+			pTest = lCand[i].vLTRB;
+
+			if( ( pMain[0] - ( pTest[2] - 1.0f ) ) < ( pTest[0] - pMain[2] ) )
+				lCand[i].xF = -1.0f;
+			else if( ( ( pTest[0] + 1.0f ) - pMain[2] ) < ( pMain[0] - pTest[2] ) )
+				lCand[i].xF = 1.0f;
+			else
+				lCand[i].xF = 0.0f;
+
+			if( ( pMain[1] - ( pTest[3] - 1.0f ) ) < ( pTest[1] - pMain[3] ) )
+				lCand[i].yF = -1.0f;
+			else if( ( ( pTest[1] + 1.0f ) - pMain[3] ) < ( pMain[1] - pTest[3] ) )
+				lCand[i].yF = 1.0f;
+			else
+				lCand[i].yF = 0.0f;
+		}
+		else
+		{
+			lCand[i].xF = 0.0f;
+			lCand[i].yF = 0.0f;
+		}
+
+	for( pR = pRS, pW = pWS; pW < pWE; pW++, pR++ )
+		if( *pR > 0 )
+		{
+			SSPCoord& c = lCand[*pR];
+
+			pW->x += c.xF;
+			pW->y += c.yF;
+		}
+
+	{
+		// we need to recalculate...
+		float minU = FLT_MAX, minV = FLT_MAX;
+		float maxU = -FLT_MAX, maxV = -FLT_MAX;
+		for( auto const* p = wb.pWarp, *pE = p + wb.header.width * wb.header.height; p != pE; p++ )
+		{
+			if( 0.5f < p->z )
+			{
+				if( minU > p->x )
+					minU = p->x;
+				if( maxU < p->x )
+					maxU = p->x;
+				if( minV > p->y )
+					minV = p->y;
+				if( maxV < p->y )
+					maxV = p->y;
+			}
+		}
+		if( minU != FLT_MAX && minV != FLT_MAX &&
+			maxU != -FLT_MAX && maxV != -FLT_MAX )
+		{
+			wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
+			wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
+			wb.header.vPartialCnt[0] = minU;
+			wb.header.vPartialCnt[1] = minV;
+			wb.header.vPartialCnt[2] = maxU;
+			wb.header.vPartialCnt[3] = maxV;
+		}
+		else
+		{
+			logStr( 1, "WARINIG: FixWraparound cannot find min-max bound of screen.\n" );
+			return VWB_ERROR_GENERIC;
+		}
+	}
+	optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
+	optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
+	optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
+	optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
+	optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
+	optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+
 	return VWB_ERROR_NONE;
 }
 

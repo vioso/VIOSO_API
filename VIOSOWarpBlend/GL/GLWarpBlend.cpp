@@ -9,7 +9,7 @@
 
 GLfloat GLWarpBlend::colBlack[4] = {0,0,0,0};
 //save a texture to .tif image
-bool GLWarpBlend::savetex (char filename[MAX_PATH],GLint iTex)
+bool GLWarpBlend::savetex (char const *filename,GLint iTex)
 {// get the image data
 	bool bRet = false;
 	GLenum err = glGetError();
@@ -81,6 +81,7 @@ GLWarpBlend::GLWarpBlend():
 	m_locBlend( -1 ),
 	m_locBlack( -1 ),
 	m_locSize( -1 ),
+	m_locSizeBypass( -1 ),
 	m_locDoNotBlend( -1 ),
 	m_locDoNoBlack( -1 ),
 	m_locContent( -1 ),
@@ -291,6 +292,7 @@ VWB_ERROR GLWarpBlend::CreatePixelShader()
 		return VWB_ERROR_SHADER;
 	}
 	m_locContentBypass = glGetUniformLocation( m_ProgramBypass, "samContent" );
+	m_locSizeBypass = glGetUniformLocation( m_ProgramBypass, "size" );
 
 	m_FragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
 	iS++;
@@ -389,7 +391,7 @@ VWB_ERROR GLWarpBlend::CreatePixelShader()
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR GLWarpBlend::FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid* data, GLint filter, GLenum wrap )
+VWB_ERROR GLWarpBlend::FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid const* data, GLint filter, GLenum wrap )
 {
 	GLenum err = ::glGetError();
 	glTexImage2D( GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, data );
@@ -758,15 +760,20 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	#ifdef _NDI_DISP
 	if( NDIlib_video_frame_v2_t* const& frame = (NDIlib_video_frame_v2_t*)m_ndi_frame; frame && frame->p_data )
 	{
+		::glActiveTexture( GL_TEXTURE0 + m_locContent );
+		::glBindTexture( GL_TEXTURE_2D, -1 );
+		::glActiveTexture( GL_TEXTURE0 + m_locContentBypass );
+		::glBindTexture( GL_TEXTURE_2D, -1 );
 		::glActiveTexture( GL_TEXTURE0 );
 		::glBindTexture( GL_TEXTURE_2D, m_texBB );
-		GLint internalFormat = GL_RGB;
+		GLint internalFormat = GL_RGBA8;
 		GLint fillFormat = frame->FourCC == NDIlib_FourCC_video_type_RGBA ? GL_RGBA : GL_RGB;
 		//GLenum type = GL_RGBA;
 		if( frame->xres != m_sizeIn.cx || frame->yres != m_sizeIn.cy )
 		{
 			res = glGetError();
-			VWB_ERROR rr = FillTexture( internalFormat, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, NULL, GL_LINEAR, GL_CLAMP_TO_BORDER );
+
+			VWB_ERROR rr = FillTexture( internalFormat, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, ( void const* )frame->p_data, GL_LINEAR, GL_CLAMP_TO_BORDER );
 			if( VWB_ERROR_NONE != rr )
 			{
 				logStr( 0, "ERROR: %d failed to fill overlay texture:\n", rr );
@@ -778,6 +785,8 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_sizeIn.cx = frame->xres;
 			m_sizeIn.cy = frame->yres;
 		}
+		// unbind texture before updating it's content
+
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, (void const*)frame->p_data );
 		auto err = glGetError();
 		iSrc = m_texBB;
@@ -969,7 +978,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			else
 			{
 				glBindVertexArray(m_iVertexArray);
-				glUniform4f( m_locSize, (GLfloat)viewport[2], (GLfloat)viewport[3],1.0f/viewport[2], 1.0f/viewport[3] );
+				glUniform4f( overlay ? m_locSizeBypass : m_locSize, (GLfloat)viewport[2], (GLfloat)viewport[3],1.0f/viewport[2], 1.0f/viewport[3] );
 				glDisable(GL_DEPTH_TEST); 
 				glDisable(GL_CLIP_PLANE0);
 				glDisable(GL_CLIP_PLANE1);

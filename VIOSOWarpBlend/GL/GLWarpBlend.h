@@ -22,6 +22,7 @@ protected:
 	GLuint					m_locBlend;
 	GLuint					m_locBlack;
 	GLuint					m_locSize;
+	GLuint					m_locSizeBypass;
 	GLuint					m_locDoNotBlend;
 	GLuint					m_locDoNoBlack;
 	GLuint					m_locOffsScale;
@@ -65,10 +66,10 @@ public:
 protected:
 	// Helper functions
     VWB_ERROR CreatePixelShader();
-	VWB_ERROR FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid* data, GLint filter, GLenum wrap );
+	VWB_ERROR FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid const* data, GLint filter, GLenum wrap );
     void    SetTexture(GLuint texLoc, GLuint tex, GLuint wrapMode = GL_CLAMP_TO_BORDER) const;
 	static GLfloat colBlack[4];
-	static bool savetex( char filename[MAX_PATH], GLint iTex );
+	static bool savetex( char const* filename, GLint iTex );
 };
 
 #endif //ndef VWB_GLWARPBLEND_HPP
