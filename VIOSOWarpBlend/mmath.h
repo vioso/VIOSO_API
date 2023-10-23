@@ -1391,14 +1391,14 @@ _inline_ void MakeSymmetric( VWB_MATRIX<T>& V, T( &clip )[6] )
 
 	// angles
 	T a[] = {
-		atan( clip[0] * nearRec ),
-		atan( clip[1] * nearRec ),
-		atan( clip[2] * nearRec ),
-		atan( clip[3] * nearRec ) };
+        std::atan( clip[0] * nearRec ),
+        std::atan( clip[1] * nearRec ),
+        std::atan( clip[2] * nearRec ),
+        std::atan( clip[3] * nearRec ) };
 
 	// normalized distance in x and y
-	T dxn = tan( ( a[2] - a[0] ) / 2 );
-	T dyn = tan( ( a[3] - a[1] ) / 2 );
+    T dxn = std::tan( ( a[2] - a[0] ) / 2 );
+    T dyn = std::tan( ( a[3] - a[1] ) / 2 );
 
 	// new clip
 	clip[0] = clip[2] = tan( ( a[0] + a[2] ) / 2 ) * clip[4];

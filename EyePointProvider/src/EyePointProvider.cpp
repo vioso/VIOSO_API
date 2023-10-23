@@ -126,7 +126,7 @@ void* CreateEyePointReceiver( char const* szParam )
 				return nullptr;
 		}
 		mmap( 0, sizeof( EyeShare ), PROT_WRITE, MAP_SHARED, fd_ES, 0 );
-	#endif;
+    #endif
     auto r = new Receiver;
 	pEyeShare->instanceCounter++;
     timespec tm;

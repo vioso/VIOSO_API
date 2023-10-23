@@ -570,7 +570,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 
 template<typename T> inline void splitMap(T*& in, size_t wIn, size_t hIn, size_t oxIn, size_t oyIn, size_t wOut, size_t hOut )
 {
-	UNREFERENCED_PARAMETER( hIn );
+    //UNREFERENCED_PARAMETER( hIn );
 	size_t nOut = wOut * hOut;
 	auto out = new T[nOut];
 	const size_t padd = wIn - wOut;

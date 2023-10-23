@@ -47,6 +47,8 @@
     #define closeSockets() (0)
     typedef struct WSADATA { int i; } WSADATA;
     typedef fd_set FD_SET;
+    typedef unsigned char UCHAR;
+    typedef uint32_t ULONG;
     #define FD_IS_ANY_SET(fd) (fd.fds_bits != 0)
 #endif /* WIN32 */
 
@@ -310,11 +312,8 @@ public:
 	//static _inline_ int64_t hton(int64_t  hostlong) { return *(int64_t*)::htonll(*(u_int64*)&hostlong); }
 	static _inline_ in_addr makeInAddr(UCHAR b1, UCHAR b2, UCHAR b3, UCHAR b4)
 	{
-		in_addr ret;
-		ret.s_net = b1;
-		ret.s_host = b2;
-		ret.s_lh = b3;
-		ret.s_impno = b4;
+        in_addr ret;
+        ret.s_addr = uint32_t(b1) + ( uint32_t(b2) << 8 ) + ( uint32_t(b3) << 16 ) + ( uint32_t(b4) << 24 );
 		return ret;
 	}
 	static _inline_ in_addr makeInAddr(ULONG addr)

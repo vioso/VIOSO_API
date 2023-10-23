@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 
-project(VIOSOWarpBlend VERSION 1.6.6 DESCRIPTION "VIOSOWarpBlend library" LANGUAGES CXX C)
+project(VIOSOWarpBlend VERSION 2.0.0 DESCRIPTION "VIOSOWarpBlend library" LANGUAGES CXX C)
 
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
@@ -33,8 +33,9 @@ set_property(TARGET VIOSOWarpBlend PROPERTY CXX_STANDARD 20)
 if(WIN32)
     target_link_libraries (VIOSOWarpBlend opengl32 glu32)
 else()
-    target_link_libraries (VIOSOWarpBlend GL GLU)
+    target_link_libraries (VIOSOWarpBlend GL GLU libdl.so )
     target_link_options(VIOSOWarpBlend BEFORE PRIVATE "-rdynamic")
 endif(WIN32)
 set_target_properties(VIOSOWarpBlend PROPERTIES ENABLE_EXPORTS 1)
 include_directories(${CMAKE_SOURCE_DIR}/Include)
+add_compile_definitions(_NDI_DISP)

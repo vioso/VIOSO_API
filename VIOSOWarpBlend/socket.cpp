@@ -182,8 +182,8 @@ int Socket::getSendBuffSize(int& size)
 }
 
 int Socket::close()
-{ 
-	if(sock == NULL || sock == INVALID_SOCKET) 
+{
+    if(sock == 0 || sock == INVALID_SOCKET)
 		return SOCKET_ERROR;
 	int ret=0;
 
@@ -370,7 +370,7 @@ int Socket::close(SOCKET& s)
 	ret=::close(s);
 #endif /* def WIN32 */
 
-	s=NULL;
+    s=0;
 
 	return ret;
 }

@@ -865,6 +865,28 @@ int main( int argc, char* argv[] )
 	#define GL_EXT_INITIALIZE
 	#include "../../VIOSOWarpBlend/GL/GLext.h"
 
+#ifdef USE_VIOSO_API
+    try {
+        pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
+    }
+    catch( VWB_ERROR )
+    {
+        return 0;
+    }
+    if( VWB_ERROR_NONE != pWarper->Init() )
+        return 0;
+
+    float tl[3];
+    float tr[3];
+    float bl[3];
+    float br[3];
+    if( VWB_ERROR_NONE == pWarper->GetScreenplane( tl, tr, bl, br ) )
+    {
+        // review screen corners
+        tl;
+    }
+#endif //def USE_VIOSO_API
+
 
 	if( !InitGL() )
 		return 1;

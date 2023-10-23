@@ -88,7 +88,7 @@ char* MkPath( char* szPath, size_t nMaxPath, char const* ext )
 			sModPath = path( sModPath.c_str() ).parent_path(); // using c_str() operator also cuts off all zeros
     #else
 		Dl_info dl_info;
-		if( dladdr( ( void* )MkPath, &dl_info ) && dl_info.dli_fname[0] )
+        if( 0 ) //dladdr( (void*)&GetIniString, &dl_info ) && dl_info.dli_fname[0] )
 		{
 			sModPath = path( dl_info.dli_fname ).parent_path();
     #endif //def WIN32

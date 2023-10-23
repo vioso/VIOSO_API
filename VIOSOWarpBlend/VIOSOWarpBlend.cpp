@@ -20,6 +20,7 @@
 #include <float.h>
 #include <list>
 #include <fstream>
+#include <atomic>
 #ifdef WIN32
 #include <crtdbg.h>
 #endif
@@ -49,7 +50,7 @@ Listeners g_listeners;
 #include "3rdparty/NDI/Include/Processing.NDI.DynamicLoad.h"
 #include <filesystem>
 NDIlib_v5 const* g_ndi = nullptr;
-std::atomic_int g_ndi_refcount = 0;
+std::atomic<int> g_ndi_refcount = 0;
 NDIlib_find_instance_t g_ndi_find = nullptr;
 
 #ifdef WIN32
@@ -591,7 +592,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 	#ifdef _NDI_DISP
 	if( pWarper->ndiCalibStream[0] )
-	{
+    {
 		if( 1 == ++g_ndi_refcount )
 		{
 			// We check whether the NDI run-time is installed
@@ -618,9 +619,15 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 				// Try to load the library
 				g_hNDILib = dlopen( ndi_path.c_str(), RTLD_LOCAL | RTLD_LAZY );
 
-				if( g_hNDILib )
-					fnld = ( fnld_t )dlsym( g_hNDILib, "NDIlib_v4_load" );
-			#endif //def WIN32
+                if( !g_hNDILib )
+                {
+                ndi_path = std::filesystem::current_path();
+                    ndi_path /= NDILIB_LIBRARY_NAME;
+                    g_hNDILib = dlopen( ndi_path.c_str(), RTLD_LOCAL | RTLD_LAZY );
+                }
+                if( g_hNDILib )
+                    fnld = ( fnld_t )dlsym( g_hNDILib, "NDIlib_v5_load" );
+            #endif //def WIN32
 
 			// If we failed to load the library then we tell people to re-install it
 			if( !fnld ) {
@@ -3660,13 +3667,6 @@ int expandPseudoGrid( VWB_WarpRecord* pSrcD, VWB_BlendRecord2* pSrcDB, long widt
 VWB_ERROR Dummywarper::getWarpBlend( VWB_WarpBlend const*& wb )
 {
 	wb = &m_wb;
-	size_t a = offsetof( VWB_WarpBlend, path );
-	size_t b = offsetof( VWB_WarpBlend, pWarp );
-	size_t c = offsetof( VWB_WarpBlend, pBlend );
-	size_t d = offsetof( VWB_WarpBlend, pBlend2 );
-	size_t e = offsetof( VWB_WarpBlend, pBlend3 );
-	size_t f = offsetof( VWB_WarpBlend, pBlack );
-	size_t g = offsetof( VWB_WarpBlend, pWhite );
 	return VWB_ERROR_NONE;
 }
 
