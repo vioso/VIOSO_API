@@ -693,15 +693,29 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
+	static char cc = '9';
+	if( '9' == cc )
+		cc = '0';
+	else
+		cc++;
+
 	__super::Render( inputTexture, stateMask );
 	HRESULT res = E_FAIL;
+
+	logStr( 4, "RenderDX11( %p, 0x%x", inputTexture, stateMask );
+
 	if( VWB_STATEMASK_STANDARD == stateMask )
+	{
+		logStr( 4, "Using standard Statemask 0x%x", VWB_STATEMASK_DEFAULT );
 		stateMask = VWB_STATEMASK_DEFAULT;
+	}
 
 	if (overrideStatemask != 0)
+	{
+		logStr( 4, "Override Statemask with 0x%x", overrideStatemask );
 		stateMask = overrideStatemask;
+	}
 
-	logStr( 4, "RenderDX11..." );
 	if( NULL == m_PixelShader || NULL == m_device )
 	{
 		logStr( 3, "DX device or shader program not available.\n" );
@@ -803,7 +817,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				{
 					char path[MAX_PATH];
 					strcpy_s( path, g_logFilePath );
-					strcat_s( path, ".bb.bmp" );
+					auto ss = strlen( path );
+					strcpy_s( path + ss, MAX_PATH - ss, ".bbc.bmp" );
+					path[ ss + 3 ] = cc;
 					SaveTex( path, m_device, m_dc, pTex );
 				}
 				D3D11_TEXTURE2D_DESC desc;
@@ -1009,7 +1025,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			{
 				char path[MAX_PATH];
 				strcpy_s( path, g_logFilePath );
-				strcat_s( path, ".texin.bmp" );
+				auto ss = strlen( path );
+				strcpy_s( path + ss, MAX_PATH - ss, ".texinc.bmp" );
+				path[ ss + 6 ] = cc;
 				SaveTex( path, m_device, m_dc, pTex );
 				SAFERELEASE( pTex );
 			}
@@ -1054,6 +1072,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		m_dc->RSGetViewports( &oldNVP, nullptr );
 		m_dc->RSGetViewports( &oldNVP, pOldVP );
 		m_dc->RSSetViewports( 1, &m_vp );
+		logStr( 4, "Set viewport to ( %f, %f ) - ( %f x %f ) %f to %f", m_vp.TopLeftX, m_vp.TopLeftY, m_vp.Width, m_vp.Height, m_vp.MinDepth, m_vp.MaxDepth );
 	}
 	if( VWB_STATEMASK_VERTEX_BUFFER & stateMask )
 		m_dc->IAGetVertexBuffers( 0, 1, &pOldVtx, &oldStride, &oldOffset );

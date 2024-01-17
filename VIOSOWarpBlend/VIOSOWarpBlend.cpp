@@ -1292,37 +1292,35 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			{
 				VWB_ERROR res = FixWraparound( *wbs[calibIndex] );
 				if( VWB_ERROR_NONE != res )
-					logStr( 0, "ERROR: Autoview returns error %d.\n", res );
+					logStr( 0, "ERROR: FixWraparound returns error %d.\n", res );
+			}
+
+			if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
+			{
+				optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
+				optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
 			}
 			else
 			{
-				if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
-				{
-					optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
-					optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
-				}
-				else
-				{
-					optimalRes.cx = wb.header.width;
-					optimalRes.cy = wb.header.height;
-					logStr( 2, "WARNING: AutoView could not calculate optimal resolution due to missing information in warp file\n" );
-				}
-				if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
-					0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
-				{
-					optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
-					optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
-					optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
-					optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
-				}
-				else
-				{
-					optimalRect.left = 0;
-					optimalRect.top = 0;
-					optimalRect.right = wb.header.width;
-					optimalRect.bottom = wb.header.height;
-					logStr( 2, "WARNING: AutoView could not calculate optimal partial rect due to missing information in warp file\n" );
-				}
+				optimalRes.cx = wb.header.width;
+				optimalRes.cy = wb.header.height;
+				logStr( 2, "WARNING: AutoView could not calculate optimal resolution due to missing information in warp file\n" );
+			}
+			if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
+				0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
+			{
+				optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
+				optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
+				optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
+				optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+			}
+			else
+			{
+				optimalRect.left = 0;
+				optimalRect.top = 0;
+				optimalRect.right = wb.header.width;
+				optimalRect.bottom = wb.header.height;
+				logStr( 2, "WARNING: AutoView could not calculate optimal partial rect due to missing information in warp file\n" );
 			}
 			logStr( 1, "INFO: AutoView for channel [%s] yields:\n"
 				"optimalRes=[%d, %d]\n"
@@ -2039,12 +2037,6 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 			return VWB_ERROR_GENERIC;
 		}
 	}
-	optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
-	optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
-	optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
-	optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
-	optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
-	optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
 
 	return VWB_ERROR_NONE;
 }
