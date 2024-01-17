@@ -274,6 +274,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt( "default", "bFixWraparound", bFixWraparound, path );
 		bFixWraparound = 0 != GetIniInt( channel, "bFixWraparound", iDef, path );
 
+		D3D12RTVF = GetIniInt( "default", "D3D12RTVF", D3D12RTVF, path );
+		D3D12RTVF = GetIniInt( channel, "D3D12RTVF", D3D12RTVF, path );
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -1478,6 +1481,7 @@ void VWB_Warper_base::Defaults()
 	calibIndex = -1;
 	bAutoView = true;
 	gamma = 1;
+	D3D12RTVF = 28;
 }
 
 VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )

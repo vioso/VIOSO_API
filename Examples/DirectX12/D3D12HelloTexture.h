@@ -95,6 +95,6 @@ private:
     void LoadPipeline();
     void LoadAssets();
     std::vector<UINT8> GenerateTextureData();
-    void PopulateCommandList();
+    void DrawSomething();
     void WaitForPreviousFrame();
 };

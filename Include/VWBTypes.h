@@ -207,6 +207,9 @@ struct VWB_Warper
 	char	ndiCalibStream[MAX_PATH];
 	/// use to announce server IPs, comma separated. defaults to "" (empty string)
 	char	ndiExtraIPs[MAX_PATH];
+	
+	/// optional DXGI_FORMAT for D3D12 render pipeline creation, defaults to DXGI_FORMAT_R8G8B8A8_UNORM
+	VWB_uint D3D12RTVF;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------
@@ -711,11 +714,11 @@ typedef struct VWB_WarpBlendMesh // a triangle list mesh
 typedef struct VWB_D3D12_RENDERINPUT
 {
 	IUnknown* textureResource; // ID3D12Resource*, if NULL we use rendertarget as source and issue a copy, must be in D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE state
-	IUnknown* renderTarget; // ID3D12Resource* must be set to add a barrier to command list or to use as copy source, must be in D3D12_RESOURCE_STATE_PRESENT state
+	IUnknown* renderTarget; // ID3D12Resource* must be set to add a barrier to command list or to use as copy source, must be in D3D12_RESOURCE_STATE_RENDER_TARGET state
 	UINT64    rtvHandlePtr; // ptr value from D3D12_CPU_DESCRIPTOR_HANDLE of render target descriptor heap
 	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftX, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
+	IUnknown* commandList;  // optional ID3D12GraphicsCommandList* to use, instead of the created one by VIOSO API
 } VWB_D3D12_RENDERINPUT;
-
 
 typedef void (*VWB_pfnXPLMSetGraphicsState)( int inEnableFog, int inNumberTexUnits, int inEnableLighting, int inEnableAlphaTesting, int inEnableAlphaBlending, int inEnableDepthTesting, int inEnableDepthWriting );
 typedef void (*VWB_pfnXPLMBindTexture2d)( int inTextureNum, int inTextureUnit );

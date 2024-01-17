@@ -226,10 +226,10 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 			// compile shader
 			#if defined(_DEBUG)
-					// Enable better shader debugging with the graphics debugging tools.
-			UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+				// Enable better shader debugging with the graphics debugging tools.
+				UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 			#else
-			UINT compileFlags = 0;
+				UINT compileFlags = 0;
 			#endif
 			CComPtr< ID3DBlob > errBlob;
 			CComPtr< ID3DBlob > vsBlob;
@@ -286,7 +286,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			psDesc.SampleMask = UINT_MAX;
 			psDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 			psDesc.NumRenderTargets = 1;
-			psDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+			psDesc.RTVFormats[0] = ( DXGI_FORMAT )D3D12RTVF;
 			psDesc.SampleDesc.Count = 1;
 
 			hr = m_device->CreateGraphicsPipelineState( &psDesc, IID_PPV_ARGS( &m_pipelineState ) );
@@ -623,13 +623,23 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT_D3D12;
 
-	VWB_D3D12_RENDERINPUT* in = (VWB_D3D12_RENDERINPUT*)inputTexture;
+	auto in = (VWB_D3D12_RENDERINPUT*)inputTexture;
 	if( nullptr == in || nullptr == in->renderTarget || 0 == in->rtvHandlePtr )
 		return VWB_ERROR_PARAMETER;
 	HRESULT hr = S_OK;
 
-	hr = m_ca->Reset();
-	hr = m_cl->Reset( m_ca, m_pipelineState );
+	ID3D12GraphicsCommandList* cl = nullptr;
+	if( in->commandList )
+	{
+		cl = ( ID3D12GraphicsCommandList* )in->commandList;
+		cl->SetPipelineState( m_pipelineState );
+	}
+	else
+	{
+		hr = m_ca->Reset();
+		hr = m_cl->Reset( m_ca, m_pipelineState );
+		cl = m_cl;
+	}
 
 	ID3D12Resource* rt = (ID3D12Resource*)in->renderTarget;
 	D3D12_RESOURCE_DESC descRT = rt->GetDesc();
@@ -685,17 +695,17 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				}
 			},
 		};
-		m_cl->ResourceBarrier( _countof( rB ), rB );
+		cl->ResourceBarrier( _countof( rB ), rB );
 
 		// issue copy
-		m_cl->CopyResource( m_texBB, rt );
+		cl->CopyResource( m_texBB, rt );
 
 		// make rt render target again
 		rB[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
 		rB[0].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		rB[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
 		rB[1].Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-		m_cl->ResourceBarrier( _countof( rB ), rB );
+		cl->ResourceBarrier( _countof( rB ), rB );
 	}
 	else
 	{
@@ -755,13 +765,13 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		cb.blackBias[3] = 0;
 	}
 
-	m_cl->SetGraphicsRootSignature( m_rootSignature );
+	cl->SetGraphicsRootSignature( m_rootSignature );
 
 	ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap };
-	m_cl->SetDescriptorHeaps( _countof(ppHeaps) , ppHeaps );
+	cl->SetDescriptorHeaps( _countof(ppHeaps) , ppHeaps );
 
-	m_cl->SetGraphicsRootConstantBufferView( 0, m_cb->GetGPUVirtualAddress() );
-	m_cl->SetGraphicsRootDescriptorTable( 1, m_srvHeap->GetGPUDescriptorHandleForHeapStart() );
+	cl->SetGraphicsRootConstantBufferView( 0, m_cb->GetGPUVirtualAddress() );
+	cl->SetGraphicsRootDescriptorTable( 1, m_srvHeap->GetGPUDescriptorHandleForHeapStart() );
 
 
 	D3D12_VIEWPORT vp;
@@ -773,17 +783,17 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	{
 		vp = { 0.0f, 0.0f, (FLOAT)descRT.Width, (FLOAT)descRT.Height, 0.0f, 1.0f };
 	}
-	m_cl->RSSetViewports( 1, &vp );
+	cl->RSSetViewports( 1, &vp );
 	const D3D12_RECT sr{ 0, 0, (LONG)descRT.Width, (LONG)descRT.Height };
-	m_cl->RSSetScissorRects( 1, &sr );
+	cl->RSSetScissorRects( 1, &sr );
 	const D3D12_CPU_DESCRIPTOR_HANDLE rtvs[]{ { SIZE_T(in->rtvHandlePtr) } };
-	m_cl->OMSetRenderTargets( _countof( rtvs ), rtvs, FALSE, nullptr );
+	cl->OMSetRenderTargets( _countof( rtvs ), rtvs, FALSE, nullptr );
 	if( VWB_STATEMASK_CLEARBACKBUFFER & stateMask )
 	{
 		if( in->rtvHandlePtr )
 		{
 			const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-			m_cl->ClearRenderTargetView( { SIZE_T(in->rtvHandlePtr) }, clearColor, 0, nullptr );
+			cl->ClearRenderTargetView( { SIZE_T(in->rtvHandlePtr) }, clearColor, 0, nullptr );
 		}
 		else
 		{
@@ -799,26 +809,15 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		}
 	}
 
-	m_cl->IASetVertexBuffers( 0, 1, &m_vertexBufferView );
-	m_cl->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-	m_cl->DrawInstanced( 6, 1, 0, 0 );
+	cl->IASetVertexBuffers( 0, 1, &m_vertexBufferView );
+	cl->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+	cl->DrawInstanced( 6, 1, 0, 0 );
 
-	// flag rt for present
-	D3D12_RESOURCE_BARRIER rB
+	if( !in->commandList )
 	{
-		D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-		D3D12_RESOURCE_BARRIER_FLAG_NONE,
-		D3D12_RESOURCE_TRANSITION_BARRIER{
-			(ID3D12Resource*)in->renderTarget,
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			D3D12_RESOURCE_STATE_PRESENT
-		}
-	};
-	m_cl->ResourceBarrier( 1, &rB );
-
-	hr = m_cl->Close();
-	m_cq->ExecuteCommandLists( 1, (ID3D12CommandList*const*)&m_cl );
+		hr = m_cl->Close();
+		m_cq->ExecuteCommandLists( 1, ( ID3D12CommandList* const* )&m_cl );
+	}
 
 	return SUCCEEDED( hr ) ? VWB_ERROR_NONE : VWB_ERROR_GENERIC;
 }

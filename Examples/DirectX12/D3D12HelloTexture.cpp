@@ -467,21 +467,37 @@ void D3D12HelloTexture::OnUpdate()
 // Render the scene.
 void D3D12HelloTexture::OnRender()
 {
-    // Record all the commands we need to render the scene into the command list.
-    PopulateCommandList();
+    // Command list allocators can only be reset when the associated 
+    // command lists have finished execution on the GPU; apps should use 
+    // fences to determine GPU execution progress.
+    ThrowIfFailed( m_commandAllocator->Reset() );
 
-    // Execute the command list.
-    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+    // However, when ExecuteCommandList() is called on a particular command 
+    // list, that command list can then be reset at any time and must be before 
+    // re-recording.
+    ThrowIfFailed( m_commandList->Reset( m_commandAllocator.Get(), m_pipelineState.Get() ) );
+
+    // Record all the commands we need to render the scene into the command list.
+    DrawSomething();
 
     #ifdef USE_VIOSO_API
     VWB_D3D12_RENDERINPUT vri = {
         nullptr,
         m_renderTargets[m_frameIndex].Get(),
-        CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize ).ptr
+        CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize ).ptr,
+        {0.0f,0.0f,0.0f,0.0f,0.0f,0.0f},
+        m_commandList.Get() // we use own command list
     };
     VWB_render( m_warper, &vri, VWB_STATEMASK_DEFAULT_D3D12/* | VWB_STATEMASK_CLEARBACKBUFFER*/ );
-    #endif
+    #endif // def USE_VIOSO_API
+    // Execute the command list.
+
+    // Indicate that the back buffer will now be used to present.
+    m_commandList->ResourceBarrier( 1, &keep(CD3DX12_RESOURCE_BARRIER::Transition( m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT ) ) );
+
+    ThrowIfFailed( m_commandList->Close() );
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
 
     // Present the frame.
     ThrowIfFailed(m_swapChain->Present(1, 0));
@@ -497,20 +513,13 @@ void D3D12HelloTexture::OnDestroy()
 
     CloseHandle(m_fenceEvent);
     m_constantBuffer->Unmap( 0, NULL );
+    #ifdef USE_VIOSO_API
+    VWB_Destroy( m_warper );
+    #endif // def USE_VIOSO_API
 }
 
-void D3D12HelloTexture::PopulateCommandList()
+void D3D12HelloTexture::DrawSomething()
 {
-    // Command list allocators can only be reset when the associated 
-    // command lists have finished execution on the GPU; apps should use 
-    // fences to determine GPU execution progress.
-    ThrowIfFailed(m_commandAllocator->Reset());
-
-    // However, when ExecuteCommandList() is called on a particular command 
-    // list, that command list can then be reset at any time and must be before 
-    // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
-
     // Set necessary state.
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
@@ -551,13 +560,6 @@ void D3D12HelloTexture::PopulateCommandList()
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
 
     m_commandList->DrawInstanced((UINT)m_vertexBufferData.size(), 1, 0, 0);
-
-    #ifndef USE_VIOSO_API
-    // Indicate that the back buffer will now be used to present.
-    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
-    #endif //ndef USE_VIOSO_API
-
-    ThrowIfFailed(m_commandList->Close());
 }
 
 void D3D12HelloTexture::WaitForPreviousFrame()
