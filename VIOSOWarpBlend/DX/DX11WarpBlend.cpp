@@ -193,6 +193,7 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
   m_PixelShader(NULL),
   m_SSClamp(NULL),
   m_SSLin(NULL),
+  m_SSWrap(NULL),
   m_ConstantBuffer(NULL),
   m_texRT( NULL ),
   m_texWarp(NULL),
@@ -239,6 +240,7 @@ DX11WarpBlend::~DX11WarpBlend(void)
 	//SAFERELEASE( m_IndexBufferModel );
 	SAFERELEASE( m_SSLin );
 	SAFERELEASE( m_SSClamp );
+	SAFERELEASE( m_SSWrap );
 	SAFERELEASE( m_ConstantBuffer );
 	SAFERELEASE( m_dc );
 	SAFERELEASE( m_device );
@@ -266,6 +268,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 	//SAFERELEASE( m_IndexBufferModel );
 	SAFERELEASE( m_SSLin );
 	SAFERELEASE( m_SSClamp );
+	SAFERELEASE( m_SSWrap );
 	SAFERELEASE( m_ConstantBuffer );
 
 	m_focusWnd = ::GetActiveWindow();
@@ -608,6 +611,10 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			FLT_MAX, //FLOAT MaxLOD;
 		};
 		m_device->CreateSamplerState( &descSam, &m_SSLin );
+
+		descSam.AddressU = descSam.AddressV = descSam.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		m_device->CreateSamplerState( &descSam, &m_SSWrap );
+
 		descSam.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
 		descSam.AddressU = descSam.AddressV = descSam.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		m_device->CreateSamplerState( &descSam, &m_SSClamp );
@@ -1275,9 +1282,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	m_dc->PSSetConstantBuffers( 0, 1, &m_ConstantBuffer );
 
 	ID3D11ShaderResourceView* ppRes[] = { m_texWarp, m_texBlend, m_texCur, m_texBlack, m_texBB };
-	ID3D11SamplerState* ppSam[] = { m_SSClamp, m_SSLin, m_SSLin, m_SSLin, m_SSLin };
+	ID3D11SamplerState* ppSam[] = { m_SSLin, m_SSClamp, bFixWraparound ? m_SSWrap : m_SSLin };
 	m_dc->PSSetShaderResources( 0, ARRAYSIZE( ppRes ), ppRes );
-	m_dc->PSSetSamplers( 0, 5, ppSam );
+	m_dc->PSSetSamplers( 0, ARRAYSIZE( ppSam ), ppSam );
 
 	m_dc->OMSetBlendState( m_BlendState, NULL, 0xFFFFFFFF );
 	m_dc->OMSetDepthStencilState( m_DepthState, 0 );

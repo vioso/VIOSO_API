@@ -27,6 +27,7 @@ protected:
     //ID3D11Buffer*				m_IndexBufferModel; // the index buffer to that vertex buffer of a model
 	ID3D11SamplerState*			m_SSLin;
 	ID3D11SamplerState*			m_SSClamp;
+	ID3D11SamplerState*			m_SSWrap;
 	ID3D11Buffer*				m_ConstantBuffer;
 	ID3D11RasterizerState*		m_RasterState;
 	ID3D11InputLayout*			m_Layout;

@@ -45,7 +45,7 @@ typedef map< uint16_t, shared_ptr<VWBTCPListener>> Listeners;
 Listeners g_listeners;
 #endif //def _SOCKTEST_DEV
 
-#ifdef _NDI_DISP
+#ifdef VWB_NDI_DISP
 #include "3rdparty/NDI/Include/Processing.NDI.Lib.h"
 #include "3rdparty/NDI/Include/Processing.NDI.DynamicLoad.h"
 #include <filesystem>
@@ -58,7 +58,7 @@ HMODULE g_hNDILib = 0;
 #else
 void* g_hNDILib = nullptr;
 #endif //def WIN32
-#endif //def _NDI_DISP
+#endif //def VWB_NDI_DISP
 
 #ifdef WIN32
 HMODULE g_hModDll = 0;
@@ -593,7 +593,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 	}
 #endif //def _SOCKTEST_DEV
 
-	#ifdef _NDI_DISP
+	#ifdef VWB_NDI_DISP
 	if( pWarper->ndiCalibStream[0] )
     {
 		if( 1 == ++g_ndi_refcount )
@@ -664,7 +664,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 		}
 	}
-	#endif //def _NDI_DISP
+	#endif //def VWB_NDI_DISP
 	
 	if( nullptr != extSet )
 	{
@@ -731,7 +731,7 @@ void VWB_Destroy( VWB_Warper* pWarper )
 		}
 	}
 #endif //def _SOCKTEST_DEV
-	#ifdef _NDI_DISP
+	#ifdef VWB_NDI_DISP
 	bool destroyNDI = false;
 	if( pWarper->ndiCalibStream[0] )
 	{
@@ -740,12 +740,12 @@ void VWB_Destroy( VWB_Warper* pWarper )
 			destroyNDI = true;
 		}
 	}
-	#endif //def _NDI_DISP
+	#endif //def VWB_NDI_DISP
 
 	if( pWarper )
 		delete (VWB_Warper_base*)pWarper;
 
-	#ifdef _NDI_DISP
+	#ifdef VWB_NDI_DISP
 	if( destroyNDI )
 	{
 		if( 0 == --g_ndi_refcount )
@@ -764,7 +764,7 @@ void VWB_Destroy( VWB_Warper* pWarper )
 			g_hNDILib = 0;
 		}
 	}
-	#endif //def _NDI_DISP
+	#endif //def VWB_NDI_DISP
 }
 
 VWB_ERROR VWB_getViewProj( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj )
@@ -1023,10 +1023,10 @@ VWB_Warper_base::VWB_Warper_base()
 , m_fnEPPCreate( NULL )
 , m_fnEPPGet( NULL )
 , m_fnEPPRelease( NULL )
-#ifdef _NDI_DISP
+#ifdef VWB_NDI_DISP
 , m_ndi_frame( nullptr )
 , m_ndi_recv( nullptr )
-#endif //def _NDI_DISP
+#endif //def VWB_NDI_DISP
 {
 	Defaults();
 	memset( &m_ep, 0, sizeof( m_ep ) );
@@ -1050,7 +1050,7 @@ VWB_Warper_base::~VWB_Warper_base()
 		::FreeLibrary( m_hmEPP );
         #endif
 	}
-	#ifdef _NDI_DISP
+	#ifdef VWB_NDI_DISP
 	if( g_ndi )
 	{
 		if( m_ndi_frame )
@@ -1068,7 +1068,7 @@ VWB_Warper_base::~VWB_Warper_base()
 			m_ndi_recv = nullptr;
 		}
 	}
-	#endif //def _NDI_DISP
+	#endif //def VWB_NDI_DISP
 }
 
 VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
@@ -2119,7 +2119,7 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 		}
 	}
 #endif //def _SOCKTEST_DEV
-#ifdef _NDI_DISP
+#ifdef VWB_NDI_DISP
 	if( ndiCalibStream[0] )
 	{
 		uint32_t n = 0;
@@ -2185,7 +2185,7 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 			}
 		}
 	}
-	#endif //dev _NDI_DISP
+	#endif //dev VWB_NDI_DISP
 	return VWB_ERROR_NONE;
 }
 

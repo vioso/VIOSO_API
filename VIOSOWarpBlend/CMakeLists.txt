@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 
-project(VIOSOWarpBlend VERSION 2.0.0 DESCRIPTION "VIOSOWarpBlend library" LANGUAGES CXX C)
+project(VIOSOWarpBlend VERSION 1.6.24 DESCRIPTION "VIOSOWarpBlend library" LANGUAGES CXX C)
 
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
@@ -38,4 +38,3 @@ else()
 endif(WIN32)
 set_target_properties(VIOSOWarpBlend PROPERTIES ENABLE_EXPORTS 1)
 include_directories(${CMAKE_SOURCE_DIR}/Include)
-add_compile_definitions(_NDI_DISP)

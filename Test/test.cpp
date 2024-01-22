@@ -46,7 +46,7 @@ int main( int argc, char* argv[] )
 	JSON newBuild;
 	newBuild[u8"foo"] = u8"bar";
 	newBuild[u8"other"] = JSON::List();
-	newBuild[u8"other"][0ULL] = 42;
+	newBuild[u8"other"][size_t(0)] = 42;
 	newBuild[u8"other"][1] = 43;
 	newBuild[u8"other"][2] = true;
 	newBuild[u8"other"].push_back( JSON::Value(44) );

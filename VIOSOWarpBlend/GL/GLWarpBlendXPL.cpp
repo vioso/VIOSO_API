@@ -37,7 +37,6 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 
 		XPLM->BindTexture2d( m_texWarp, 0 );
 		glActiveTexture( GL_TEXTURE0 );
-		//glBindTexture( GL_TEXTURE_2D, m_texWarp );
 		err = FillTexture( ( wbs[calibIndex]->header.flags & FLAG_WARPFILE_HEADER_3D ) ? GL_RGB32F : GL_RG32F, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_FLOAT, wbs[calibIndex]->pWarp, GL_NEAREST, GL_CLAMP_TO_BORDER );
 		if( VWB_ERROR_NONE != err )
 		{
@@ -81,7 +80,6 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 		if( wbs[calibIndex]->pBlack )
 		{
 			XPLM->BindTexture2d( m_texBlack, 0 );
-			//glBindTexture( GL_TEXTURE_2D, m_texBlack );
 			err = FillTexture( GL_RGBA8, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->pBlack, GL_LINEAR, GL_CLAMP_TO_BORDER );
 			if( VWB_ERROR_NONE != err )
 			{
@@ -129,6 +127,7 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLenum res = GL_NO_ERROR;
 	GLint iSrc = (GLint)(long long)inputTexture;
 	GLint url = -1;
+	bool overlay = false;
 
 	GLint                       matrix_mode = -1;
 	GLuint                      program = -1;
@@ -155,7 +154,7 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if( bUseGL110 )
 			glGetIntegerv( GL_CLIENT_ACTIVE_TEXTURE, &active_client_texture_unit );
 		else
-			glGetIntegerv( GL_VERTEX_ARRAY, &oldVA );
+			glGetIntegerv( GL_VERTEX_ARRAY_BINDING, &oldVA );
 
 
 		glGetIntegerv( GL_ACTIVE_TEXTURE, &( active_texture_unit ) );
@@ -175,12 +174,49 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint viewport[4] = {0};
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
+	#ifdef VWB_NDI_DISP
+	if( NDIlib_video_frame_v2_t* const& frame = ( NDIlib_video_frame_v2_t* )m_ndi_frame; frame && frame->p_data )
+	{
+		::glActiveTexture( GL_TEXTURE0 + m_locContent );
+		::glBindTexture( GL_TEXTURE_2D, -1 );
+		::glActiveTexture( GL_TEXTURE0 + m_locContentBypass );
+		::glBindTexture( GL_TEXTURE_2D, -1 );
+		::glActiveTexture( GL_TEXTURE0 );
+		::glBindTexture( GL_TEXTURE_2D, m_texBB );
+		GLint internalFormat = GL_RGBA8;
+		GLint fillFormat = frame->FourCC == NDIlib_FourCC_video_type_RGBA ? GL_RGBA : GL_RGB;
+		//GLenum type = GL_RGBA;
+		if( frame->xres != m_sizeIn.cx || frame->yres != m_sizeIn.cy )
+		{
+			res = glGetError();
+
+			VWB_ERROR rr = FillTexture( internalFormat, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, ( void const* )frame->p_data, GL_LINEAR, GL_CLAMP_TO_BORDER );
+			if( VWB_ERROR_NONE != rr )
+			{
+				logStr( 0, "ERROR: %d failed to fill overlay texture:\n", rr );
+				return VWB_ERROR_BLEND;
+			}
+			else
+				logStr( 2, "overlay texture (%dx%d) created.", frame->xres, frame->yres );
+
+			m_sizeIn.cx = frame->xres;
+			m_sizeIn.cy = frame->yres;
+		}
+		// unbind texture before updating it's content
+
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, ( void const* )frame->p_data );
+		auto err = glGetError();
+		iSrc = m_texBB;
+		overlay = true;
+	}
+	else
+	#endif //def VWB_NDI_DISP
 	if( -1 == iSrc )
 	{
 		glGetIntegerv( GL_UNPACK_ROW_LENGTH, &url );
 		glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
 
-		glActiveTexture( GL_TEXTURE0 );
+		::glActiveTexture( GL_TEXTURE0 );
 		XPLM->BindTexture2d( m_texBB, 0 );
 
 		GLint oldRB = GL_BACK;
@@ -252,33 +288,41 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( GL_NO_ERROR == res )
 	{
 		// Set the texturing modes
-		SetTexture( m_locWarp, m_texWarp);
-		SetTexture( m_locBlend, m_texBlend );
-		SetTexture( m_locBlack, m_texBlack );
-		SetTexture( m_locContent, iSrc );
+		if( !overlay )
+		{
+			SetTexture( m_locWarp, m_texWarp );
+			SetTexture( m_locBlend, m_texBlend );
+			SetTexture( m_locBlack, m_texBlack );
+			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
+		}
+		else
+			SetTexture( m_locContentBypass, iSrc );
 
 		//res = glGetError();
 		//if( GL_NO_ERROR == res )
 		{
-			if (m_bDynamicEye)
-				glUniformMatrix4fv( m_locMatView, 1, GL_TRUE, m_mVP );
-			else
-				glUniform1i( m_locBorder, m_bBorder );
-			if( bBicubic )
-				glUniform4f( m_locParams, (GLfloat)m_sizeIn.cx, (GLfloat)m_sizeIn.cy, 1.0f/m_sizeIn.cx, 1.0f/m_sizeIn.cy );
-			glUniform1i( m_locDoNotBlend, bDoNotBlend );
-			glUniform1i( m_locDoNoBlack, bDoNoBlack );
-			if(bPartialInput)
-				glUniform4f( m_locOffsScale, 
-					(GLfloat)optimalRect.left / (GLfloat)optimalRes.cx,
-					(GLfloat)optimalRect.top / (GLfloat)optimalRes.cy,
-					(GLfloat)optimalRes.cx / ((GLfloat)optimalRect.right - (GLfloat)optimalRect.left ),
-					(GLfloat)optimalRes.cy / ((GLfloat)optimalRect.bottom - (GLfloat)optimalRect.top )
-				);
-			else
-				glUniform4f( m_locOffsScale,  0.0f, 0.0f, 1.0f, 1.0f );
-			glUniform4f( m_locBlackBias, 
-						 m_blackBias.x, m_blackBias.y, m_blackBias.z, m_blackBias.w );
+			if( !overlay )
+			{
+				if( m_bDynamicEye )
+					glUniformMatrix4fv( m_locMatView, 1, GL_TRUE, m_mVP );
+				else
+					glUniform1i( m_locBorder, m_bBorder );
+				if( bBicubic )
+					glUniform4f( m_locParams, ( GLfloat )m_sizeIn.cx, ( GLfloat )m_sizeIn.cy, 1.0f / m_sizeIn.cx, 1.0f / m_sizeIn.cy );
+				glUniform1i( m_locDoNotBlend, bDoNotBlend );
+				glUniform1i( m_locDoNoBlack, bDoNoBlack );
+				if( bPartialInput )
+					glUniform4f( m_locOffsScale,
+								 ( GLfloat )optimalRect.left / ( GLfloat )optimalRes.cx,
+								 ( GLfloat )optimalRect.top / ( GLfloat )optimalRes.cy,
+								 ( GLfloat )optimalRes.cx / ( ( GLfloat )optimalRect.right - ( GLfloat )optimalRect.left ),
+								 ( GLfloat )optimalRes.cy / ( ( GLfloat )optimalRect.bottom - ( GLfloat )optimalRect.top )
+					);
+				else
+					glUniform4f( m_locOffsScale, 0.0f, 0.0f, 1.0f, 1.0f );
+				glUniform4f( m_locBlackBias,
+							 m_blackBias.x, m_blackBias.y, m_blackBias.z, m_blackBias.w );
+			}
 
 			if( VWB_STATEMASK_VIEWPORT & stateMask )
 			{
@@ -350,7 +394,7 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 			else
 			{
 				glBindVertexArray(m_iVertexArray);
-				glUniform4f( m_locSize, (GLfloat)viewport[2], (GLfloat)viewport[3],1.0f/viewport[2], 1.0f/viewport[3] );
+				glUniform4f( overlay ? m_locSizeBypass : m_locSize, (GLfloat)viewport[2], (GLfloat)viewport[3],1.0f/viewport[2], 1.0f/viewport[3] );
 				glDisable(GL_DEPTH_TEST); 
 				glDisable(GL_CLIP_PLANE0);
 				glDisable(GL_CLIP_PLANE1);
@@ -391,7 +435,7 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 		glPopAttrib();
 	}
 
-	if( -1 != url )
+	if( 0 != url && -1 != url )
 		glPixelStorei( GL_UNPACK_ROW_LENGTH, url );
     return VWB_ERROR_NONE;
 }

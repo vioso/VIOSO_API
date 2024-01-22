@@ -3,9 +3,9 @@
 
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "GLext.h"
-#ifdef _NDI_DISP
+#ifdef VWB_NDI_DISP
 #include "../3rdparty/NDI/Include/Processing.NDI.Lib.h"
-#endif //def _NDI_DISP
+#endif //def VWB_NDI_DISP
 
 GLfloat GLWarpBlend::colBlack[4] = {0,0,0,0};
 //save a texture to .tif image
@@ -496,7 +496,7 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 				char o[MAX_PATH];
 				strcpy_s( o, g_logFilePath );
 				strcat_s( o, ".tex.black.bmp" );
-				savetex( o, m_texBlend );
+				savetex( o, m_texBlack );
 				logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
 			}
 		}
@@ -723,6 +723,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint						active_client_texture_unit = -1;
 	GLint						oldVA = -1;
 
+	// record current state
 	if( ( ( VWB_STATEMASK_RASTERSTATE | VWB_STATEMASK_SAMPLER ) & stateMask ) && bUseGL110 )
 	{
 		glPushAttrib( GL_ALL_ATTRIB_BITS );
@@ -757,7 +758,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint viewport[4] = { 0 };
 	glGetIntegerv( GL_VIEWPORT, viewport );
 
-	#ifdef _NDI_DISP
+	#ifdef VWB_NDI_DISP
 	if( NDIlib_video_frame_v2_t* const& frame = (NDIlib_video_frame_v2_t*)m_ndi_frame; frame && frame->p_data )
 	{
 		::glActiveTexture( GL_TEXTURE0 + m_locContent );
@@ -793,7 +794,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		overlay = true;
 	}
 	else
-	#endif //def _NDI_DISP
+	#endif //def VWB_NDI_DISP
 	if( -1 == iSrc )
 	{
 		glGetIntegerv( GL_UNPACK_ROW_LENGTH, &url );
@@ -813,6 +814,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if( viewport[2] != m_sizeIn.cx || viewport[3] != m_sizeIn.cy )
 		{
 			res = glGetError();
+			
 			VWB_ERROR rr = FillTexture( GL_RGB, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, NULL, GL_LINEAR, GL_CLAMP_TO_BORDER );
 			if( VWB_ERROR_NONE != rr )
 			{
@@ -822,9 +824,11 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			else
 				logStr( 2, "clone texture (%dx%d) created.", viewport[2], viewport[3] );
 
+
 			m_sizeIn.cx = viewport[2];
 			m_sizeIn.cy = viewport[3];
 		}
+
 		glCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, viewport[0], viewport[1], viewport[2], viewport[3] );
 		res = glGetError();
 		if( GL_NO_ERROR == res )
@@ -836,7 +840,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			static bool bOnce = true;
 			if( bOnce )
 			{
-				logStr( 3, "FAILED to copy input texture from current write buffer, glError = %04x", res );
+				logStr( 3, "FAILED to copy input texture from current write buffer, glError = %#04x", res );
 				bOnce = false;
 			}
 		}
@@ -857,7 +861,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	{
 		char o[MAX_PATH];
 		strcpy_s( o, g_logFilePath );
-		strcat_s( o, ".texin.bmp" );
+		strcat_s( o, ".tex.in.bmp" );
 		savetex( o, iSrc );
 		logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
 	}
@@ -876,7 +880,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			SetTexture( m_locWarp, m_texWarp );
 			SetTexture( m_locBlend, m_texBlend );
 			SetTexture( m_locBlack, m_texBlack );
-			SetTexture( m_locContent, iSrc );
+			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
 		}
 		else
 			SetTexture( m_locContentBypass, iSrc );
