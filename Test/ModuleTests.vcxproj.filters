@@ -21,45 +21,12 @@
     <ClCompile Include="test.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\socket.cpp">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\TCP.cpp">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClCompile>
     <ClCompile Include="..\VIOSOWarpBlend\threadpool.cpp">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\UDP.cpp">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\HTTP.cpp">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\JSONRPC.cpp">
       <Filter>Quelldateien\Moduls</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VIOSOWarpBlend\socket.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VIOSOWarpBlend\TCP.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
     <ClInclude Include="..\VIOSOWarpBlend\threadpool.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VIOSOWarpBlend\UDP.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VIOSOWarpBlend\HTTP.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VIOSOWarpBlend\JSONRPC.h">
-      <Filter>Quelldateien\Moduls</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VIOSOWarpBlend\JSON.h">
       <Filter>Quelldateien\Moduls</Filter>
     </ClInclude>
   </ItemGroup>

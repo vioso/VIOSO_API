@@ -66,12 +66,6 @@
     <ClInclude Include="GL\GLext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="socket.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Net.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DX\DX9EXWarpBlend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -102,18 +96,6 @@
     <ClInclude Include="3rdparty\aes\aes.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UDP.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="HTTP.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="TCP.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="JSONRPC.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DX\DX9WarpBlend.cpp">
@@ -134,16 +116,7 @@
     <ClCompile Include="DX\DX10WarpBlend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="logging.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="PathHelper.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="socket.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Net.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DX\DX9EXWarpBlend.cpp">
@@ -167,16 +140,7 @@
     <ClCompile Include="3rdparty\aes\aes.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HTTP.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="TCP.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="UDP.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="JSONRPC.cpp">
+    <ClCompile Include="logging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

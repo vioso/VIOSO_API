@@ -174,43 +174,6 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint viewport[4] = {0};
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
-	#ifdef VWB_NDI_DISP
-	if( NDIlib_video_frame_v2_t* const& frame = ( NDIlib_video_frame_v2_t* )m_ndi_frame; frame && frame->p_data )
-	{
-		::glActiveTexture( GL_TEXTURE0 + m_locContent );
-		::glBindTexture( GL_TEXTURE_2D, -1 );
-		::glActiveTexture( GL_TEXTURE0 + m_locContentBypass );
-		::glBindTexture( GL_TEXTURE_2D, -1 );
-		::glActiveTexture( GL_TEXTURE0 );
-		::glBindTexture( GL_TEXTURE_2D, m_texBB );
-		GLint internalFormat = GL_RGBA8;
-		GLint fillFormat = frame->FourCC == NDIlib_FourCC_video_type_RGBA ? GL_RGBA : GL_RGB;
-		//GLenum type = GL_RGBA;
-		if( frame->xres != m_sizeIn.cx || frame->yres != m_sizeIn.cy )
-		{
-			res = glGetError();
-
-			VWB_ERROR rr = FillTexture( internalFormat, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, ( void const* )frame->p_data, GL_LINEAR, GL_CLAMP_TO_BORDER );
-			if( VWB_ERROR_NONE != rr )
-			{
-				logStr( 0, "ERROR: %d failed to fill overlay texture:\n", rr );
-				return VWB_ERROR_BLEND;
-			}
-			else
-				logStr( 2, "overlay texture (%dx%d) created.", frame->xres, frame->yres );
-
-			m_sizeIn.cx = frame->xres;
-			m_sizeIn.cy = frame->yres;
-		}
-		// unbind texture before updating it's content
-
-		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, frame->xres, frame->yres, fillFormat, GL_UNSIGNED_BYTE, ( void const* )frame->p_data );
-		auto err = glGetError();
-		iSrc = m_texBB;
-		overlay = true;
-	}
-	else
-	#endif //def VWB_NDI_DISP
 	if( -1 == iSrc )
 	{
 		glGetIntegerv( GL_UNPACK_ROW_LENGTH, &url );

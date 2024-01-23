@@ -203,11 +203,6 @@ struct VWB_Warper
 	/// As we need to sample uv-wraped anyway, this is not a problem and a texture to feed has aprox. projector resolution again, even though it has been filled from up to 4 corners
 	bool		bFixWraparound;
 
-	/// set the address of a ndi stream. If other than "" (empty string), as soon as it becomes available, the stream is shown instead of the applications output, if "*", it uses the channel name. Defaults to "".
-	char	ndiCalibStream[MAX_PATH];
-	/// use to announce server IPs, comma separated. defaults to "" (empty string)
-	char	ndiExtraIPs[MAX_PATH];
-	
 	/// optional DXGI_FORMAT for D3D12 render pipeline creation, defaults to DXGI_FORMAT_R8G8B8A8_UNORM
 	VWB_uint D3D12RTVF;
 };
