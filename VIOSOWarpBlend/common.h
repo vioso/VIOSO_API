@@ -120,11 +120,6 @@ protected:
 	pfn_ReceiveEyePoint	m_fnEPPGet;			/// eye point provider getter function pointer
 	pfn_DeleteEyePointReceiver m_fnEPPRelease;	/// eye point provider release function pointer
 
-#ifdef VWB_NDI_DISP
-	void*	m_ndi_recv;						/// a ndi receiver
-	void*	m_ndi_frame;						/// a ndi frame, if set, it will be shown instead of the host application's input
-#endif //def VWB_NDI_DISP
-	
 public:
 	VWB_Warper_base();						/// constructor
 	virtual ~VWB_Warper_base();				/// virtual destructor

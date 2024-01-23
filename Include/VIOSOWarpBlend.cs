@@ -269,13 +269,8 @@ namespace VIOSOWarpBlend
             [MarshalAs(UnmanagedType.I1)]
             public bool bFixWraparound;
 
-            /// set the address of a ndi stream. If other than "" (empty string), as soon as it becomes available, the stream is shown instead of the applications output, defaults to ""
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
-            public String ndiCalibStream;
-
-            /// use to announce NDI server IPs outside own sub-net, comma separated. defaults to "" (empty string)
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
-            public String ndiExtraIPs;
+            /// optional DXGI_FORMAT for D3D12 render pipeline creation, defaults to DXGI_FORMAT_R8G8B8A8_UNORM
+            public UInt32 D3D12RTVF;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]

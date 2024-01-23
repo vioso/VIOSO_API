@@ -11,34 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 #endif // ndef WIN32
-/*
-	static VWB_ERROR VwfInfoC(char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC(path, set, count); }
-	// call again with path = NULL, to release memory
-	static VWB_ERROR VwfInfoC(const TCHAR* dllPath, char const* path, VWB_WarpBlendHeaderSet* set) {
-		VWB_ERROR ret = VWB_ERROR_NONE;
-		if (nullptr != path)
-			if (1 == ++instanceCounter)
-				loadDll(dllPath);
-		if (instanceCounter)
-		{
-			VWB_uint count = 0;
-			ret = VWB_vwfInfoC(path, nullptr, &count);
-			if (count)
-			{
-				set->resize(count);
-				for (VWB_uint i = 0; i != count; i++)
-				{
-
-					VWB_vwfInfoC(path, , &count)
-				}
-			}
-		}
-		if (nullptr == path)
-			if (0 == --instanceCounter)
-				unloadDll();
-		return ret;
-	}
-*/
 
 class VWB
 {
@@ -198,6 +170,7 @@ public:
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
 	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
 	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
+	static VWB_ERROR VwfInfoC( char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC( path, set, count ); }
 	// call again with path = NULL, to release memory
 	static VWB_ERROR VwfInfo( const char* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
@@ -206,6 +179,18 @@ public:
 				loadDll( dllPath );
 		if( instanceCounter )
 			ret = VWB_vwfInfo( path, set );
+		if( nullptr == path )
+			if( 0 == --instanceCounter )
+				unloadDll();
+		return ret;
+	}
+	static VWB_ERROR VwfInfoC( const char* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( nullptr != path )
+			if( 1 == ++instanceCounter )
+				loadDll( dllPath );
+		if( instanceCounter )
+			ret = VWB_vwfInfoC( path, set, count );
 		if( nullptr == path )
 			if( 0 == --instanceCounter )
 				unloadDll();

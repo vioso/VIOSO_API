@@ -38,28 +38,6 @@ VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
 uint8_t const* g_cryptoKey = nullptr;
 
-#ifdef _SOCKTEST_DEV
-#include "Net.h"
-Server g_server;
-typedef map< uint16_t, shared_ptr<VWBTCPListener>> Listeners;
-Listeners g_listeners;
-#endif //def _SOCKTEST_DEV
-
-#ifdef VWB_NDI_DISP
-#include "3rdparty/NDI/Include/Processing.NDI.Lib.h"
-#include "3rdparty/NDI/Include/Processing.NDI.DynamicLoad.h"
-#include <filesystem>
-NDIlib_v5 const* g_ndi = nullptr;
-std::atomic<int> g_ndi_refcount = 0;
-NDIlib_find_instance_t g_ndi_find = nullptr;
-
-#ifdef WIN32
-HMODULE g_hNDILib = 0;
-#else
-void* g_hNDILib = nullptr;
-#endif //def WIN32
-#endif //def VWB_NDI_DISP
-
 #ifdef WIN32
 HMODULE g_hModDll = 0;
 VWB_int g_error = 0;
@@ -268,9 +246,6 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		iDef = GetIniInt( "default", "overrideStatemask", overrideStatemask, path );
 		overrideStatemask = GetIniInt( channel, "overrideStatemask", iDef, path );
 
-		GetIniString( "default", "ndiCalibStream", ndiCalibStream, sDef, path );
-		GetIniString( channel, "ndiCalibStream", sDef, ndiCalibStream, path );
-
 		iDef = GetIniInt( "default", "bFixWraparound", bFixWraparound, path );
 		bFixWraparound = 0 != GetIniInt( channel, "bFixWraparound", iDef, path );
 
@@ -446,9 +421,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		szModPath = (char*) dl_info.dli_fname;
 		if( dladdr((void *)VWB_CreateA, &dl_info) && szModPath )
 #endif //def WIN32
-			logStr( 1, "%s.\n", szModPath );
+			logStr( 1, "lib-path %s.\n", szModPath );
 		if( szProcPath )
-			logStr( 1, "%s.\n", szProcPath );
+			logStr( 1, "process path %s.\n", szProcPath );
 	}
 	logStr( 2,	"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
 				"calibFile=%s\n"
@@ -482,7 +457,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 				"bFixWraparound=%d\n"
 				"\n",
 				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
-				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set",
+				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
 				(*ppWarper)->path,
 				(*ppWarper)->calibFile,
 			    (*ppWarper)->calibIndex,
@@ -565,107 +540,6 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 	VWB_ERROR err = VWB_ERROR_NONE;
 
-#ifdef _SOCKTEST_DEV
-	if( pWarper->port )
-	{
-		string hostname = Socket::gethostname();
-		// try to find a listener with same port to add this warper, or create a new one
-		auto entry = g_listeners.try_emplace( (uint16_t)pWarper->port, make_shared<VWBTCPListener>( SocketAddress( INADDR_ANY, ( unsigned short )pWarper->port ), pWarper->heartBeatPort ) );
-		if( VWB_ERROR_NONE != ( err = entry.first->second->add( pWarper ) ) )
-		{
-			logStr( 0, "ERROR(%i): failed to add warper \"%s\" to new listener at %hu.\n", err, pWarper->channel, pWarper->port );
-			return err;
-		}
-		if( entry.second ) // is new entry
-		{
-			if( 0 != g_server.addReceiver( shared_ptr<SockIn>( entry.first->second ) ) )
-			{
-				err = VWB_ERROR_NETWORK;
-				logStr( 0, "ERROR(%i): failed to add warper \"%s\".\n", err, pWarper->channel );
-				return err;
-			}
-			if( -1 == g_server.doModal() ) // server will not run twice, if already there there will be no new thread
-			{
-				err = VWB_ERROR_NETWORK;
-				return err;
-			}
-		}
-	}
-#endif //def _SOCKTEST_DEV
-
-	#ifdef VWB_NDI_DISP
-	if( pWarper->ndiCalibStream[0] )
-    {
-		if( 1 == ++g_ndi_refcount )
-		{
-			// We check whether the NDI run-time is installed
-			// We now load the DLL as it is installed
-			auto glob = getenv( NDILIB_REDIST_FOLDER );
-			std::filesystem::path ndi_path;
-			if( glob && glob[0] )
-				ndi_path = glob;
-
-			ndi_path /= NDILIB_LIBRARY_NAME;
-			typedef const NDIlib_v5* ( *fnld_t )( void );
-			fnld_t fnld = nullptr;
-
-			#ifdef WIN32
-				// Try to load the library
-				g_hNDILib = LoadLibraryW( ndi_path.c_str() );
-
-				// The main NDI entry point for dynamic loading if we got the librari
-				if( g_hNDILib )
-				{
-					fnld = ( fnld_t )GetProcAddress( g_hNDILib, "NDIlib_v5_load" );
-				}
-			#else
-				// Try to load the library
-				g_hNDILib = dlopen( ndi_path.c_str(), RTLD_LOCAL | RTLD_LAZY );
-
-                if( !g_hNDILib )
-                {
-                ndi_path = std::filesystem::current_path();
-                    ndi_path /= NDILIB_LIBRARY_NAME;
-                    g_hNDILib = dlopen( ndi_path.c_str(), RTLD_LOCAL | RTLD_LAZY );
-                }
-                if( g_hNDILib )
-                    fnld = ( fnld_t )dlsym( g_hNDILib, "NDIlib_v5_load" );
-            #endif //def WIN32
-
-			// If we failed to load the library then we tell people to re-install it
-			if( !fnld ) {
-				logStr( 0, "ERROR: Failed to open NDI library from location: %s.\n", ndi_path.u8string() );
-
-				return VWB_ERROR_NDI;
-			}
-
-			g_ndi = fnld();
-			if( !g_ndi )
-			{
-				logStr( 0, "ERROR: Failed to load NDI runtime" );
-				return VWB_ERROR_NDI;
-			}
-			if( !g_ndi->initialize() )
-			{
-				logStr( 0, "ERROR: Failed to initialize NDI runtime" );
-				return VWB_ERROR_NDI;
-			}
-
-			NDIlib_find_create_t sett;
-			if( pWarper->ndiExtraIPs[0] )
-				sett.p_extra_ips = pWarper->ndiExtraIPs;
-
-			g_ndi_find = g_ndi->find_create_v2( &sett );
-			if( !g_ndi_find )
-			{
-				logStr( 0, "ERROR: Failed to create NDI source finder" );
-				return VWB_ERROR_NDI;
-			}
-
-		}
-	}
-	#endif //def VWB_NDI_DISP
-	
 	if( nullptr != extSet )
 	{
 		if ((VWB_ERROR_NONE != err) || !VerifySet(*extSet))
@@ -712,60 +586,10 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 void VWB_Destroy( VWB_Warper* pWarper )
 {
-#ifdef _SOCKTEST_DEV
-	if( !g_listeners.empty() )
-	{
-		auto it = g_listeners.find( pWarper->port );
-		if(it != g_listeners.end() )
-		{
-			if( VWB_ERROR_NONE == it->second->remove( pWarper ) )
-			{
-				if( it->second->empty() )
-				{
-					g_server.removeReceiver( shared_ptr<SockIn>( it->second ) );
-					g_listeners.erase( it );
-					if( g_server.empty() )
-						g_server.endModal(0);
-				}
-			}
-		}
-	}
-#endif //def _SOCKTEST_DEV
-	#ifdef VWB_NDI_DISP
-	bool destroyNDI = false;
-	if( pWarper->ndiCalibStream[0] )
-	{
-		if( 0 == --g_ndi_refcount )
-		{
-			destroyNDI = true;
-		}
-	}
-	#endif //def VWB_NDI_DISP
-
 	if( pWarper )
-		delete (VWB_Warper_base*)pWarper;
-
-	#ifdef VWB_NDI_DISP
-	if( destroyNDI )
-	{
-		if( 0 == --g_ndi_refcount )
-		{
-			if( g_ndi )
-				g_ndi->destroy();
-			g_ndi = nullptr;
-			if( g_hNDILib )
-			{
-				#ifdef WIN32
-				FreeLibrary( g_hNDILib );
-				#else
-				dlclose( g_hNDILib );
-				#endif //def WIN32
-			}
-			g_hNDILib = 0;
-		}
-	}
-	#endif //def VWB_NDI_DISP
+		delete ( VWB_Warper_base* )pWarper;
 }
+
 
 VWB_ERROR VWB_getViewProj( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj )
 {
@@ -1023,10 +847,6 @@ VWB_Warper_base::VWB_Warper_base()
 , m_fnEPPCreate( NULL )
 , m_fnEPPGet( NULL )
 , m_fnEPPRelease( NULL )
-#ifdef VWB_NDI_DISP
-, m_ndi_frame( nullptr )
-, m_ndi_recv( nullptr )
-#endif //def VWB_NDI_DISP
 {
 	Defaults();
 	memset( &m_ep, 0, sizeof( m_ep ) );
@@ -1050,25 +870,6 @@ VWB_Warper_base::~VWB_Warper_base()
 		::FreeLibrary( m_hmEPP );
         #endif
 	}
-	#ifdef VWB_NDI_DISP
-	if( g_ndi )
-	{
-		if( m_ndi_frame )
-		{
-			// clean up frame data
-			if( m_ndi_recv && ( ( NDIlib_video_frame_v2_t* )m_ndi_frame )->p_data )
-				g_ndi->recv_free_video_v2( ( NDIlib_recv_instance_t )m_ndi_recv, ( NDIlib_video_frame_v2_t* )m_ndi_frame );
-
-			delete ( NDIlib_video_frame_v2_t* )m_ndi_frame;
-			m_ndi_frame = nullptr;
-		}
-		if( m_ndi_recv )
-		{
-			g_ndi->recv_destroy( ( NDIlib_recv_instance_t )m_ndi_recv );
-			m_ndi_recv = nullptr;
-		}
-	}
-	#endif //def VWB_NDI_DISP
 }
 
 VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
@@ -2047,145 +1848,6 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 
 VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask )
 {
-#ifdef _SOCKTEST_DEV
-	if( 0 != port )
-	{
-		for( auto listener : g_listeners )
-		{
-			if( this == listener.second->getWarper( channel ) )
-			{
-				VWBTCPConnection* conn = dynamic_cast<VWBTCPConnection*>( listener.second.get() );
-				if( conn )
-				{
-					auto req = conn->headRequestPtr();
-					if( req->getType() == HttpRequest::myType )
-					{
-						auto http = (HttpRequest const*)req;
-						if (nullptr != http)
-						{
-							if (http->getContent() == "/upload.htm")
-							{
-								auto it = http->postData.find("inifile");
-								if (it != http->postData.end() && !it->second.file.empty())
-								{
-									// TODO ovrewrite current ini file
-									it->second.file;
-									ofstream ofs(path);
-									if (ofs.is_open())
-									{
-										ofs.write(it->second.file.c_str(), it->second.file.size());
-										HttpResponse resp(201, "", false, "text/plain", { {"Location","/download.htm?file=inifile"} });
-										resp.send(*conn);
-									}
-								}
-							}
-							else if (http->getContent() == "/download.htm")
-							{
-								auto it = http->postData.find("file");
-								if (it != http->postData.end() && it->second.value == "inifile")
-								{
-									// send current ini file
-									// we must load it, as it is outside htdocs
-									ifstream ifs(path);
-									if (ifs.is_open())
-									{
-										ifs.seekg(0, ios::end);
-										auto len = ifs.tellg();
-										ifs.seekg(0);
-										string cnt(len, 0);
-										ifs.read(cnt.data(), len);
-										HttpResponse resp(200, cnt, false, "text/plain");
-										resp.send(*conn);
-									}
-									else
-									{
-										HttpResponse resp(404);
-										resp.send(*conn);
-									}
-								}
-							}
-							else if (http->getContent() == "/jsonrpc.htm")
-							{
-								JSONRPC json(http->body);
-								
-							}
-						}
-					}
-					else if (req->getType() == JSONRPC::myType)
-					{
-					}
-				}
-			}
-		}
-	}
-#endif //def _SOCKTEST_DEV
-#ifdef VWB_NDI_DISP
-	if( ndiCalibStream[0] )
-	{
-		uint32_t n = 0;
-		g_ndi->find_wait_for_sources( g_ndi_find, 0);
-		NDIlib_source_t const* fnd = g_ndi->find_get_current_sources( g_ndi_find, &n );
-		if( n )
-		{
-			bool noConnection = true;
-
-			for( uint32_t i = 0; i != n; i++ )
-			{
-				char const* s = ndiCalibStream[0] == '*' ? channel : ndiCalibStream;
-				auto l = strlen( s );
-				auto l2 = strlen( fnd[i].p_ndi_name );
-				if( 0 == strncmp( fnd[i].p_ndi_name + ( l2 - l - 1 ), s, l ) )
-				{
-					// OK, that is me, still available
-					// if everything is set up, we wait for a frame
-					if( !m_ndi_recv )
-					{
-						// we need to set up a receiver and a frame
-						NDIlib_recv_create_v3_t c;
-						c.color_format = NDIlib_recv_color_format_RGBX_RGBA;
-
-						m_ndi_recv = g_ndi->recv_create_v3(&c);
-						g_ndi->recv_connect( ( NDIlib_recv_instance_t )m_ndi_recv, &fnd[i] );
-						m_ndi_frame = new NDIlib_video_frame_v2_t;
-					}
-					if( m_ndi_recv && m_ndi_frame )
-					{
-						// capture frame, we wait for a video frame
-						// no frame indicates low frame rate, so we continue with the old image
-						NDIlib_video_frame_v2_t v;
-						auto res = g_ndi->recv_capture_v2( ( NDIlib_recv_instance_t )m_ndi_recv, &v, nullptr, nullptr, 500 );
-
-						if( NDIlib_frame_type_video == res ) // new frame
-						{
-							// there is data, we need to clean-up the old frame
-							if( ( ( NDIlib_video_frame_v2_t* )m_ndi_frame )->p_data )
-								g_ndi->recv_free_video_v2( ( NDIlib_recv_instance_t )m_ndi_recv, ( NDIlib_video_frame_v2_t* )m_ndi_frame );
-							memcpy( m_ndi_frame, &v, sizeof( v ) );
-						}
-					}
-					noConnection = false;
-					break;
-				}
-			}
-			if(noConnection )
-			{ // disconnect and destroy frame
-				if( m_ndi_frame )
-				{
-					if( m_ndi_recv && (( NDIlib_video_frame_v2_t* )m_ndi_frame)->p_data )
-						g_ndi->recv_free_video_v2( ( NDIlib_recv_instance_t )m_ndi_recv, ( NDIlib_video_frame_v2_t* )m_ndi_frame );
-
-					delete ( NDIlib_video_frame_v2_t* )m_ndi_frame;
-					m_ndi_frame = nullptr;
-				}
-				if( m_ndi_recv )
-				{
-					g_ndi->recv_destroy( ( NDIlib_recv_instance_t )m_ndi_recv );
-					m_ndi_recv = nullptr;
-				}
-			}
-		}
-	}
-	#endif //dev VWB_NDI_DISP
 	return VWB_ERROR_NONE;
 }
 

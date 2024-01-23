@@ -19,22 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\VIOSOWarpBlend\HTTP.cpp" />
-    <ClCompile Include="..\VIOSOWarpBlend\JSONRPC.cpp" />
-    <ClCompile Include="..\VIOSOWarpBlend\socket.cpp" />
-    <ClCompile Include="..\VIOSOWarpBlend\TCP.cpp" />
     <ClCompile Include="..\VIOSOWarpBlend\threadpool.cpp" />
-    <ClCompile Include="..\VIOSOWarpBlend\UDP.cpp" />
     <ClCompile Include="test.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VIOSOWarpBlend\HTTP.h" />
-    <ClInclude Include="..\VIOSOWarpBlend\JSON.h" />
-    <ClInclude Include="..\VIOSOWarpBlend\JSONRPC.h" />
-    <ClInclude Include="..\VIOSOWarpBlend\socket.h" />
-    <ClInclude Include="..\VIOSOWarpBlend\TCP.h" />
     <ClInclude Include="..\VIOSOWarpBlend\threadpool.h" />
-    <ClInclude Include="..\VIOSOWarpBlend\UDP.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
