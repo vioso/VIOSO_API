@@ -877,7 +877,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		// Set the texturing modes
 		if( !overlay )
 		{
-			SetTexture( m_locWarp, m_texWarp );
+			SetTexture( m_locWarp, m_texWarp, GL_CLAMP, GL_NEAREST );
 			SetTexture( m_locBlend, m_texBlend );
 			SetTexture( m_locBlack, m_texBlack );
 			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
@@ -1028,7 +1028,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
     return VWB_ERROR_NONE;
 }
 	
-void GLWarpBlend::SetTexture( GLuint loc, GLuint tex, GLuint wrapMode ) const
+void GLWarpBlend::SetTexture( GLuint loc, GLuint tex, GLuint wrapMode, GLuint filter ) const
 {
 	if( -1 != loc && -1 != tex )
 	{
@@ -1037,8 +1037,8 @@ void GLWarpBlend::SetTexture( GLuint loc, GLuint tex, GLuint wrapMode ) const
 //		::glClientActiveTexture( GL_TEXTURE0 + loc );
 		::glBindTexture( GL_TEXTURE_2D, tex );
 
-		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter );
+		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter );
 		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode );
 		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode );
 		::glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, colBlack );

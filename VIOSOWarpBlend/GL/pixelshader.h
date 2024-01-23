@@ -33,7 +33,8 @@ vec2[4](
 uniform vec4 size;
 
 void main(void) {
-	gl_Position = vec4((pos[gl_VertexID].x + pos[gl_VertexID].x * size.x) * size.z, (pos[gl_VertexID].y + pos[gl_VertexID].y * size.y) * size.w, 0.0, 1.0);
+//	gl_Position = vec4((pos[gl_VertexID].x + pos[gl_VertexID].x * size.x) * size.z, (pos[gl_VertexID].y + pos[gl_VertexID].y * size.y) * size.w, 0.0, 1.0);
+	gl_Position = vec4( pos[gl_VertexID].x, pos[gl_VertexID].y, 0.0, 1.0);
 	texcoord = tex[gl_VertexID];
 }
 )END";
