@@ -171,7 +171,7 @@ public:
 	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
 	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
 	static VWB_ERROR VwfInfoC( char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC( path, set, count ); }
-	// call again with path = NULL, to release memory
+	// call again with path = NULL, to unload dll
 	static VWB_ERROR VwfInfo( const char* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( nullptr != path )
@@ -186,14 +186,12 @@ public:
 	}
 	static VWB_ERROR VwfInfoC( const char* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
-		if( nullptr != path )
-			if( 1 == ++instanceCounter )
-				loadDll( dllPath );
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
 		if( instanceCounter )
 			ret = VWB_vwfInfoC( path, set, count );
-		if( nullptr == path )
-			if( 0 == --instanceCounter )
-				unloadDll();
+		if( 0 == --instanceCounter )
+			unloadDll();
 		return ret;
 	}
 
@@ -223,6 +221,16 @@ public:
 		if( nullptr == path )
 			if( 0 == --instanceCounter )
 				unloadDll();
+		return ret;
+	}
+	static VWB_ERROR VwfInfoC( const wchar_t* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		if( instanceCounter )
+			ret = VWB_vwfInfoC( path, set, count );
+		if( 0 == --instanceCounter )
+			unloadDll();
 		return ret;
 	}
 	#endif //def WIN32

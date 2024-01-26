@@ -271,6 +271,9 @@ namespace VIOSOWarpBlend
 
             /// optional DXGI_FORMAT for D3D12 render pipeline creation, defaults to DXGI_FORMAT_R8G8B8A8_UNORM
             public UInt32 D3D12RTVF;
+
+            /// the screen distance this is where the render plane is, defaults to 1
+            public float blackScale;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]

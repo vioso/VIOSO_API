@@ -3,10 +3,10 @@
 // Used by VIOSOWarpBlend.rc
 #define VWB_Version_MAJ 1
 #define VWB_Version_MIN 6
-#define VWB_Version_MAI 25
-#define VWB_Version_REV 96
+#define VWB_Version_MAI 26
+#define VWB_Version_REV 97
 #define VWB_Version_CUR 2024
-#define VWB_Version_DATE "2024/01/23 10:38:55"
+#define VWB_Version_DATE "2024/01/26 09:41:07"
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
