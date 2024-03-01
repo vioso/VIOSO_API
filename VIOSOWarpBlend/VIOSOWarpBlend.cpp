@@ -1121,10 +1121,10 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
 				0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
 			{
-				optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
-				optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
-				optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
-				optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+				optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] * optimalRes.cx );
+				optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] * optimalRes.cy );
+				optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] * optimalRes.cx );
+				optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] * optimalRes.cy );
 			}
 			else
 			{
