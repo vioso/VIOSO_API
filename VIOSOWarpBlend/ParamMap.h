@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <filesystem>
 #include "StringConversions.h"
 
 namespace VWBUtil
@@ -55,7 +56,10 @@ namespace VWBUtil
                 param.clear();
                 if( ss.eof() || ss.bad() )
                     break;
-                ss >> quoted( param );
+                if( std::filesystem::path::preferred_separator == '\\' )
+                    ss >> quoted( param, string_elem_type('"'), string_elem_type('^') );
+                else
+                    ss >> quoted( param );
                 if( param.empty() )
                     break;
                 ret.push_back( param );

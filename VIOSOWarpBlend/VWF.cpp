@@ -357,7 +357,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 								{
 									// make up some fake monitor handle
 									if( 0 == pWB->header.hMonitor )
-										pWB->header.hMonitor = VWB_uint( VWB_word( pWB->header.offsetX ) ) + ( VWB_uint( VWB_word( pWB->header.offsetY ) ) << 16 );
+										pWB->header.hMonitor = 1 + VWB_uint( VWB_word( pWB->header.offsetX ) ) + ( VWB_uint( VWB_word( pWB->header.offsetY ) ) << 16 );
 
 									strcpy_s( pWB->path, pp );
 
@@ -725,7 +725,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, char
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os, VWB_word semantic )
 {
 	if( nullptr == map || os.bad() )
 		return VWB_ERROR_PARAMETER;
@@ -743,7 +743,7 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std
 	BITMAPFILEHEADER bmfh = {
 		'MB',
 		sizeof( BITMAPFILEHEADER ) + sizeof( bmih ) + bmih.biSizeImage,
-		0, 0,
+		semantic, 0,
 		sizeof( BITMAPFILEHEADER ) + sizeof( bmih )
 	};
 	os.write( (const char*)&bmfh, sizeof( bmfh ) );
@@ -953,11 +953,11 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 			}
 			if( setIt->pBlack )
 			{
-				SaveBMP( setIt->header, setIt->pBlack, os );
+				SaveBMP( setIt->header, setIt->pBlack, os, 2 );
 			}
 			if( setIt->pWhite )
 			{
-				SaveBMP( setIt->header, setIt->pWhite, os );
+				SaveBMP( setIt->header, setIt->pWhite, os, 3 );
 			}
 			if( os.bad() )
 			{
@@ -1350,11 +1350,13 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 		logStr( 0, "ERROR: AddUnwarped2DToVWF: split grid size out of range.\n" );
 		return VWB_ERROR_PARAMETER;
 	}
-	if( 0 > splitX || splitW <= splitX || 0 > splitY || splitH <= splitY )
+	if( 0 == splitX || splitW <= splitX || 0 == splitY || splitH <= splitY )
 	{
 		logStr( 0, "ERROR: AddUnwarped2DToVWF: split grid index ot of range.\n" );
 		return VWB_ERROR_PARAMETER;
 	}
+
+	auto wb = set.emplace_back( new VWB_WarpBlend() );
 
 	VWB_ERROR ret = VWB_ERROR_NONE;
 	char pp[MAX_PATH];
@@ -1363,11 +1365,10 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 
 	// create basic set, no warping no blending
 	VWB_uint nRecords = (VWB_uint)width * (VWB_uint)height;
-	set.push_back( new VWB_WarpBlend() );
-	set.back()->header = VWB_WarpFileHeader5{
+	wb->header = VWB_WarpFileHeader5{
 		{'v','w','f','0'},
 		sizeof( VWB_WarpFileHeader5 ),
-		FLAG_WARPFILE_HEADER_CALIBRATION_BASE_TYP|FLAG_WARPFILE_HEADER_OFFSET|FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR,
+		FLAG_WARPFILE_HEADER_CALIBRATION_BASE_TYP|FLAG_WARPFILE_HEADER_OFFSET,
 		0x10001,
 		nRecords * (VWB_uint)sizeof( VWB_WarpRecord ),
 		width,	height,
@@ -1394,21 +1395,21 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 		"not encrypted"
 	};
 
-	// set.back()->header = wfh;
-	strcpy_s( set.back()->path, pp );
+	// wb->header = wfh;
+	strcpy_s( wb->path, pp );
 
-	set.back()->pBlend = new VWB_BlendRecord[nRecords];
-	for( VWB_BlendRecord* pB = set.back()->pBlend, *pBE = pB + nRecords; pB != pBE; pB++ )
+	wb->pBlend = new VWB_BlendRecord[nRecords];
+	for( VWB_BlendRecord* pB = wb->pBlend, *pBE = pB + nRecords; pB != pBE; pB++ )
 		pB->r = pB->g = pB->b = pB->a = 255;
 
-	VWB_WarpRecord* pW = set.back()->pWarp = new VWB_WarpRecord[nRecords];
+	VWB_WarpRecord* pW = wb->pWarp = new VWB_WarpRecord[nRecords];
 	int startX = splitX * width;
 	int startY = splitY * height;
 	int endX = startX + width;
 	int endY = startY + height;
 
-	int tW = splitW * width;
-	int tH = splitH * height;
+	int tW = splitW ? splitW * width : width;
+	int tH = splitH ? splitH * height : height;
 
 	VWB_float dX = 0.5f / tW; // midpix
 	VWB_float dY = 0.5f / tH;
@@ -1425,11 +1426,72 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 			pW->w = 0;
 		}
 	}
-	set.back()->pBlack = NULL;
-	set.back()->pWhite = NULL;
-	logStr( 2, "INFO: AddUnwarped2DToVWF: Set added.\n" );
+	wb->pBlack = nullptr;
+	wb->pWhite = nullptr;
+	logStr( 2, "INFO: AddUnwarped2DToVWF: Set \"%s\" added.\n", displayName );
 
 	return ret;
+}
+
+VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, VWB_BlendRecord const* blacklevelMap, float scale, float dark, float bright )
+{
+	if( NULL == blacklevelMap )
+	{
+		logStr( 0, "ERROR: AddBlacklevelTo: blacklevelMap must not be null.\n" );
+		return VWB_ERROR_PARAMETER;
+	}
+	if( 0 >= wb.header.width || 0 >= wb.header.height )
+	{
+		logStr( 0, "ERROR: AddBlacklevelTo: Width and hight in wb.header must be set.\n" );
+		return VWB_ERROR_PARAMETER;
+	}
+	if( wb.pBlack )
+		delete[] wb.pBlack;
+	wb.pBlack = new VWB_BlendRecord[wb.header.width * wb.header.height];
+	memcpy( wb.pBlack, blacklevelMap, wb.header.width * wb.header.height * sizeof( VWB_BlendRecord ) );
+	wb.header.flags |= FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR;
+	wb.header.blackScale = scale;
+	wb.header.blackDark = dark;
+	wb.header.blackBright = bright;
+	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, float const* blacklevelMapRaw, float dark, float bright )
+{
+	if( NULL == blacklevelMapRaw )
+	{
+		logStr( 0, "ERROR: AddBlacklevelTo: blacklevelMap must not be null.\n" );
+		return VWB_ERROR_PARAMETER;
+	}
+	if( 0 >= wb.header.width || 0 >= wb.header.height )
+	{
+		logStr( 0, "ERROR: AddBlacklevelTo: Width and hight in wb.header must be set.\n" );
+		return VWB_ERROR_PARAMETER;
+	}
+	float scale = 0;
+	for( auto const* f = blacklevelMapRaw, *fE = f + 3 * wb.header.width * wb.header.height; f != fE; f++ )
+	{
+		if( scale < *f )
+			scale = *f;
+	}
+	if( wb.pBlack )
+		delete[] wb.pBlack;
+	wb.pBlack = new VWB_BlendRecord[wb.header.width * wb.header.height];
+	auto b = wb.pBlack;
+	for( auto const* f = blacklevelMapRaw, *fE = f + 3 * wb.header.width * wb.header.height; f != fE; f+= 3, b++ )
+	{
+		b->r = ( uint8_t )( f[0] / scale * 255 );
+		b->g = ( uint8_t )( f[1] / scale * 255 );
+		b->b = ( uint8_t )( f[2] / scale * 255 );
+		b->a = 0;
+	}
+
+	wb.header.flags |= FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR;
+	wb.header.blackScale = scale;
+	wb.header.blackDark = dark;
+	wb.header.blackBright = bright;
+
+	return VWB_ERROR();
 }
 
 

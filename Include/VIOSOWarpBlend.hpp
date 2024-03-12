@@ -194,7 +194,23 @@ public:
 			unloadDll();
 		return ret;
 	}
-
+	static std::vector<VWB_WarpBlendHeader> VwfInfo( char const* path, const char* dllPath = nullptr ) {
+		std::vector<VWB_WarpBlendHeader> set;
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		VWB_uint c = 0;
+		auto ret = VWB_vwfInfoC( path, nullptr, &c );
+		if( VWB_ERROR_NONE == ret )
+		{
+			set.resize( c );
+			ret = VWB_vwfInfoC( path, set.data(), &c );
+		}
+		if( 0 == --instanceCounter )
+			unloadDll();
+		if( VWB_ERROR_NONE != ret )
+			throw ret;
+		return set;
+	}
 	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }
 	VWB_ERROR GetShaderVPMatrix( VWB_float* pMPV ) { return VWB_getShaderVPMatrix( m_warper, pMPV ); }
 	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
@@ -233,6 +249,23 @@ public:
 			unloadDll();
 		return ret;
 	}
+	//static std::vector<VWB_WarpBlendHeader> VwfInfo( wchar_t const* path, const wchar_t* dllPath = nullptr ) {
+	//	std::vector<VWB_WarpBlendHeader> set;
+	//	if( 1 == ++instanceCounter )
+	//		loadDll( dllPath );
+	//	VWB_uint c = 0;
+	//	auto ret = VWB_vwfInfoC( path, nullptr, &c );
+	//	if( VWB_ERROR_NONE == ret )
+	//	{
+	//		set.resize( c );
+	//		ret = VWB_vwfInfoC( path, set.data(), &c );
+	//	}
+	//	if( 0 == --instanceCounter )
+	//		unloadDll();
+	//	if( VWB_ERROR_NONE != ret )
+	//		throw ret;
+	//	return set;
+	//}
 	#endif //def WIN32
 };
 
