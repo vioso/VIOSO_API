@@ -1,3 +1,50 @@
+/// Used to read and write .vwf files
+/// A vwf file consists of a set header and chunks
+/// Basic format of info:
+/// FileSetHeader
+/// All values must be set:
+/// VWB_WarpSetFileHeader.magicNumber = '1fwv';
+/// VWB_WarpSetFileHeader.numBlocks = numberOfAllWarpDataSets + numberOfAllBlendMaps + numberOfAllBlacklevelMaps;
+/// VWB_WarpSetFileHeader.off = dataOffset; // = sizeof( VWB_WarpSetFileHeader ) = 16;
+/// VWB_WarpSetFileHeader.reserved = 0;
+/// at absolute file position VWB_WarpSetFileHeader.off, write the first chunk which must be warp information, starting with a VWB_WarpFileHeader
+/// Mandatory header values:
+/// VWB_WarpFileHeader5.magicNumber = '0fwv';
+/// VWB_WarpFileHeader5.szHdr = sizeof( VWB_WarpFileHeader5 );
+/// VWB_WarpFileHeader5.width = w;
+/// VWB_WarpFileHeader5.height = h;
+/// Optional values
+/// VWB_WarpFileHeader5.name = "channelName";
+/// VWB_WarpFileHeader5.primName = "screenName";
+/// VWB_WarpFileHeader5.hostName = "clientName";
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedLeft; // 0.4   for content rect
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedTop; // 0.1
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedRight; // 0.7
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedBottom; // 0.3
+/// next is binary warp data: VWB_WarpRecord[width x height] 
+///  midle-of-pixel aligned normalized lookup. 
+///  2D: VWB_WarpRecord.{x = u; y = v; z = valid ? 1 : 0; w = 0}
+///  3D: VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_3D; VWB_WarpRecord.{x = X; y = Y; z = Z; w = valid ? 1 : 0}
+/// next chunk if not "vwf" is blend:
+/// windows bitmap, set VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_BLENDV2, if 16bit per channel; set VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_BLENDV3, if 32 bit per channel
+/// the bitmap might be set to size 0 x 0, to indicate no blend map
+/// next chunk if not "vwf" is blacklevel:
+/// windows bitmap, always RGB8U, optional, set VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR; if present
+///  set VWB_WarpFileHeader4.{blackScale,blackDark,blackBright}.
+///  shader code:
+///  vec4 black = _tex2D( samBlack, texcoord.st ) * blackScale;
+///  FragColor *= vec4(1,1,1,1) - backDark * blackBright * black;
+///  FragColor += blackDark * black;          
+///  FragColor = max( FragColor, black );        
+///    blackDark == 0 => every pixel is set to blacklevel if below
+///    blackDark == 1 => pixel is uplifted above blacklevel, which might be above 1
+///    blackBright == 0 => pixel is clamped to 1
+///    blackBright == 1 => pixel is scaled to [blacklevel..1]
+///   normally blackDark = blackBright = 1, but you'll loose color resolution. It might be better in dark scenario to just shift up, or in bright scenario to clamp lower.
+/// next chunk if not "vwf" is white (ambient correction), not used so far
+/// next chunk must be "vwf" for next channel
+/// (c) VIOSO GmbH 2024
+
 #include "../Include/VWBTypes.h"
 #include <iostream>
 
