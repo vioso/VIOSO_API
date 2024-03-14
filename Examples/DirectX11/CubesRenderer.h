@@ -20,12 +20,12 @@ public:
         CComPtr< ID3DBlob > errBlob;
         HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "cubes vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
-            throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
+            throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
 
         // Create the vertex shader
         hr = dev->CreateVertexShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_vs );
         if( FAILED( hr ) )
-            throw exception( "failed to create shader" );
+            throw std::exception( "failed to create shader" );
 
         // Define the input layout
         UINT numElements = ARRAYSIZE( SimpleVertex::layout );
@@ -33,19 +33,19 @@ public:
         // Create the input layout
         hr = dev->CreateInputLayout( SimpleVertex::layout, numElements, codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), &m_layout );
         if( FAILED( hr ) )
-            throw exception( "failed to create input layout" );
+            throw std::exception( "failed to create input layout" );
 
         // Compile the pixel shader
         codeBlob.Release();
         errBlob.Release();
         hr = D3DCompile( s_szShader, strlen( s_szShader ), "cubes pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
-            throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
+            throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
 
         // Create the pixel shader
         hr = dev->CreatePixelShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_ps );
         if( FAILED( hr ) )
-            throw exception( "failed to create pixel shader" );
+            throw std::exception( "failed to create pixel shader" );
         codeBlob.Release();
         errBlob.Release();
 
@@ -146,7 +146,7 @@ public:
         InitData.pSysMem = &vertices.front();
         hr = dev->CreateBuffer( &bd, &InitData, &m_vb );
         if( FAILED( hr ) )
-            throw exception( "failed to create vertex buffer" );
+            throw std::exception( "failed to create vertex buffer" );
 
         // Create the constant buffer
         bd.Usage = D3D11_USAGE_DEFAULT;
@@ -155,7 +155,7 @@ public:
         bd.CPUAccessFlags = 0;
         hr = dev->CreateBuffer( &bd, NULL, &m_cb );
         if( FAILED( hr ) )
-            throw exception( "failed to create constant buffer" );
+            throw std::exception( "failed to create constant buffer" );
 
         ZeroMemory( &m_vsConstants, sizeof( m_vsConstants ) );
     }

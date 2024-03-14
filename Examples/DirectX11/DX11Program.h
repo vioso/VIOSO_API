@@ -4,7 +4,8 @@
 #define NOMINMAX
 #include <tchar.h>
 #include <Windows.h>
-#include <atlbase.h>
+#include <atlcomcli.h>
+//#include "atlcomcli_mod.h"
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
@@ -105,9 +106,9 @@ protected:
 public:
     RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
 
-    ID3D11Resource* getResource() { return m_tex.p; }
-    ID3D11Texture2D* getTexture() { return m_tex.p; }
-    ID3D11ShaderResourceView* getView() { return m_srv; }
+    CComPtr<ID3D11Resource> getResource() { return m_tex.p; /*upcast*/ }
+    CComPtr<ID3D11Texture2D> getTexture() { return m_tex; }
+    CComPtr<ID3D11ShaderResourceView> getView() { return m_srv; }
 };
 
 class Renderer
@@ -145,18 +146,18 @@ protected:
 
 public:
     static bool SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR path, ID3D11Texture2D* tex ) ;
-    static ID3D11Device* createDevice( int createDeviceFlags );
+    static CComPtr<ID3D11Device> createDevice( int createDeviceFlags );
 
     GFXPipeline( ID3D11Device* dev, D3D11_RASTERIZER_DESC const& rd = s_rasterDescSolid, D3D11_BLEND_DESC const& bd = s_blendDescStd );
     GFXPipeline( int createDeviceFlags, D3D11_RASTERIZER_DESC const& rd = s_rasterDescSolid, D3D11_BLEND_DESC const& bd = s_blendDescStd );
-    ~GFXPipeline();
+    virtual ~GFXPipeline();
 
     void setMView( XMMATRIX const& m ) { m_mView = m; }
     XMMATRIX const& getMView() const { return m_mView; }
     XMMATRIX& getMView() { return m_mView; }
 
-    ID3D11Device* getDevice() { return m_dev; }
-    ID3D11DeviceContext* getContext() { return m_ic; }
+    CComPtr<ID3D11Device> getDevice() { return m_dev; }
+    CComPtr<ID3D11DeviceContext> getContext() { return m_ic; }
 
     void setMProjection( XMMATRIX const& m ) { m_mProjection = m; }
     XMMATRIX const& getMProjection() const { return m_mProjection; }
@@ -200,9 +201,9 @@ class RenderToTexture : public GFXPipeline
 public:
     RenderToTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
     // gets the texture resource
-    ID3D11Resource* getResource() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource(); }
-    ID3D11Texture2D* getTexture() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getTexture(); }
-    ID3D11ShaderResourceView* getView() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getView(); }
+    CComPtr<ID3D11Resource> getResource() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource(); }
+    CComPtr<ID3D11Texture2D> getTexture() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getTexture(); }
+    CComPtr<ID3D11ShaderResourceView> getView() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getView(); }
     size_t copyToBuffer( void* buff, size_t nBytes, D3D11_TEXTURE2D_DESC* pDesc ) const;
 };
 

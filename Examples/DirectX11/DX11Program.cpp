@@ -1,5 +1,7 @@
 #include "DX11Program.h"
 #include <dxgi1_2.h>
+#include "../../VIOSOWarpBlend/StringConversions.h"
+
 #pragma comment( lib, "d3d11.lib" )
 #pragma comment( lib, "dxgi.lib")
 #pragma comment( lib, "d3dcompiler.lib" )
@@ -9,7 +11,6 @@ GUID const DXGI_DEBUG_D3D11 = { 0x4b99317b, 0xac39, 0x4aa6, 0xbb, 0xb, 0xba, 0xa
 #endif
 #include <array>
 using namespace std;
-
 
 const UINT SimpleVertex::stride = sizeof(SimpleVertex);
 const UINT SimpleVertexTex::stride = sizeof(SimpleVertexTex);
@@ -49,7 +50,7 @@ D3D11_VIEWPORT RenderTarget::getFullViewport() const
     CComPtr<ID3D11Resource> res;
     m_rtv->GetResource( &res );
     CComPtr<ID3D11Texture2D> tex;
-    if( SUCCEEDED( res->QueryInterface( &tex ) ) )
+    if( SUCCEEDED( res->QueryInterface< ID3D11Texture2D>( &tex ) ) )
     {
         D3D11_TEXTURE2D_DESC desc = { 0 };
         tex->GetDesc( &desc );
@@ -74,7 +75,7 @@ void BackBuffer::initBuffers( ID3D11Device* dev, IDXGISwapChain* sc, bool withDe
         throw std::exception( "sc parameter must not be NULL" );
     D3D11_TEXTURE2D_DESC desc = { 0 };
     CComPtr<ID3D11Texture2D> res;
-    if( FAILED( sc->GetBuffer( 0, __uuidof( res ), (void**)&res ) ) )
+    if( FAILED( sc->GetBuffer( 0, __uuidof( res ), (void**)( ID3D11Texture2D** )&res ) ) )
         throw exception( "failed to get buffer from swapchain" );
 
     res->GetDesc( &desc );
@@ -193,9 +194,9 @@ const D3D11_RASTERIZER_DESC GFXPipeline::s_rasterDescSolidNoCull{
 const D3D11_BLEND_DESC GFXPipeline::s_blendDescStd{ FALSE, FALSE, {{ FALSE, D3D11_BLEND_ONE, D3D11_BLEND_ZERO, D3D11_BLEND_OP_ADD, D3D11_BLEND_ONE, D3D11_BLEND_ZERO, D3D11_BLEND_OP_ADD, 0xF }} };
 
 
-ID3D11Device* GFXPipeline::createDevice( int createDeviceFlags )
+CComPtr<ID3D11Device> GFXPipeline::createDevice( int createDeviceFlags )
 {
-    ID3D11Device* dev = nullptr;
+    CComPtr<ID3D11Device> dev;
     D3D_DRIVER_TYPE const driverTypes[] =
     {
         D3D_DRIVER_TYPE_HARDWARE,
@@ -254,26 +255,7 @@ GFXPipeline::~GFXPipeline()
     m_rs.Release();
     m_bs.Release();
     m_ic.Release();
-
-    #ifdef _DEBUG
-    {
-        CComPtr<IDXGIDebug> dbg;
-        decltype( DXGIGetDebugInterface )* fn = nullptr;
-        HMODULE h = GetModuleHandleA( "Dxgidebug.dll" );
-        if( h )
-            fn = (decltype( DXGIGetDebugInterface )*)GetProcAddress( h, "DXGIGetDebugInterface" );
-        if( fn )
-            fn( __uuidof( IDXGIDebug), (void**)&dbg );
-        if( dbg )
-            dbg->ReportLiveObjects( DXGI_DEBUG_D3D11, DXGI_DEBUG_RLO_DETAIL );
-        m_dev.Release();
-        OutputDebugStringA( "After release:\n" );
-        if( dbg )
-            dbg->ReportLiveObjects( DXGI_DEBUG_D3D11, DXGI_DEBUG_RLO_DETAIL );
-    }
-    #else //dev _DEBUG
-        m_dev.Release();
-    #endif //dev _DEBUG
+    m_dev.Release();
 }
 
 GFXPipeline::GFXPipeline( int createDeviceFlags, D3D11_RASTERIZER_DESC const& rd, D3D11_BLEND_DESC const& bd )
@@ -688,7 +670,7 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int 
     sd.SwapEffect = effect;
 
     CComPtr<IDXGIFactory> fac;
-    HRESULT hr = CreateDXGIFactory( __uuidof( IDXGIFactory), (void**)&fac );
+    HRESULT hr = CreateDXGIFactory( __uuidof( IDXGIFactory), (void**)( IDXGIFactory **)&fac );
     
     if( FAILED( hr ) )
         throw exception( "failed to create factory", hr );
