@@ -12,5 +12,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <EnableUnmanagedDebugging>true</EnableUnmanagedDebugging>
+    <StartArguments>"C:\Users\VIOSO\Downloads\LABLAB_unity3D.vwf"</StartArguments>
   </PropertyGroup>
 </Project>

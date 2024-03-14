@@ -14,9 +14,12 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-
+using SharpDX;
+using SharpDX.Direct3D;
+using SharpDX.Direct3D11;
+using SharpDX.Mathematics;
 using VIOSOWarpBlend;
-
+using Matrix = SharpDX.Matrix;
 namespace MapingLoader
 {
     /// <summary>
@@ -30,9 +33,15 @@ namespace MapingLoader
             InitializeComponent();
             try
             {
+                string[] args = Environment.GetCommandLineArgs();
+                string filepath;
+                if (args.Length > 1)
+                    filepath = args[1];
+                else
+                    filepath = "warp.vwf";
                 // get info of addressed vwf
                 Warper.WarpBlendHeader[] infos;
-                VIOSOWarpBlend.Warper.GetVwfInfo("warp.vwf", out infos); // actually it is allowed to specify multiple, comma separated files
+                VIOSOWarpBlend.Warper.GetVwfInfo(filepath, out infos); // actually it is allowed to specify multiple, comma separated files
 
                 // create a warper for each entry
                 for (int iInfo = 0; iInfo != infos.Length; iInfo++ )
@@ -79,7 +88,7 @@ namespace MapingLoader
                             {
                                 if (0 < wr.w)
                                 {
-                                    Warper.VEC3 pos = new Warper.VEC3(wr.x, wr.y, wr.z);
+                                    Warper.VEC3 xyz = new Warper.VEC3(wr.x, wr.y, wr.z);
                                 }
                             }
                             else
@@ -156,6 +165,20 @@ namespace MapingLoader
                         }
                     }
 
+                    Warper.VEC3 eye = new Warper.VEC3(0, 0, 0);
+                    Warper.VEC3 rot = new Warper.VEC3(0, 0, 0);
+                    Warper.VEC3 pos = new Warper.VEC3();
+                    Warper.VEC3 dir = new Warper.VEC3();
+                    Warper.CLIP clip = new Warper.CLIP();
+                    _warper.GetPosDirClip(ref eye, ref rot, ref pos, ref dir, ref clip);
+
+                    var mP = Matrix.OrthoOffCenterRH(-clip.l, clip.r, -clip.b, clip.t, clip.n, clip.f);
+                    var mR = Matrix.RotationYawPitchRoll(-dir.y, dir.x, dir.z);
+                    var mT = Matrix.Translation(pos.x, pos.y, pos.z);
+                    var mV = Matrix.Multiply( mR, mT );
+                    var mVP = Matrix.Multiply( mV, mP ); 
+                    var mVP_warper = new VIOSOWarpBlend.Warper.MAT4X4();
+                    _warper.GetShaderVPMatrix(ref mVP_warper); // this is transposed
                 }
             }
             catch (Exception ex)
@@ -165,4 +188,3 @@ namespace MapingLoader
         }
     }
 }
-

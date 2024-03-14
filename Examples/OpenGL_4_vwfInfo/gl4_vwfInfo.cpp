@@ -677,13 +677,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 	// NOTE: we experienced strage behaviour with a vector<> created in dll memory could not be read in main process memory,
 	// so we introduced an info function using the C interface, where you provide the memory to copy the header info to
-	std::vector<VWB_WarpBlendHeader> set;
-	VWB_uint c = 0;
-	if( VWB_ERROR_NONE != VWB::VwfInfoC( (const char*)nullptr, calibFile, nullptr, &c ) )
-		return -1;
-	set.resize( c );
-	if( VWB_ERROR_NONE != VWB::VwfInfoC( ( const char* )nullptr, calibFile, set.data(), &c ) )
-		return -1;
+	std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( calibFile );
 
 	char hostname[] = "localhost";
 
