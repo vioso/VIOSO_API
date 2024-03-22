@@ -271,6 +271,9 @@ namespace VIOSOWarpBlend
 
             /// optional DXGI_FORMAT for D3D12 render pipeline creation, defaults to DXGI_FORMAT_R8G8B8A8_UNORM
             public UInt32 D3D12RTVF;
+
+            /// the screen distance this is where the render plane is, defaults to 1
+            public float blackScale;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -500,7 +503,7 @@ namespace VIOSOWarpBlend
 
         //VIOSOWARPBLEND_API(VWB_ERROR, VWB_getPosDirClip, (VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect) );
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_getPosDirClip", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int VWB_getPosDirClip(IntPtr warper, ref VEC3 eye, ref VEC3 dir, ref VEC3 rot, ref VEC3 pos, ref CLIP clip);
+        public static extern int VWB_getPosDirClip(IntPtr warper, ref VEC3 eye, ref VEC3 dir, ref VEC3 rot, ref VEC3 pos, ref CLIP clip, bool symmetric, float aspect );
 
         /** query the corners of the screen plane
         * @param [IN]			pWarper	a valid warper 
@@ -682,9 +685,9 @@ namespace VIOSOWarpBlend
         {
             return (ERROR)VWB_getViewClip(_warper, ref eye, ref dir, ref view, ref clip);
         }
-        public ERROR GetPosDirClip(ref VEC3 eye, ref VEC3 dir, ref VEC3 rot, ref VEC3 pos, ref CLIP clip)
+        public ERROR GetPosDirClip(ref VEC3 eye, ref VEC3 rot, ref VEC3 pos, ref VEC3 dir, ref CLIP clip, bool symmetric = false, float aspect = 0 )
         {
-            return (ERROR)VWB_getPosDirClip(_warper, ref eye, ref dir, ref rot, ref pos, ref clip);
+            return (ERROR)VWB_getPosDirClip(_warper, ref eye, ref rot, ref pos, ref dir, ref clip, symmetric, aspect );
         }
 
         public ERROR GetShaderVPMatrix(ref MAT4X4 mat)
@@ -707,7 +710,12 @@ namespace VIOSOWarpBlend
             {
                 WarpFileHeader5 header = (WarpFileHeader5)Marshal.PtrToStructure(wb, typeof(WarpFileHeader5));
                 IntPtr ipo = new IntPtr(wb.ToInt64() + header.szHdr);
+                // the string size is 260, so we copy it all, in case there is no terminating 0
                 path = Marshal.PtrToStringAnsi(ipo, 260);
+                // set string length
+                int i = path.IndexOf('\0');
+                if( -1 != i )
+                    path = path.Substring( 0, i );
             }
             else
                 path = "";

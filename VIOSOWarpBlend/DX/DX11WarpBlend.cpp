@@ -182,31 +182,36 @@ bool SaveTex( LPCSTR path, ID3D11Device* dev, ID3D11DeviceContext* dc, ID3D11Tex
 	return ret;
 }
 
-DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
-: DXWarpBlend(),
-  m_device( pDevice ),
-  m_dc( NULL ),
-  m_VertexShader(NULL),
-  m_VertexBuffer(NULL),
-  //m_VertexBufferModel(NULL),
-  //m_IndexBufferModel(NULL),
-  m_PixelShader(NULL),
-  m_SSClamp(NULL),
-  m_SSLin(NULL),
-  m_SSWrap(NULL),
-  m_ConstantBuffer(NULL),
-  m_texRT( NULL ),
-  m_texWarp(NULL),
-  m_texBlend( NULL ),
-  m_texBlack( NULL ),
-  m_texBB(NULL),
-  m_texWarpCalc(NULL),
-  m_texCur(NULL),
-  m_focusWnd(0),
-  m_RasterState(NULL),
-  m_DepthState( NULL ),
-  m_BlendState( NULL ),
-  m_Layout(NULL)
+DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice ) 
+: DXWarpBlend()
+, m_device( pDevice ) 
+, m_dc( NULL ) 
+
+, m_focusWnd( 0 ) 
+, m_vp{}
+
+, m_texWarp( NULL ) 
+, m_texBlend( NULL ) 
+, m_texBlack( NULL ) 
+
+, m_VertexShader( NULL ) 
+, m_Layout( NULL ) 
+, m_VertexBuffer( NULL ) 
+ 
+, m_RasterState( NULL ) 
+ 
+, m_PixelShader( NULL ) 
+, m_ConstantBuffer( NULL ) 
+, m_SSLin( NULL ) 
+, m_SSWrap( NULL ) 
+, m_SSClamp( NULL )
+
+, m_DepthState( NULL )
+, m_BlendState( NULL )
+
+, m_texRT( NULL )
+, m_texBB( NULL )
+, m_texCur( NULL )
 {
 	if( NULL == m_device )
 		throw( VWB_ERROR_PARAMETER );
@@ -220,56 +225,63 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 	m_type4cc = '11XD';
 }
 
+
 DX11WarpBlend::~DX11WarpBlend(void)
 {
-	SAFERELEASE( m_Layout );
-	SAFERELEASE( m_DepthState );
-	SAFERELEASE( m_BlendState );
-	SAFERELEASE( m_RasterState );
 	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texWarpCalc );
 	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_texWarp ); 
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texBlack );
 	SAFERELEASE( m_texRT );
-	SAFERELEASE( m_PixelShader );
-	SAFERELEASE( m_VertexShader );
-	SAFERELEASE( m_VertexBuffer );
-	//SAFERELEASE( m_VertexBufferModel );
-	//SAFERELEASE( m_IndexBufferModel );
-	SAFERELEASE( m_SSLin );
+
+	SAFERELEASE( m_BlendState );
+	SAFERELEASE( m_DepthState );
+
 	SAFERELEASE( m_SSClamp );
 	SAFERELEASE( m_SSWrap );
+	SAFERELEASE( m_SSLin );
 	SAFERELEASE( m_ConstantBuffer );
+	SAFERELEASE( m_PixelShader );
+
+	SAFERELEASE( m_RasterState );
+
+	SAFERELEASE( m_VertexBuffer );
+	SAFERELEASE( m_Layout );
+	SAFERELEASE( m_VertexShader );
+
+	SAFERELEASE( m_texBlack );
+	SAFERELEASE( m_texBlend );
+	SAFERELEASE( m_texWarp );
+
 	SAFERELEASE( m_dc );
 	SAFERELEASE( m_device );
+
 	logStr( 1, "INFO: DX11-Warper destroyed.\n" );
 }
 
 VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
 	// make reinit OK
-	SAFERELEASE( m_Layout );
-	SAFERELEASE( m_DepthState );
-	SAFERELEASE( m_BlendState );
-	SAFERELEASE( m_RasterState );
 	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texWarpCalc );
 	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_texWarp );
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texBlack );
 	SAFERELEASE( m_texRT );
-	SAFERELEASE( m_PixelShader );
-	SAFERELEASE( m_VertexShader );
-	SAFERELEASE( m_VertexBuffer );
-	//SAFERELEASE( m_VertexBufferModel );
-	//SAFERELEASE( m_IndexBufferModel );
-	SAFERELEASE( m_SSLin );
+
+	SAFERELEASE( m_BlendState );
+	SAFERELEASE( m_DepthState );
+
 	SAFERELEASE( m_SSClamp );
 	SAFERELEASE( m_SSWrap );
+	SAFERELEASE( m_SSLin );
 	SAFERELEASE( m_ConstantBuffer );
+	SAFERELEASE( m_PixelShader );
+
+	SAFERELEASE( m_RasterState );
+
+	SAFERELEASE( m_VertexBuffer );
+	SAFERELEASE( m_Layout );
+	SAFERELEASE( m_VertexShader );
+
+	SAFERELEASE( m_texBlack );
+	SAFERELEASE( m_texBlend );
+	SAFERELEASE( m_texWarp );
 
 	m_focusWnd = ::GetActiveWindow();
 	VWB_ERROR err = __super::Init( wbs );
@@ -525,29 +537,6 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			return VWB_ERROR_GENERIC;
 		}
 
-		D3D11_DEPTH_STENCIL_DESC dsdesc;
-		memset( &dsdesc, 0, sizeof( dsdesc ) );
-		dsdesc.DepthEnable = FALSE;
-		dsdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-		dsdesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-		hr = m_device->CreateDepthStencilState( &dsdesc, &m_DepthState );
-		if( FAILED( hr ) )
-		{
-			logStr( 0, "ERROR: Could not create depth state: %08X\n", hr );
-			return VWB_ERROR_GENERIC;
-		}
-
-		D3D11_BLEND_DESC bdesc;
-		memset( &bdesc, 0, sizeof( bdesc ) );
-		bdesc.RenderTarget[0].BlendEnable = FALSE;
-		bdesc.RenderTarget[0].RenderTargetWriteMask = 0xF;
-		hr = m_device->CreateBlendState( &bdesc, &m_BlendState );
-		if( FAILED( hr ) )
-		{
-			logStr( 0, "ERROR: Could not create blend state: %08X\n", hr );
-			return VWB_ERROR_GENERIC;
-		}
-
 		// Compile the pixel shader
         std::string pixelShader = "PS"; // or "TST"
 #if 1
@@ -619,6 +608,29 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		descSam.AddressU = descSam.AddressV = descSam.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		m_device->CreateSamplerState( &descSam, &m_SSClamp );
 
+		D3D11_DEPTH_STENCIL_DESC dsdesc;
+		memset( &dsdesc, 0, sizeof( dsdesc ) );
+		dsdesc.DepthEnable = FALSE;
+		dsdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		dsdesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+		hr = m_device->CreateDepthStencilState( &dsdesc, &m_DepthState );
+		if( FAILED( hr ) )
+		{
+			logStr( 0, "ERROR: Could not create depth state: %08X\n", hr );
+			return VWB_ERROR_GENERIC;
+		}
+
+		D3D11_BLEND_DESC bdesc;
+		memset( &bdesc, 0, sizeof( bdesc ) );
+		bdesc.RenderTarget[0].BlendEnable = FALSE;
+		bdesc.RenderTarget[0].RenderTargetWriteMask = 0xF;
+		hr = m_device->CreateBlendState( &bdesc, &m_BlendState );
+		if( FAILED( hr ) )
+		{
+			logStr( 0, "ERROR: Could not create blend state: %08X\n", hr );
+			return VWB_ERROR_GENERIC;
+		}
+
 		logStr( 1, "SUCCESS: DX11-Warper initialized.\n" );
 	} catch( VWB_ERROR e )
 	{
@@ -679,6 +691,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		m_dc->OMGetRenderTargets( 1, &pRTV, &pDSV );
 		if( NULL == pRTV )
 		{
+			SAFERELEASE( pDSV );
 			logStr( 3, "Render target not available.\n" );
 			return VWB_ERROR_GENERIC;
 		}
@@ -686,7 +699,11 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( pRTV && m_texRT != pRTV )
 	{
+		if( m_texRT )
+			m_texRT->Release();
 		m_texRT = pRTV;
+		m_texRT->AddRef();
+
 		ID3D11Resource* pRes = NULL;
 		pRTV->GetResource( &pRes );
 		if( pRes )
@@ -735,8 +752,8 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					once = false;
 				}
 			}
+			pRes->Release();
 		}
-		pRes->Release();
 	}
 
 	// do backbuffer copy if necessary
@@ -762,12 +779,12 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				D3D11_TEXTURE2D_DESC desc;
 				pTex->GetDesc( &desc );
 				pTex->Release();
+				pTex = NULL;
 				if( NULL == m_texBB ||
 					desc.Width != m_sizeIn.cx ||
 					desc.Height != m_sizeIn.cy )
 				{
 
-					pTex = NULL;
 					//desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
 					desc.Usage = D3D11_USAGE_DEFAULT;
 					desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -880,8 +897,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_texBB->GetResource( &pRes );
 			if( pRes != pTexIn )
 			{
-				m_texBB->Release();
-				m_texBB = NULL;
+				SAFERELEASE( m_texBB );
 			}
 			SAFERELEASE( pRes );
 		}

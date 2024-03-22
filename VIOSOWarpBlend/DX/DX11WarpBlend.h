@@ -8,33 +8,36 @@ class DX11WarpBlend : public DXWarpBlend
 public:
 
 protected:
+// set in constructor
     ID3D11Device*				m_device;           // the d3d device
 	ID3D11DeviceContext*		m_dc;				// the d3d devicecontext
-	ID3D11RenderTargetView*		m_texRT;	        // the render target view
-	ID3D11ShaderResourceView*	m_texWarp;          // the warp lookup texture, in case of 3D it contains the real world 3D coordinates of the screen
-	ID3D11ShaderResourceView*	m_texBlend;         // the blend lookup texture view
-	ID3D11ShaderResourceView*	m_texBlack;         // the black level lookup texture view
-	ID3D11ShaderResourceView*	m_texBB;			// backbuffer copy or source texture view
-	ID3D11ShaderResourceView*	m_texWarpCalc;		// the caclulated warp after model inscription
-	ID3D11ShaderResourceView*	m_texCur;			// the mouse cursor texture
-	D3D11_VIEWPORT				m_vp;				// the viewport, if width and height is set, use it on begin of rendering
+// set in Init()
 	HWND						m_focusWnd;			// the focus window handle
+	D3D11_VIEWPORT				m_vp;				// the viewport, if width and height is set, use it on begin of rendering
+	ID3D11ShaderResourceView*   m_texWarp;          // the warp lookup texture, in case of 3D it contains the real world 3D coordinates of the screen
+	ID3D11ShaderResourceView*   m_texBlend;         // the blend lookup texture view
+	ID3D11ShaderResourceView*   m_texBlack;         // the black level lookup texture view
 
 	ID3D11VertexShader*			m_VertexShader;
-	ID3D11PixelShader*			m_PixelShader;
-	ID3D11Buffer*				m_VertexBuffer;		// the 
-    //ID3D11Buffer*				m_VertexBufferModel; // the vertex buffer of a model
-    //ID3D11Buffer*				m_IndexBufferModel; // the index buffer to that vertex buffer of a model
-	ID3D11SamplerState*			m_SSLin;
-	ID3D11SamplerState*			m_SSClamp;
-	ID3D11SamplerState*			m_SSWrap;
-	ID3D11Buffer*				m_ConstantBuffer;
-	ID3D11RasterizerState*		m_RasterState;
 	ID3D11InputLayout*			m_Layout;
+	ID3D11Buffer*				m_VertexBuffer;		// the quad
 
-	// render states
+	ID3D11RasterizerState*		m_RasterState;
+
+	ID3D11PixelShader*			m_PixelShader;
+	ID3D11Buffer*				m_ConstantBuffer;
+	ID3D11SamplerState*			m_SSLin;			// linear 
+	ID3D11SamplerState*			m_SSWrap;			// linear + wrap to sample in content
+	ID3D11SamplerState*			m_SSClamp;			// point + clamp to sample in mappings
+
 	ID3D11DepthStencilState*	m_DepthState;
 	ID3D11BlendState*			m_BlendState;
+
+// set in Render()
+	ID3D11RenderTargetView*		m_texRT;	        // the render target view
+	ID3D11ShaderResourceView*   m_texBB;			// backbuffer copy or source texture view
+	ID3D11ShaderResourceView*	m_texCur;			// the mouse cursor texture
+
 public:
 	///< the constructor
 	DX11WarpBlend( ID3D11Device* pDevice );

@@ -1,3 +1,50 @@
+/// Used to read and write .vwf files
+/// A vwf file consists of a set header and chunks
+/// Basic format of info:
+/// FileSetHeader
+/// All values must be set:
+/// VWB_WarpSetFileHeader.magicNumber = '1fwv';
+/// VWB_WarpSetFileHeader.numBlocks = numberOfAllWarpDataSets + numberOfAllBlendMaps + numberOfAllBlacklevelMaps;
+/// VWB_WarpSetFileHeader.off = dataOffset; // = sizeof( VWB_WarpSetFileHeader ) = 16;
+/// VWB_WarpSetFileHeader.reserved = 0;
+/// at absolute file position VWB_WarpSetFileHeader.off, write the first chunk which must be warp information, starting with a VWB_WarpFileHeader
+/// Mandatory header values:
+/// VWB_WarpFileHeader5.magicNumber = '0fwv';
+/// VWB_WarpFileHeader5.szHdr = sizeof( VWB_WarpFileHeader5 );
+/// VWB_WarpFileHeader5.width = w;
+/// VWB_WarpFileHeader5.height = h;
+/// Optional values
+/// VWB_WarpFileHeader5.name = "channelName";
+/// VWB_WarpFileHeader5.primName = "screenName";
+/// VWB_WarpFileHeader5.hostName = "clientName";
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedLeft; // 0.4   for content rect
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedTop; // 0.1
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedRight; // 0.7
+/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedBottom; // 0.3
+/// next is binary warp data: VWB_WarpRecord[width x height] 
+///  midle-of-pixel aligned normalized lookup. 
+///  2D: VWB_WarpRecord.{x = u; y = v; z = valid ? 1 : 0; w = 0}
+///  3D: VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_3D; VWB_WarpRecord.{x = X; y = Y; z = Z; w = valid ? 1 : 0}
+/// next chunk if not "vwf" is blend:
+/// windows bitmap, set VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_BLENDV2, if 16bit per channel; set VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_BLENDV3, if 32 bit per channel
+/// the bitmap might be set to size 0 x 0, to indicate no blend map
+/// next chunk if not "vwf" is blacklevel:
+/// windows bitmap, always RGB8U, optional, set VWB_WarpFileHeader.flags|= FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR; if present
+///  set VWB_WarpFileHeader4.{blackScale,blackDark,blackBright}.
+///  shader code:
+///  vec4 black = _tex2D( samBlack, texcoord.st ) * blackScale;
+///  FragColor *= vec4(1,1,1,1) - backDark * blackBright * black;
+///  FragColor += blackDark * black;          
+///  FragColor = max( FragColor, black );        
+///    blackDark == 0 => every pixel is set to blacklevel if below
+///    blackDark == 1 => pixel is uplifted above blacklevel, which might be above 1
+///    blackBright == 0 => pixel is clamped to 1
+///    blackBright == 1 => pixel is scaled to [blacklevel..1]
+///   normally blackDark = blackBright = 1, but you'll loose color resolution. It might be better in dark scenario to just shift up, or in bright scenario to clamp lower.
+/// next chunk if not "vwf" is white (ambient correction), not used so far
+/// next chunk must be "vwf" for next channel
+/// (c) VIOSO GmbH 2024
+
 #include "../Include/VWBTypes.h"
 #include <iostream>
 
@@ -23,20 +70,20 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = fal
 /// VWB_ERROR_GENERIC otherwise
 VWB_ERROR SplitVWF(VWB_WarpBlend& wb, const VWB_word (& calibSplit)[4]);
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord2 const* map, std::ostream& os );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_BlendRecord3 const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os, VWB_word semantic = 0 );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, std::ostream& os );
 VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* aesKey = nullptr );
 VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, char const* path, const char* aesKey = nullptr );
 
 ///< @remark use SaveBMP   VWB_WarpRecord only for debug reasons, it will save 8 bit RGB only!
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, std::ostream& os );
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader4 const& h, VWB_BlendRecord const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, std::ostream& os );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader4 const& h, VWB_WarpRecord const* map, char const* path );
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os );
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, char const* path );
 
 bool VerifySet( VWB_WarpBlendSet& set, int iScanIndex = -1 );
 
@@ -52,7 +99,9 @@ VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set );
 /// @return VWB_ERROR_NONE in case of success 
 VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma = 0 );
 
-/// @brief creates an unwarped mapping and adds it to the given set. All warp maps are "bypass", that means they mimic an unwarped display, all pixels used, no blend
+/// @brief creates an unwarped mapping and adds it to the given set. 
+/// All warp maps are "bypass", that means they mimic an unwarped display, all pixels used
+/// The split values are set in the split info and used to fill the warp lookup scaled and offsetted.
 /// @param [OUT] set				the set to add
 /// @param [IN] path				the path, the mapping was loaded from, must not be empty. Will be expanded to a valid path. Can be used later to save.
 /// @param [IN] xPos, yPos			the desktop position (upper left corner) of the display part
@@ -63,4 +112,16 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma = 0 );
 /// @param [IN] splitX				the split display's column index
 /// @param [IN] splitY				the split display's row index
 /// @return VWB_ERROR_NONE in cas of success, VWB_ERROR_PARAMETER if some parameter is out of bound
-VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY );
+VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW = 1, int splitH = 1, int splitX = 0, int splitY = 0 );
+
+/// @brief Adds or replaces a blacklevel (beta) map.
+/// It sets FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR to wb.header.flags
+/// (1) Sets wb.header.blackScale to scale, wb.header.blackDark to dark and wb.header.blackBright to bright.
+/// (2) Creates a normalized blacklevel map (it is scaled the way the former maximum becomes 255) and wb.header.blackScale is set to scale it back properly. wb.header.blackDark is set to dark and wb.header.blackBright to bright.
+/// @param [IN|OUT] wb				the VWB_WarpBlend to add the blacklevel map to
+/// @param blacklevelMap			a blacklevel map. Must contain width * height entries.
+/// @param blacklevelMapRaw			a blacklevel map in float format, interleaved RGB. Must contain 3 * width * height entries. 
+/// @return VWB_ERROR_NONE in cas of success, VWB_ERROR_PARAMETER if some parameter is out of bound
+VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, VWB_BlendRecord const* blacklevelMap, float scale = 1.0f, float dark = 1.0f, float bright = 1.0f );
+VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, float const* blacklevelMapRaw, float dark = 1.0f, float bright = 1.0f );
+

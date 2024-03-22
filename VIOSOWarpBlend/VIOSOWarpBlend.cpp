@@ -252,6 +252,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		D3D12RTVF = GetIniInt( "default", "D3D12RTVF", D3D12RTVF, path );
 		D3D12RTVF = GetIniInt( channel, "D3D12RTVF", D3D12RTVF, path );
 
+		fDef = GetIniFloat( "default", "blackScale", blackScale, path );
+		blackScale = GetIniFloat( channel, "blackScale", fDef, path );
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -425,73 +428,78 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		if( szProcPath )
 			logStr( 1, "process path %s.\n", szProcPath );
 	}
-	logStr( 2,	"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
-				"calibFile=%s\n"
-				"calibIndex=%d\n"
-			    "calibSplit=[%d,%d,%d,%d]\n"
-			    "bTurnWithView=%d\n"
-				"bDoNotBlend=%d\n"
-				"eyePointProvider=%s\n"
-				"eyePointProviderParam=%s\n"
-				"eye=[%.5f, %.5f, %.5f]\n"
-				"near=%.5f\n"
-				"far=%.5f\n"
-				"bBicubic=%d\n"
-				"bUseGL110=%d\n"
-				"bPartialInput=%d\n"
-				"splice=%u\n"
-				"trans=[%.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f]\n"
-				"autoViewC=%.5f\n"
-				"bAutoView=%d\n"
-				"dir=[%.5f, %.5f, %.5f]\n"
-				"fov=[%.5f, %.5f, %.5f, %.5f]\n"
-				"screen=%.5f\n"
-				"optimalRes=[%d, %d]\n"
-				"optimalRect=[%d, %d, %d, %d]\n"
-				"port=%d\n"
-				"heartbeatPort=%d\n"
-				"address=%s\n"
-				"mouseMode=%d\n"
-			    "bDoNoBlack=%d\n"
-				"overrideStatemask=%d\n"
-				"bFixWraparound=%d\n"
-				"\n",
-				((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
-				(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
-				(*ppWarper)->path,
-				(*ppWarper)->calibFile,
-			    (*ppWarper)->calibIndex,
-			    (*ppWarper)->calibSplit[0], (*ppWarper)->calibSplit[1], (*ppWarper)->calibSplit[2], (*ppWarper)->calibSplit[3],
-			    (*ppWarper)->bTurnWithView ? 1 : 0,
-				(*ppWarper)->bDoNotBlend ? 1 : 0,
-				(*ppWarper)->eyeProvider,
-				(*ppWarper)->eyeProviderParam,
-				(*ppWarper)->eye[0],(*ppWarper)->eye[1],(*ppWarper)->eye[2],
-				(*ppWarper)->nearDist,
-				(*ppWarper)->farDist,
-				(*ppWarper)->bBicubic ? 1 : 0,
-				(*ppWarper)->bUseGL110 ? 1 : 0,
-				(*ppWarper)->bPartialInput ? 1 : 0,
-				(*ppWarper)->splice,
-				(*ppWarper)->trans[ 0],(*ppWarper)->trans[ 1],(*ppWarper)->trans[ 2],(*ppWarper)->trans[ 3],
-				(*ppWarper)->trans[ 4],(*ppWarper)->trans[ 5],(*ppWarper)->trans[ 6],(*ppWarper)->trans[ 7],
-				(*ppWarper)->trans[ 8],(*ppWarper)->trans[ 9],(*ppWarper)->trans[10],(*ppWarper)->trans[11],
-				(*ppWarper)->trans[12],(*ppWarper)->trans[13],(*ppWarper)->trans[14],(*ppWarper)->trans[15],
-				(*ppWarper)->autoViewC,
-				(*ppWarper)->bAutoView ? 1 : 0,
-				(*ppWarper)->dir[0],(*ppWarper)->dir[1],(*ppWarper)->dir[2],
-				(*ppWarper)->fov[0],(*ppWarper)->fov[1],(*ppWarper)->fov[2],(*ppWarper)->fov[3],
-				(*ppWarper)->screenDist,
-				(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
-				(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
-				(*ppWarper)->port,
-				(*ppWarper)->heartBeatPort,
-				(*ppWarper)->addr,
-				(*ppWarper)->mouseMode,
-				(*ppWarper)->bDoNoBlack,
-				(*ppWarper)->overrideStatemask,
-				(*ppWarper)->bFixWraparound
-		   );
+	logStr( 2,
+			"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
+			"calibFile=%s\n"
+			"calibIndex=%d\n"
+			"calibSplit=[%d,%d,%d,%d]\n"
+			"bTurnWithView=%d\n"
+			"bDoNotBlend=%d\n"
+			"eyePointProvider=%s\n"
+			"eyePointProviderParam=%s\n"
+			"eye=[%.5f, %.5f, %.5f]\n"
+			"near=%.5f\n"
+			"far=%.5f\n"
+			"bBicubic=%d\n"
+			"bUseGL110=%d\n"
+			"bPartialInput=%d\n"
+			"splice=%u\n"
+			"trans=[%.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f]\n"
+			"autoViewC=%.5f\n"
+			"bAutoView=%d\n"
+			"dir=[%.5f, %.5f, %.5f]\n"
+			"fov=[%.5f, %.5f, %.5f, %.5f]\n"
+			"screen=%.5f\n"
+			"optimalRes=[%d, %d]\n"
+			"optimalRect=[%d, %d, %d, %d]\n"
+			"port=%d\n"
+			"heartbeatPort=%d\n"
+			"address=%s\n"
+			"mouseMode=%d\n"
+			"bDoNoBlack=%d\n"
+			"overrideStatemask=%d\n"
+			"bFixWraparound=%d\n"
+			"D3D12RTVF=%d\n"
+			"blackScale=%f\n"
+			"\n",
+			((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
+			(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
+			(*ppWarper)->path,
+			(*ppWarper)->calibFile,
+			(*ppWarper)->calibIndex,
+			(*ppWarper)->calibSplit[0], (*ppWarper)->calibSplit[1], (*ppWarper)->calibSplit[2], (*ppWarper)->calibSplit[3],
+			(*ppWarper)->bTurnWithView ? 1 : 0,
+			(*ppWarper)->bDoNotBlend ? 1 : 0,
+			(*ppWarper)->eyeProvider,
+			(*ppWarper)->eyeProviderParam,
+			(*ppWarper)->eye[0],(*ppWarper)->eye[1],(*ppWarper)->eye[2],
+			(*ppWarper)->nearDist,
+			(*ppWarper)->farDist,
+			(*ppWarper)->bBicubic ? 1 : 0,
+			(*ppWarper)->bUseGL110 ? 1 : 0,
+			(*ppWarper)->bPartialInput ? 1 : 0,
+			(*ppWarper)->splice,
+			(*ppWarper)->trans[ 0],(*ppWarper)->trans[ 1],(*ppWarper)->trans[ 2],(*ppWarper)->trans[ 3],
+			(*ppWarper)->trans[ 4],(*ppWarper)->trans[ 5],(*ppWarper)->trans[ 6],(*ppWarper)->trans[ 7],
+			(*ppWarper)->trans[ 8],(*ppWarper)->trans[ 9],(*ppWarper)->trans[10],(*ppWarper)->trans[11],
+			(*ppWarper)->trans[12],(*ppWarper)->trans[13],(*ppWarper)->trans[14],(*ppWarper)->trans[15],
+			(*ppWarper)->autoViewC,
+			(*ppWarper)->bAutoView ? 1 : 0,
+			(*ppWarper)->dir[0],(*ppWarper)->dir[1],(*ppWarper)->dir[2],
+			(*ppWarper)->fov[0],(*ppWarper)->fov[1],(*ppWarper)->fov[2],(*ppWarper)->fov[3],
+			(*ppWarper)->screenDist,
+			(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
+			(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
+			(*ppWarper)->port,
+			(*ppWarper)->heartBeatPort,
+			(*ppWarper)->addr,
+			(*ppWarper)->mouseMode,
+			(*ppWarper)->bDoNoBlack,
+			(*ppWarper)->overrideStatemask,
+			( *ppWarper )->bFixWraparound,
+			( *ppWarper )->D3D12RTVF,
+			( *ppWarper )->blackScale
+	);
 
 	return VWB_ERROR_NONE;
 }
@@ -586,10 +594,10 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 
 void VWB_Destroy( VWB_Warper* pWarper )
 {
+	if( pWarper )
+		delete ( VWB_Warper_base* )pWarper;
 }
 
-	if( pWarper )
-		delete (VWB_Warper_base*)pWarper;
 
 VWB_ERROR VWB_getViewProj( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pRot, VWB_float* pView, VWB_float* pProj )
 {
@@ -954,7 +962,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 	m_sizeMap.cx = wbs[calibIndex]->header.width;
 	m_sizeMap.cy = wbs[calibIndex]->header.height;
-	m_blackBias.x = wbs[calibIndex]->header.blackScale;
+	m_blackBias.x = wbs[calibIndex]->header.blackScale * blackScale;
 	m_blackBias.y = wbs[calibIndex]->header.blackDark;
 	m_blackBias.z = wbs[calibIndex]->header.blackDark * wbs[calibIndex]->header.blackBright;
 	m_blackBias.w = 0;
@@ -1113,10 +1121,10 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
 				0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
 			{
-				optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] );
-				optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] );
-				optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] );
-				optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] );
+				optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] * optimalRes.cx );
+				optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] * optimalRes.cy );
+				optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] * optimalRes.cx );
+				optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] * optimalRes.cy );
 			}
 			else
 			{
@@ -1283,6 +1291,7 @@ void VWB_Warper_base::Defaults()
 	bAutoView = true;
 	gamma = 1;
 	D3D12RTVF = 28;
+	blackScale = 1.0f;
 }
 
 VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )

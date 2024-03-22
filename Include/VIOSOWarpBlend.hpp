@@ -11,34 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 #endif // ndef WIN32
-/*
-	static VWB_ERROR VwfInfoC(char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC(path, set, count); }
-	// call again with path = NULL, to release memory
-	static VWB_ERROR VwfInfoC(const TCHAR* dllPath, char const* path, VWB_WarpBlendHeaderSet* set) {
-		VWB_ERROR ret = VWB_ERROR_NONE;
-		if (nullptr != path)
-			if (1 == ++instanceCounter)
-				loadDll(dllPath);
-		if (instanceCounter)
-		{
-			VWB_uint count = 0;
-			ret = VWB_vwfInfoC(path, nullptr, &count);
-			if (count)
-			{
-				set->resize(count);
-				for (VWB_uint i = 0; i != count; i++)
-				{
-
-					VWB_vwfInfoC(path, , &count)
-				}
-			}
-		}
-		if (nullptr == path)
-			if (0 == --instanceCounter)
-				unloadDll();
-		return ret;
-	}
-*/
 
 class VWB
 {
@@ -198,7 +170,8 @@ public:
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
 	VWB_ERROR SetViewProj( VWB_float* pView, VWB_float* pProj ) { return VWB_setViewProj( m_warper, pView, pProj ); }
 	static VWB_ERROR VwfInfo( char const* path, VWB_WarpBlendHeaderSet* set ) { return VWB_vwfInfo( path, set ); }
-	// call again with path = NULL, to release memory
+	static VWB_ERROR VwfInfoC( char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) { return VWB_vwfInfoC( path, set, count ); }
+	// call again with path = NULL, to unload dll
 	static VWB_ERROR VwfInfo( const char* dllPath, char const* path, VWB_WarpBlendHeaderSet* set ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( nullptr != path )
@@ -211,7 +184,33 @@ public:
 				unloadDll();
 		return ret;
 	}
-
+	static VWB_ERROR VwfInfoC( const char* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		if( instanceCounter )
+			ret = VWB_vwfInfoC( path, set, count );
+		if( 0 == --instanceCounter )
+			unloadDll();
+		return ret;
+	}
+	static std::vector<VWB_WarpBlendHeader> VwfInfo( char const* path, const char* dllPath = nullptr ) {
+		std::vector<VWB_WarpBlendHeader> set;
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		VWB_uint c = 0;
+		auto ret = VWB_vwfInfoC( path, nullptr, &c );
+		if( VWB_ERROR_NONE == ret )
+		{
+			set.resize( c );
+			ret = VWB_vwfInfoC( path, set.data(), &c );
+		}
+		if( 0 == --instanceCounter )
+			unloadDll();
+		if( VWB_ERROR_NONE != ret )
+			throw ret;
+		return set;
+	}
 	VWB_ERROR GetWarpBlend( VWB_WarpBlend const*& wb ) { return VWB_getWarpBlend( m_warper, wb ); }
 	VWB_ERROR GetShaderVPMatrix( VWB_float* pMPV ) { return VWB_getShaderVPMatrix( m_warper, pMPV ); }
 	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
@@ -240,6 +239,33 @@ public:
 				unloadDll();
 		return ret;
 	}
+	static VWB_ERROR VwfInfoC( const wchar_t* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( 1 == ++instanceCounter )
+			loadDll( dllPath );
+		if( instanceCounter )
+			ret = VWB_vwfInfoC( path, set, count );
+		if( 0 == --instanceCounter )
+			unloadDll();
+		return ret;
+	}
+	//static std::vector<VWB_WarpBlendHeader> VwfInfo( wchar_t const* path, const wchar_t* dllPath = nullptr ) {
+	//	std::vector<VWB_WarpBlendHeader> set;
+	//	if( 1 == ++instanceCounter )
+	//		loadDll( dllPath );
+	//	VWB_uint c = 0;
+	//	auto ret = VWB_vwfInfoC( path, nullptr, &c );
+	//	if( VWB_ERROR_NONE == ret )
+	//	{
+	//		set.resize( c );
+	//		ret = VWB_vwfInfoC( path, set.data(), &c );
+	//	}
+	//	if( 0 == --instanceCounter )
+	//		unloadDll();
+	//	if( VWB_ERROR_NONE != ret )
+	//		throw ret;
+	//	return set;
+	//}
 	#endif //def WIN32
 };
 

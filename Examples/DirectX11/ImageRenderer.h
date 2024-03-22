@@ -15,26 +15,26 @@ public:
         // Compile the vertex shader
         CComPtr< ID3DBlob > codeBlob;
         CComPtr< ID3DBlob > errBlob;
-        HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "cubes vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
+        HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "image vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
-            throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
+            throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
 
         // Create the vertex shader
         hr = dev->CreateVertexShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_vs );
         if( FAILED( hr ) )
-            throw exception( "failed to create shader" );
+            throw std::exception( "failed to create shader" );
 
         // Compile the pixel shader
         codeBlob.Release();
         errBlob.Release();
-        hr = D3DCompile( s_szShader, strlen( s_szShader ), "cubes pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
+        hr = D3DCompile( s_szShader, strlen( s_szShader ), "image pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
-            throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
+            throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
 
         // Create the pixel shader
         hr = dev->CreatePixelShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_ps );
         if( FAILED( hr ) )
-            throw exception( "failed to create pixel shader" );
+            throw std::exception( "failed to create pixel shader" );
         codeBlob.Release();
         errBlob.Release();
 
@@ -51,8 +51,8 @@ public:
         };
         hr = dev->CreateSamplerState( &sd, &m_ss );
         if( FAILED( hr ) )
-            throw exception( "failed to create sampler state" );
-        string pps( path );
+            throw std::exception( "failed to create sampler state" );
+        std::string pps( path );
         if( '\"' == pps[0] )
         {
             pps.erase( 0, 1 );
@@ -101,7 +101,7 @@ public:
             png.convertRGBA16toRGBA8( data.data() );
         }
         else
-            throw exception( "unknown png texture format" );
+            throw std::exception( "unknown png texture format" );
 
         D3D11_SUBRESOURCE_DATA sbd{
             data.data(),
@@ -112,7 +112,7 @@ public:
         CComPtr<ID3D11Texture2D> tex;
         hr = dev->CreateTexture2D( &texDesc, &sbd, &tex );
         if( FAILED( hr ) )
-            throw exception( "failed to create texture" );
+            throw std::exception( "failed to create texture" );
 
         D3D11_SHADER_RESOURCE_VIEW_DESC srDesc{};
         srDesc.Format = texDesc.Format;
@@ -122,7 +122,7 @@ public:
 
         hr = dev->CreateShaderResourceView( tex, &srDesc, &m_tex );
         if( FAILED( hr ) )
-            throw exception( "failed to create shader resource view" );
+            throw std::exception( "failed to create shader resource view" );
     }
 
     virtual void render( ID3D11DeviceContext* ctx, XMMATRIX const&, XMMATRIX const&, XMMATRIX const& )

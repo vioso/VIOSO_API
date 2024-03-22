@@ -675,9 +675,9 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	if(!LoadVertices())
 		return -1;
 
-	VWB_WarpBlendHeaderSet set;
-	if( VWB_ERROR_NONE != VWB::VwfInfo( (const char*)nullptr, calibFile, &set) )
-		return -1;
+	// NOTE: we experienced strage behaviour with a vector<> created in dll memory could not be read in main process memory,
+	// so we introduced an info function using the C interface, where you provide the memory to copy the header info to
+	std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( calibFile );
 
 	char hostname[] = "localhost";
 
@@ -686,21 +686,21 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	for( size_t i = 0; i != set.size(); i++ )
 	{
 		// match host
-		if( set[i]->header.hostname[0] && _stricmp( hostname, set[i]->header.hostname ) ) // hostname set but different
+		if( set[i].header.hostname[0] && _stricmp( hostname, set[i].header.hostname ) ) // hostname set but different
 			continue;
 
 		const int rows = 1;
 		const int cols = 1;
 		for (int row = 0; row != rows; row++)
 		{
-			int h = int(set[i]->header.height) / rows;
-			int y = int(set[i]->header.offsetY) + row * h;
+			int h = int(set[i].header.height) / rows;
+			int y = int(set[i].header.offsetY) + row * h;
 			for (int col = 0; col != cols; col++)
 			{
 				MyWindow wnd{};
 				// Create Our OpenGL Window
-				int w = int(set[i]->header.width) / cols;
-				int x = int(set[i]->header.offsetX) + col * w;
+				int w = int(set[i].header.width) / cols;
+				int x = int(set[i].header.offsetX) + col * w;
 				if (!CreateGLWindow(wnd, "NeHe's Solid Object Tutorial", x, y, w, h, 32))
 				{
 					return 0;									// Quit If Window Was Not Created	
@@ -709,7 +709,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 				std::shared_ptr<VWBX<MyWindow >> win;
 				try
 				{
-					std::string channelname = set[i]->header.name;
+					std::string channelname = set[i].header.name;
 					if( cols > 1 )
 						channelname += "_" + std::to_string( col );
 					if( rows > 1 )
@@ -733,7 +733,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 		}
 	}
 	// release memory
-	VWB::VwfInfo( (const char*)nullptr, nullptr, &set);
+	//VWB::VwfInfo( (const char*)nullptr, nullptr, &set);
 
 	while( !done )									// Loop That Runs While done=FALSE
 	{

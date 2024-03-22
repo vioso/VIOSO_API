@@ -205,6 +205,9 @@ struct VWB_Warper
 
 	/// optional DXGI_FORMAT for D3D12 render pipeline creation, defaults to DXGI_FORMAT_R8G8B8A8_UNORM
 	VWB_uint D3D12RTVF;
+
+	/// optional blacklevel scale adjustment, will be multiplied to VWB_WarpFileHeader5.blackScale. Defaults to 1.0
+	VWB_float blackScale;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------
