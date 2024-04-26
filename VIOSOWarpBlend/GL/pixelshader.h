@@ -134,7 +134,6 @@ void main()
 		    tex.y*= 1.02;										
 		    tex.y-= 0.01;										
 		}	
-		tex.xy/= blend.a;
 		FragColor = _texture2D( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );			
 		if( !bDoNotBlend )					
 			FragColor.rgb*= blend.rgb;		

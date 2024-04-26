@@ -838,8 +838,8 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if( !overlay )
 		{
 			SetTexture( m_locWarp, m_texWarp, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locBlend, m_texBlend );
-			SetTexture( m_locBlack, m_texBlack );
+			SetTexture( m_locBlend, m_texBlend, GL_CLAMP, GL_NEAREST );
+			SetTexture( m_locBlack, m_texBlack, GL_CLAMP, GL_NEAREST );
 			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
 		}
 		else

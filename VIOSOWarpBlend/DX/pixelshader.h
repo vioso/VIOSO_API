@@ -287,8 +287,8 @@ float4 PS( VS_OUT vIn ) : SV_Target
 float4 PSWB( VS_OUT vIn ) : SV_Target               
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = 0;
 	float4 vCur = 0;
 	if( 0.1 < blend.a )
@@ -322,8 +322,8 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 	uint w,h;
 	texWarp.GetDimensions( w, h );
 	float4 tex = texWarp.Load( int3( w * vIn.tex.x, h * vIn.tex.y, 0 ) );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = float4( 0,0,0,1);             
 	if( 0.01 < blend.a )                            
 	{                                           
@@ -366,8 +366,8 @@ float4 PSBC( VS_OUT vIn ) : SV_Target
 float4 PSWBBC( VS_OUT vIn ) : SV_Target               
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = 0;
 	float4 vCur = 0;
 	if( 0.1 < blend.a )
@@ -399,8 +399,8 @@ float4 PSWBBC( VS_OUT vIn ) : SV_Target
 float4 PSWB3DBC( VS_OUT vIn ) : SV_Target             
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = float4( 0,0,0,1);             
 	float4 vCur = 0;
 	if( 0.1 < blend.a )                            
@@ -517,8 +517,8 @@ float4 PS( VS_OUT vIn ) : SV_Target
 float4 PSWB( VS_OUT vIn ) : SV_Target               
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = 0;
 	float4 vCur = 0;
 	if( 0.1 < blend.a )
@@ -558,8 +558,8 @@ float4 PSWB3D_( VS_OUT vIn ) : SV_Target
 float4 PSWB3D( VS_OUT vIn ) : SV_Target             
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = float4( 0,0,0,1);             
 	float4 vCur = 0;
 	if( 0.1 < blend.a )                            
@@ -596,8 +596,8 @@ float4 PSBC( VS_OUT vIn ) : SV_Target
 float4 PSWBBC( VS_OUT vIn ) : SV_Target               
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = 0;
 	float4 vCur = 0;
 	if( 0.1 < blend.a )
@@ -630,8 +630,8 @@ float4 PSWBBC( VS_OUT vIn ) : SV_Target
 float4 PSWB3DBC( VS_OUT vIn ) : SV_Target             
 {                                               
 	float4 tex = texWarp.Sample( samWarp, vIn.tex );     
-	float4 blend = texBlend.Sample( samLin, vIn.tex );  
-	float4 black = texBlack.Sample( samLin, vIn.tex ) * blackBias.x;   
+	float4 blend = texBlend.Sample( samWarp, vIn.tex );  
+	float4 black = texBlack.Sample( samWarp, vIn.tex ) * blackBias.x;   
 	float4 vOut = float4( 0,0,0,1);             
 	float4 vCur = 0;
 	if( 0.1 < blend.a )                            
