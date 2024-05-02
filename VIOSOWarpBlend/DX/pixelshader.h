@@ -218,7 +218,7 @@ cbuffer ConstantBuffer : register( b0 )
                                                 
 SamplerState samLin : register( s0 );
 SamplerState samWarp : register( s1 );
-SamplerState samContent : register( s3 );
+SamplerState samContent : register( s2 );
                                                 
 //-------------------------------------------------------------
 struct VS_INPUT												
