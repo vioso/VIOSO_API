@@ -1,3 +1,11 @@
+// Example source file for VIOSO API
+// using DX11 graphics interface
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #include "DX11Program.h"
 
 #include "resource.h"

@@ -1,3 +1,7 @@
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+
 #include "DX9WarpBlend.h"
 #include "pixelshader.h"
 

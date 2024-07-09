@@ -40,7 +40,6 @@
     <ClCompile Include="src\EyePointProvider.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VIOSOWarpBlend\Include\EyePointProvider.h" />
     <ClInclude Include="..\VIOSOWarpBlend\logging.h" />
     <ClInclude Include="..\VIOSOWarpBlend\socket.h" />
   </ItemGroup>

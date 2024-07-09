@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 // usage:
 // #include GLext in your header
 // to implement symbols #define GL_EXT_INITIALIZE and #include GLext on top of your code file, below all header includes

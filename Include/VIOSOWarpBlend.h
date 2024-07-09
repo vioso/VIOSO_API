@@ -1,12 +1,11 @@
-// ############################### //
-// ## VIOSO Warp and Blend dll  ## //
-// ## for DirectX + OpenGL      ## //
-// ## author:  Juergen Krahmann ## //
-// ## Use with Calibrator >=4.3 ## //
-// ## Copyright VIOSO GmbH 2015 ## //
-// ############################### //
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// author Jürgen Krahmann
 // This code is published under BSD 2-Clause license
+// see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
+
 
 #ifdef VIOSOWARPBLEND_EXPORTS
 	#pragma once

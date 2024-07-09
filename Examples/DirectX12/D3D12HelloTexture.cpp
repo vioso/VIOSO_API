@@ -9,6 +9,14 @@
 //
 //*********************************************************
 
+// VIOSO API example using DX12 interface
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
+
 #include "stdafx.h"
 #include "D3D12HelloTexture.h"
 #include <sstream>
