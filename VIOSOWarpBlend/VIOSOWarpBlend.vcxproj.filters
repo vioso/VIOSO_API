@@ -75,9 +75,6 @@
     <ClInclude Include="3rdparty\tinyxml2\tinyxml2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="3rdparty\delauney\DelaunayTriangles.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="VWF.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -126,9 +123,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="3rdparty\tinyxml2\tinyxml2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\delauney\DelaunayTriangles.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="VWF.cpp">
