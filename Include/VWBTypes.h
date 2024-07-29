@@ -3,6 +3,7 @@
 #include <stdint.h>
 #ifdef __cplusplus
 #include <vector>
+#include <filesystem>
 #endif
 /// Type definitions
 typedef void* VWB_param;	/// A versatile type to transfer an object pointer or integral number
@@ -227,7 +228,8 @@ typedef enum FLAG_WARPFILE_HEADER
 	FLAG_WARPFILE_HEADER_DISPLAYID=0x80,									///<   the displayID of that screen is valid
 	FLAG_WARPFILE_HEADER_BLENDV2=0x100,									///<   we are using VWB_BlendRecord2
 	FLAG_WARPFILE_HEADER_BLENDV3=0x200,									///<   we are using VWB_BlendRecord3
-	FLAG_WARPFILE_HEADER_ENCRYPTED=0x400,								///<   the geometry
+	FLAG_WARPFILE_HEADER_ENCRYPTED = 0x400,								///<   the geometry mapping is encrypted. To decrypt, provide a cryptoKey via VWB_setCryptoKey
+	FLAG_WARPFILE_HEADER_UTF8 = 0x8000,									///<   name and primName are encoded as UTF-8 strings, hostname is always simple ASCII, ident is XML and provides encoding 
 	FLAG_WARPFILE_HEADER_ALL=											///<   all available flags
 	FLAG_WARPFILE_HEADER_OFFSET |
 	FLAG_WARPFILE_HEADER_BORDER |
@@ -239,7 +241,8 @@ typedef enum FLAG_WARPFILE_HEADER
 	FLAG_WARPFILE_HEADER_DISPLAYID |
 	FLAG_WARPFILE_HEADER_BLENDV2 |
 	FLAG_WARPFILE_HEADER_BLENDV3 |
-	FLAG_WARPFILE_HEADER_ENCRYPTED
+	FLAG_WARPFILE_HEADER_ENCRYPTED |
+	FLAG_WARPFILE_HEADER_UTF8
 }FLAG_WARPFILE_HEADER;
 
 

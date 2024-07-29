@@ -10,85 +10,40 @@ using namespace std;
 //                               SocketAddress
 // ----------------------------------------------------------------------------------
 
-SocketAddress::SocketAddress(unsigned long addr, unsigned short port)
-	: sockaddr_in{ AF_INET, Socket::hton( port )}
+SocketAddress SocketAddress::gethostbyname( const std::string& url, unsigned short port )
 {
-    sin_addr.s_addr = addr;
-}; 
-
-SocketAddress::SocketAddress(char const* url, unsigned short port)
-	: sockaddr_in{ AF_INET, Socket::hton( port ) }
-{
-	if(!port)
+	auto pos = url.find( ':' );
+	if( !port )
 	{
-		char* pC=strrchr( (char*)url, ':' );
-		if( pC && (sscanf_s( pC, ":%hu", &port)>0) )
+		if( string::npos != pos )
 		{
-			*pC=0x0;
-			sin_port=Socket::hton(port);
-			*pC=':';
+			try {
+				port = ( unsigned short )std::stoi( url.substr( pos + 1 ) );
+			}
+			catch( invalid_argument& ) {}
 		}
 	}
-
-	if( !inet_pton( AF_INET, url, &sin_addr ) )
+	string host = string::npos != pos ? url.substr( 0, pos ) : url;
+	addrinfo* pai = nullptr;
+	addrinfo hints = { 0 };
+	hints.ai_family = AF_INET;
+	auto err = getaddrinfo( host.c_str(), nullptr, &hints, &pai );
+	if( 0 == err && pai )
 	{
-		addrinfo* pai = NULL;
-		char portStr[6]; _itoa_s( port, portStr, 10 );
-		portStr[5] = 0;
-		addrinfo hints = { 0 };
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
-		if( 0 == getaddrinfo( url, portStr, &hints, &pai ) && pai )
-		{
-			*this = *( struct sockaddr_in* ) pai->ai_addr;
-			sin_port = Socket::hton( port );
-			freeaddrinfo( pai );
-		}
-		else
-		{
-			sin_family = AF_INET;
-			sin_port = Socket::hton(port);
-			sin_addr.s_addr = INADDR_ANY;
-		}
+		sockaddr_in sTmp = *( struct sockaddr_in* )pai->ai_addr;
+		sTmp.sin_port = Socket::hton( port );
+		freeaddrinfo( pai );
+		return sTmp;
+	}
+	else
+	{
+		return SocketAddress();
 	}
 }
 
-const SocketAddress& SocketAddress::operator=(const sockaddr& sa)
-{ 
-	memset(this,0,sizeof(SocketAddress));
-	memcpy(this, &sa, sizeof(sockaddr));
-	return *this; 
-}
-
-const SocketAddress& SocketAddress::operator=(const sockaddr_in& sin)
-{ 
-	memset(this,0,sizeof(SocketAddress));
-	memcpy(this, &sin, sizeof(sockaddr_in));
-	return *this; 
-}
-
-unsigned short SocketAddress::getPort() const
-{
-	return Socket::ntoh(sin_port);
-};
-
-void SocketAddress::setPort(unsigned short port)
-{
-	sin_port = Socket::hton(port);
-};
-
-SocketAddress SocketAddress::broadcast(unsigned short port)
-{
-	sockaddr_in sa;
-	memset(&sa,0,sizeof(sa));
-	sa.sin_family = AF_INET;
-	sa.sin_port   = Socket::hton(port);
-    sa.sin_addr.s_addr = INADDR_BROADCAST;
-	return sa;
-}
-
-/**************************** Socket **************************************/
+// ----------------------------------------------------------------------------------
+//                               Socket
+// ----------------------------------------------------------------------------------
 
 int Socket::create(int type, bool broadcast, int protocol, bool keepAlive,u_int qRecvBuffer,u_int qSendBuffer)
 { 
@@ -376,31 +331,6 @@ int Socket::close(SOCKET& s)
 }
 
 //static
-SocketAddress	Socket::gethostbyname(const std::string& name, const unsigned short port)
-{ 
-	addrinfo* pai = NULL;
-	char portStr[6]; _itoa_s( port, portStr, 10 );
-	portStr[5] = 0;
-	addrinfo hints = { 0 };
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	if( 0 == getaddrinfo( name.c_str(), portStr, &hints, &pai ) && pai )
-	{
-		sockaddr_in sTmp = *( struct sockaddr_in* ) pai->ai_addr;
-		sTmp.sin_port = hton( port );
-		freeaddrinfo( pai );
-		return sTmp;
-	}
-	else
-	{
-		sockaddr a;
-		a.sa_family = AF_UNSPEC;
-		return a;
-	}
-}
-
-//static
 std::string Socket::gethostname()
 {
     std::string s(257,'\0');
@@ -444,10 +374,13 @@ std::vector<in_addr> Socket::getLocalIPList()
 //static
 std::string	Socket::gethostbyaddr(const SocketAddress& sa)
 { 
-	char name[1096];
-    if( SOCKET_ERROR == getnameinfo((sockaddr*)&sa.sin_addr,sizeof(sa.sin_addr), name, 1096, NULL, 0, NI_NUMERICSERV ) )
-		return std::string(); // returning an empty string
- 	return name;
+	string name( NI_MAXHOST, '\0' );
+	auto err = getnameinfo( sa, sizeof( sa ), name.data(), ( unsigned int )name.length(), NULL, 0, NI_NUMERICSERV );
+    if( err ) 
+		name.clear(); // set empty
+	else
+		name.erase( name.find( '\0' ) ); // trim
+	return name;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////

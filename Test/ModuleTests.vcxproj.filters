@@ -24,6 +24,9 @@
     <ClCompile Include="..\VIOSOWarpBlend\threadpool.cpp">
       <Filter>Quelldateien\Moduls</Filter>
     </ClCompile>
+    <ClCompile Include="..\VIOSOWarpBlend\socket.cpp">
+      <Filter>Quelldateien\Moduls</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\VIOSOWarpBlend\threadpool.h">

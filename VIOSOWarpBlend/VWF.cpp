@@ -304,29 +304,28 @@ VWB_ERROR LoadWarp( VWB_WarpRecord*& wr, std::istream& is, size_t nRecords )
 	return is.read( (char*)wr, nRecords * sizeof( VWB_WarpRecord ) ).eof() ? VWB_ERROR_VWF_LOAD : VWB_ERROR_NONE;
 }
 
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int iScanIndex, const uint8_t* aesKey )
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, std::filesystem::path const& path, bool bScanOnly, int iScanIndex, const uint8_t* aesKey, bool isUTF8 )
 {
-	if( NULL == path || 0 == *path )
+	if( path.empty() )
 	{
 		logStr( 0, "ERROR: LoadVWF: Missing path to warp file.\n" );
 		return VWB_ERROR_PARAMETER;
 	}
 	VWB_ERROR ret = VWB_ERROR_NONE;
-	char const* pP = path;
-	char pp[MAX_PATH];
-	char const* pP2;
 	int iExtMap = 0;
+
+	size_t sBegin = 0;
 	do
 	{
+		auto sEnd = path.native().find(',', sBegin );
 		VWB_WarpBlendSet::size_type nBefore = set.size();
-		pP2 = strchr( pP, ',' );
-		if( pP2 )
-			strncpy_s( pp, pP, pP2 - pP );
+		std::filesystem::path pp;
+		pp = MkPath(path.native().substr( sBegin, sEnd ), ".vwf");
+		if( isUTF8 )
+			logStr( 2, "Open \"%s\"...\n", pp.u8string().c_str() );
 		else
-			strcpy_s( pp, pP );
-		MkPath( pp, MAX_PATH, ".vwf" );
+			logStr(2, "Open \"%s\"...\n", pp.string().c_str());
 
-		logStr( 2, "Open \"%s\"...\n", pp );
 		std::ifstream ifs( pp, std::ios_base::in | std::ios_base::binary );
 		if( !ifs.fail() )
 		{
@@ -359,7 +358,10 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 									if( 0 == pWB->header.hMonitor )
 										pWB->header.hMonitor = 1 + VWB_uint( VWB_word( pWB->header.offsetX ) ) + ( VWB_uint( VWB_word( pWB->header.offsetY ) ) << 16 );
 
-									strcpy_s( pWB->path, pp );
+									if( isUTF8 )
+										strcpy_s( pWB->path, (char const*)pp.u8string().c_str() );
+									else
+										strcpy_s( pWB->path, pp.string().c_str() );
 
 									if( 0 == pWB->header.size )
 									{
@@ -542,7 +544,12 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 							}
 						}
 						else
-							logStr( 0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp, (ptrdiff_t)ifs.tellg() - sizeof( VWB_WarpSetFileHeader ) );
+						{
+						    if( isUTF8 )
+								logStr(0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp.u8string().c_str(), ( ptrdiff_t )ifs.tellg() - sizeof(VWB_WarpSetFileHeader));
+							else
+								logStr(0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp.string().c_str(), ( ptrdiff_t )ifs.tellg() - sizeof(VWB_WarpSetFileHeader));
+						}
 						ret = VWB_ERROR_VWF_LOAD;
 						nSets = 0;
 						break;
@@ -560,10 +567,12 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 			ret = VWB_ERROR_VWF_FILE_NOT_FOUND;
 			break;
 		}
-		if( pP2 )
-			pP = pP2 + 1;
+		
+		if ( sEnd == std::filesystem::path::string_type::npos )
+			break;
 
-	}while( pP2 );
+		sBegin = sEnd + 1;
+	}while(1);
 
 	return ret;
 }
@@ -710,11 +719,9 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, std:
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, std::filesystem::path const& path )
 {
-	char pp[MAX_PATH];
-	strcpy_s( pp, path );
-	MkPath( pp, MAX_PATH, ".bmp" );
+	auto pp = MkPath( path, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
@@ -830,11 +837,9 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, st
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path )
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::filesystem::path const& path )
 {
-	char pp[MAX_PATH];
-	strcpy_s( pp, path );
-	MkPath( pp, MAX_PATH, ".bmp" );
+	auto pp = MkPath( path, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
@@ -845,11 +850,9 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map
 	return SaveBMP_RGBA( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::filesystem::path const& path )
 {
-	char pp[MAX_PATH];
-	strcpy_s( pp, path );
-	MkPath( pp, MAX_PATH, ".bmp" );
+	auto pp = MkPath( path, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
@@ -860,11 +863,9 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, cha
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, std::filesystem::path const& path )
 {
-	char pp[MAX_PATH];
-	strcpy_s( pp, path );
-	MkPath( pp, MAX_PATH, ".bmp" );
+	auto pp = MkPath( path, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
@@ -875,11 +876,9 @@ VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, ch
 	return SaveBMP( h, map, os );
 }
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, char const* path )
+VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, std::filesystem::path const& path )
 {
-	char pp[MAX_PATH];
-	strcpy_s( pp, path );
-	MkPath( pp, MAX_PATH, ".bmp" );
+	auto pp = MkPath( path, ".bmp" );
 	std::ofstream os( pp, std::ios_base::binary );
 	if( os.fail() )
 	{
@@ -975,11 +974,9 @@ VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* ae
 	}
 }
 
-VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, char const* path, const char* aesKey )
+VWB_ERROR SaveVWF(VWB_WarpBlendSet const& set, std::filesystem::path const& path, const char* aesKey )
 {
-	char pp[MAX_PATH];
-	strcpy_s(pp, path);
-	MkPath(pp, MAX_PATH, ".vwf");
+	auto pp = MkPath(path, ".vwf");
 	std::ofstream os( pp, std::ios_base::binary );
 	if (os.fail())
 	{
@@ -1306,7 +1303,7 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma )
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
+VWB_ERROR ScanVWF(std::filesystem::path const& path, VWB_WarpBlendHeaderSet* set, bool isUTF8 )
 {
 	if(NULL == set)
 	{
@@ -1314,12 +1311,15 @@ VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 		return VWB_ERROR_PARAMETER;
 	}
 	DeleteVWF(*set);
-	if( nullptr == path )
+	if( path.empty() )
 		set->shrink_to_fit(); // release the vector's memory
 
+	VWB_ERROR err = VWB_ERROR_NONE;
 	VWB_WarpBlendSet wbs;
-	if(path && path[0] )
-		LoadVWF( wbs, path, true, -1 );
+	if( !path.empty() )
+		err = LoadVWF( wbs, path, true, -1, nullptr, isUTF8 );
+	if ( err != VWB_ERROR_NONE )
+		return err;
 
 	for( auto const& d : wbs )
 	{
@@ -1328,9 +1328,9 @@ VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY )
+VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, std::filesystem::path const& path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY, bool isUTF8 )
 {
-	if( NULL == path || 0 == *path )
+	if( path.empty() )
 	{
 		logStr( 0, "ERROR: AddUnwarped2DToVWF: Missing path to warp file.\n" );
 		return VWB_ERROR_PARAMETER;
@@ -1359,9 +1359,7 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 	auto wb = set.emplace_back( new VWB_WarpBlend() );
 
 	VWB_ERROR ret = VWB_ERROR_NONE;
-	char pp[MAX_PATH];
-	strcpy_s( pp, path );
-	MkPath( pp, MAX_PATH, ".vwf" );
+	auto pp = MkPath( path, ".vwf" );
 
 	// create basic set, no warping no blending
 	VWB_uint nRecords = (VWB_uint)width * (VWB_uint)height;
@@ -1396,7 +1394,10 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, in
 	};
 
 	// wb->header = wfh;
-	strcpy_s( wb->path, pp );
+	if( isUTF8 )
+		strcpy_s(wb->path, (char const*)pp.u8string().c_str());
+	else
+		strcpy_s( wb->path, pp.string().c_str() );
 
 	wb->pBlend = new VWB_BlendRecord[nRecords];
 	for( VWB_BlendRecord* pB = wb->pBlend, *pBE = pB + nRecords; pB != pBE; pB++ )

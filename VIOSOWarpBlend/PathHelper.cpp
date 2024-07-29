@@ -13,56 +13,54 @@
 #include <string>
 
 using namespace std;
-using namespace std::filesystem;
+namespace fs = std::filesystem;
 
-char* MkPath( char* szPath, size_t nMaxPath, char const* ext )
+fs::path MkPath( fs::path const& path, char const* ext )
 {
-	if( NULL == szPath || 0 == szPath[0] )
-		return NULL;
+	if ( path.empty() )
+		return path;
 
-	char* pp = szPath;
+	//char* pp = szPath;
 
-	// remove leading white spaces
-    while( ' ' == *pp || '\t' == *pp || '\r' == *pp || '\n' == *pp || '\v' == *pp || '\f' == *pp )
-		pp++;
+	//// remove leading white spaces
+ //   while( ' ' == *pp || '\t' == *pp || '\r' == *pp || '\n' == *pp || '\v' == *pp || '\f' == *pp )
+	//	pp++;
 
-	// remove trailing white spaces
-	char* lnwsc = pp + strlen( pp );
-	while( --lnwsc > pp )
-        if( ' ' == *lnwsc || '\t' == *lnwsc || '\r' == *lnwsc || '\n' == *lnwsc || '\v' == *lnwsc || '\f' == *lnwsc )
-			*lnwsc = 0;
-		else
-			break;
+	//// remove trailing white spaces
+	//char* lnwsc = pp + strlen( pp );
+	//while( --lnwsc > pp )
+ //       if( ' ' == *lnwsc || '\t' == *lnwsc || '\r' == *lnwsc || '\n' == *lnwsc || '\v' == *lnwsc || '\f' == *lnwsc )
+	//		*lnwsc = 0;
+	//	else
+	//		break;
 
-	// remove quotes
-    lnwsc-= - 1;
-	if( lnwsc > pp )
-	{
-		if( '"' == *pp && '"' == *lnwsc )
-		{
-			pp++;
-			*lnwsc = 0;
-		}
-		else if( '\'' == *pp && '\'' == *lnwsc )
-		{
-			pp++;
-			*lnwsc = 0;
-		}
-	}
+	//// remove quotes
+ //   lnwsc-= - 1;
+	//if( lnwsc > pp )
+	//{
+	//	if( '"' == *pp && '"' == *lnwsc )
+	//	{
+	//		pp++;
+	//		*lnwsc = 0;
+	//	}
+	//	else if( '\'' == *pp && '\'' == *lnwsc )
+	//	{
+	//		pp++;
+	//		*lnwsc = 0;
+	//	}
+	//}
 
-	if( 0 == pp[0] )
-		return NULL;
+	//if( 0 == pp[0] )
+	//	return NULL;
 
-	path fsPath( pp );
+	fs::path fsPath( path );
 
 	// expand environment variables
 	#ifdef WIN32
 	{
-		wchar_t* path2 = new wchar_t[nMaxPath];
-		DWORD max = nMaxPath > MAXDWORD ? MAXDWORD : (DWORD)nMaxPath;
-		if( ::ExpandEnvironmentStringsW( fsPath.c_str(), path2, max ) )
-			fsPath = path2;
-		delete[] path2;
+		fs::path::string_type s(MAX_PATH, 0);
+		if( ::ExpandEnvironmentStringsW( fsPath.c_str(), s.data(), MAX_PATH) )
+			fsPath = s;
 	}
 	#else
 	{
@@ -81,11 +79,11 @@ char* MkPath( char* szPath, size_t nMaxPath, char const* ext )
 	// add module path, as we want to be relative to the dll/so or executable
 	if( fsPath.is_relative() )
 	{
-		path::string_type sModPath( MAX_PATH, path::string_type::value_type( 0 ) );
+		fs::path::string_type sModPath( MAX_PATH, 0 );
     #ifdef WIN32
 		if( ::GetModuleFileNameW( g_hModDll, sModPath.data(), MAX_PATH ) )
 		{
-			sModPath = path( sModPath.c_str() ).parent_path(); // using c_str() operator also cuts off all zeros
+			sModPath = fs::path( sModPath.c_str() ).parent_path(); // using c_str() operator also cuts off all zeros
     #else
 		Dl_info dl_info;
         if( 0 ) //dladdr( (void*)&GetIniString, &dl_info ) && dl_info.dli_fname[0] )
@@ -95,9 +93,9 @@ char* MkPath( char* szPath, size_t nMaxPath, char const* ext )
 		}
 		else
 		{
-			sModPath = current_path();
+			sModPath = fs::current_path();
 		}
-		fsPath = path( sModPath ) / fsPath;
+		fsPath = fs::path( sModPath ) / fsPath;
 	}
 
 	// update extension
@@ -112,21 +110,10 @@ char* MkPath( char* szPath, size_t nMaxPath, char const* ext )
 	}
 	catch( std::exception& e ) { ( e ); }
 
-    strcpy_s( szPath, nMaxPath , (char const*)fsPath.u8string().c_str() );
-	return szPath;
+	return fsPath;
 }
 
-std::string MkPath(std::string const pathIn, char const* ext)
-{
-	std::string pathOut;
-	pathOut = pathIn;
-	pathOut.resize(MAX_PATH);
-	MkPath(pathOut.data(), pathOut.size(), ext );
-	pathOut.erase(pathOut.find('\0'));
-	return pathOut;
-}
-
-bool GetIniString(char const* szSection, char const* szKey, char const* szDefault, char* s, VWB_uint sz, char const* szConfigFile)
+bool GetIniString(char const* szSection, char const* szKey, char const* szDefault, char* s, VWB_uint sz, std::filesystem::path const& configFile )
 {
 	bool bRet = false;
 	bool bInChannel = false;
@@ -135,7 +122,7 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 	else
 		*s = 0;
 
-	std::ifstream fs( szConfigFile );
+	std::ifstream fs(configFile);
 	if (!fs.fail())
 	{
 		std::string line;
@@ -198,30 +185,30 @@ bool GetIniString(char const* szSection, char const* szKey, char const* szDefaul
 	return bRet;
 }
 
-VWB_int GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, char const* szConfigFile)
+VWB_int GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, std::filesystem::path const& configFile )
 {
 	char s[512] = { 0 };
-	if (GetIniString(szSection, szKey, "", s, 512, szConfigFile))
+	if (GetIniString(szSection, szKey, "", s, 512, configFile))
 		return atoi(s);
 	return iDefault;
 }
 
-VWB_float GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char const* szConfigFile)
+VWB_float GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, std::filesystem::path const& configFile )
 {
 	char  s[512]= { 0 };
-	if (GetIniString(szSection, szKey, "", s, 512, szConfigFile))
+	if (GetIniString(szSection, szKey, "", s, 512, configFile))
 		return (VWB_float)atof(s);
 	return fDefault;
 }
 
-VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, char const* szConfigFile, bool bTranspose)
+VWB_float* GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, std::filesystem::path const& configFile, bool bTranspose)
 {
 	if (NULL == f)
 		return NULL;
 	if (0 == dimX || 0 == dimY)
 		return NULL;
 	char s[512] = { 0 };
-	GetIniString(szSection, szKey, "", s, 512, szConfigFile);
+	GetIniString(szSection, szKey, "", s, 512, configFile);
 	char const* pS = s;
 	if( *pS == '[' )
 	{

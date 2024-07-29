@@ -719,7 +719,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 
 	#ifdef USE_VIOSO_API
 	try {
-		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
+		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, std::filesystem::path(channel).u8string().c_str(), 1, "" );
 	}
 	catch( VWB_ERROR )
 	{

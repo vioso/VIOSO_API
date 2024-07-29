@@ -215,7 +215,7 @@ namespace VWBUtil
             using tstring = std::string;
             #define to_tstring to_string
         #endif // def UNICODE
-        // to make tstring wor we need identity conversions
+        // to make tstring work, we need identity conversions
         constexpr std::string to_string( std::string const& s ) { return s; };
         constexpr std::wstring to_wstring( std::wstring const& s ) { return s; };
         #define TSTRING( a ) tstring( _T( a ) )

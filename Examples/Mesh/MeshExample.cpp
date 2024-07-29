@@ -10,7 +10,7 @@ using namespace std;
 
 ////< start VIOSO API code
 #include "../../Include/VIOSOWarpBlend.hpp"
-LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
+char8_t const* s_configFile = u8"VIOSOWarpBlend.ini";
 ////< end VIOSO API code
 
 class ViosoMeshRenderer : public Renderer
@@ -255,8 +255,8 @@ class VIOSOMeshWindow : public OutputWindow {
         operator float const* ( ) const { return &l; }
     } m_clip;
 public:
-    VIOSOMeshWindow( LPCTSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
-        : OutputWindow( hInstance, channelName, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
+    VIOSOMeshWindow( std::u8string const& channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth )
+        : OutputWindow( hInstance, VWBUtil::to_tstring( channelName ).c_str(), x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
     {
 
         if( 1 )
@@ -275,7 +275,7 @@ public:
         unique_ptr<VWB> w;
         try {
             // create warper, it's contructor throws
-            w = make_unique<VWB>( nullptr, VWB_DUMMYDEVICE, s_configFile, channelName );
+            w = make_unique<VWB>( "", VWB_DUMMYDEVICE, s_configFile, channelName.c_str() );
         }
         catch( VWB_ERROR const& err )
         {
@@ -310,13 +310,6 @@ public:
 HINSTANCE               g_hInst = NULL;
 vector<shared_ptr<OutputWindow>>    g_windows;
 
-std::string utf16ToUtf8( const std::wstring& in )
-{
-    std::string out( "\0", WideCharToMultiByte(CP_UTF8, 0, in.data(), (int)in.size(), nullptr, 0, nullptr, nullptr) );
-    WideCharToMultiByte( CP_UTF8, 0, in.data(), (int)in.size(), out.data(), (int)out.size(), nullptr, nullptr );
-    return out;
-}
-
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing 
 // loop. Idle time is used to render the scene.
@@ -341,7 +334,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
         createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
     #endif
 
-        g_windows.push_back( make_shared<VIOSOMeshWindow>( utf16ToUtf8(channel).c_str(), hInstance, x, y, w, h, nCmdShow, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
+        g_windows.push_back( make_shared<VIOSOMeshWindow>(VWBUtil::to_u8string(channel).c_str(), hInstance, x, y, w, h, nCmdShow, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, createDeviceFlags, false ) );
 
         // Main message loop
         MSG msg = { 0 };

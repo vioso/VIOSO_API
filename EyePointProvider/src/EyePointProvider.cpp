@@ -307,7 +307,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,DWORD  ul_reason_for_call,LPVOID lpReserv
 	{
 		case DLL_PROCESS_ATTACH:
 			g_hModDll = hModule;
-			strcpy_s( g_logFilePath, "VIOSOWarpBlend.log" );
+			g_logFilePath = "VIOSOWarpBlend.log";
 			break;
 		case DLL_THREAD_ATTACH:
 		case DLL_THREAD_DETACH:

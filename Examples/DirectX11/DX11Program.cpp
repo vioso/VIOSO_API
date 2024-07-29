@@ -1,6 +1,6 @@
 #include "DX11Program.h"
 #include <dxgi1_2.h>
-#include "../../VIOSOWarpBlend/StringConversions.h"
+#include "../../Include/StringConversions.h"
 
 #pragma comment( lib, "d3d11.lib" )
 #pragma comment( lib, "dxgi.lib")

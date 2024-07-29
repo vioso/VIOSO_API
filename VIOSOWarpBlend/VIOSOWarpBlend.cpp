@@ -30,9 +30,10 @@
 #include <limits.h>
 
 #include "logging.h"
-//#include "3rdparty/delauney/DelaunayTriangles.h"
+#include "../Include/StringConversions.h"
 
 using namespace std;
+using namespace VWBUtil;
 
 VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
@@ -57,54 +58,65 @@ DWORD VWB_GetError()
 
 VWB_ERROR invertWB( VWB_WarpBlend const& in, VWB_WarpBlend& out );
 
-VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* szChannelName )
+VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char const* szChannelName )
 {
-	if( szConfigFile && szConfigFile[0] )
+	if ( !configFile.empty() )
 	{
 		Defaults();
-		strcpy_s( path, szConfigFile );
-		MkPath( path, MAX_PATH, ".ini" );
-
-		if( szChannelName )
-			strcpy_s( channel, szChannelName );
+		auto p = MkPath(configFile, ".ini");
+		if ( m_bUTF8 )
+			strcpy_s(path, ( const char* )p.u8string().c_str());
 		else
-			strcpy_s( channel, "default" );
+			strcpy_s(path, ( const char* )p.string().c_str());
 
-		FILE* f = NULL;
-		if( NO_ERROR == fopen_s( &f, path, "r" ) )
-			fclose(f);
+
+		if ( szChannelName )
+			strcpy_s(channel, szChannelName);
 		else
-			return VWB_ERROR_INI_LOAD;
+			strcpy_s(channel, "default");
 
+		{
+			std::ifstream fs(p);
+			if ( !fs.is_open() )
+				return VWB_ERROR_INI_LOAD;
+		}
 		char s[1024];
 		char sDef[MAX_PATH + 1024];
 		int iDef;
 		float fDef;
 
-		GetIniString( "default", "logFile", g_logFilePath, sDef, MAX_PATH, path );
-		GetIniString( channel, "logFile", sDef, g_logFilePath, MAX_PATH, path );
+		if ( m_bUTF8 ) {
+			GetIniString("default", "logFile", ( char const* )g_logFilePath.u8string().c_str(), sDef, MAX_PATH, p);
+			GetIniString(channel, "logFile", sDef, s, MAX_PATH, p);
+			g_logFilePath = ( char8_t const* )s;
+		}
+		else {
+			GetIniString("default", "logFile", g_logFilePath.string().c_str(), sDef, MAX_PATH, p);
+			GetIniString(channel, "logFile", sDef, s, MAX_PATH, p);
+			g_logFilePath = s;
+		}
+		iDef = GetIniInt("default", "logLevel", g_logLevel, p);
+		g_logLevel = GetIniInt(channel, "logLevel", iDef, p);
 
-		iDef = GetIniInt( "default", "logLevel", g_logLevel, path );
-		g_logLevel = GetIniInt( channel, "logLevel", iDef, path );
-
-		if (g_bFirstInstance)
+		if ( g_bFirstInstance )
 		{
-			iDef = GetIniInt("default", "bLogClear", 0, path);
-			if (1 == GetIniInt(channel, "bLogClear", iDef, path))
+			iDef = GetIniInt("default", "bLogClear", 0, p);
+			if ( 1 == GetIniInt(channel, "bLogClear", iDef, p) )
 				logClear();
 			else
 				logStr(1, "--- BEGIN SESSION --- BEGIN SESSION --- BEGIN SESSION --- BEGIN SESSION ---\n");
 			g_bFirstInstance = false;
 		}
 
-		iDef = GetIniInt( "default", "bTurnWithView", bTurnWithView, path );
-		bTurnWithView = 0 != GetIniInt( channel, "bTurnWithView", iDef, path );
+		iDef = GetIniInt("default", "bTurnWithView", bTurnWithView, p);
+		bTurnWithView = 0 != GetIniInt(channel, "bTurnWithView", iDef, p);
 
-		iDef = GetIniInt( "default", "bDoNotBlend", bDoNotBlend, path );
-		bDoNotBlend = 0 != GetIniInt( channel, "bDoNotBlend", iDef, path );
+		iDef = GetIniInt("default", "bDoNotBlend", bDoNotBlend, p);
+		bDoNotBlend = 0 != GetIniInt(channel, "bDoNotBlend", iDef, p);
 
-		GetIniString( "default", "eyePointProvider", eyeProvider, sDef, MAX_PATH, path );
-		GetIniString( channel, "eyePointProvider", sDef, eyeProvider, MAX_PATH, path );
+		GetIniString("default", "eyePointProvider", eyeProvider, sDef, MAX_PATH, p);
+		GetIniString(channel, "eyePointProvider", sDef, eyeProvider, MAX_PATH, p);
+
 #if defined( WIN32 )
 		char const* ext = ".dll";
 #elif defined( __APPLE__ )
@@ -114,7 +126,10 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 #else
 		char const* ext = ".so";
 #endif // defined( WIN32 )
-        MkPath( eyeProvider, MAX_PATH, ext );
+		if( m_bUTF8 )
+			strcpy_s( eyeProvider, (char const*)MkPath( (char8_t const*)eyeProvider, ext ).u8string().c_str() );
+		else
+			strcpy_s( eyeProvider, MkPath( eyeProvider, ext).string().c_str() );
 
 		GetIniString( "default", "eyePointProviderParam", eyeProviderParam, sDef, MAX_PATH, path );
 		GetIniString( channel, "eyePointProviderParam", sDef, eyeProviderParam, MAX_PATH, path );
@@ -270,270 +285,318 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 
 
 /////////////////////////////////////////////////////////////////////////////////////
-VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile )
-{
-	if( NULL == ppWarper )
-		return VWB_ERROR_PARAMETER;
 
-	*ppWarper = NULL;
-	g_logLevel = logLevel;
-	if( szLogFile && szLogFile[0] )
-		strcpy_s( g_logFilePath, szLogFile );
-	else
-		strcpy_s( g_logFilePath, "VIOSOWarpBlend" );
-    MkPath( g_logFilePath, 260, ".log" );
-
+VWB_ERROR create(void* pDxDevice, char const* szChannelName, VWB_Warper** ppWarper ) {
 	try {
-		if (VWB_DUMMYDEVICE == pDxDevice)
+		if ( VWB_DUMMYDEVICE == pDxDevice )
 		{
 			*ppWarper = new Dummywarper();
 		}
-		else if(pDxDevice)
+		else if ( pDxDevice )
 		{
-			IUnknown* pUK = (IUnknown*)pDxDevice;
-			if( pUK )
+			IUnknown* pUK = ( IUnknown* )pDxDevice;
+			if ( pUK )
 			{
 				IUnknown* pUK2 = NULL;
 				// destinguish between DX flavours
 				do {
-		#ifdef WIN32
+#ifdef WIN32
 
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( IXPlaneRef ), (void**)&pUK2 ) ) )
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(IXPlaneRef), ( void** )&pUK2)) )
 					{
 						pUK2->Release();
-						if( pUK == pUK2 )
+						if ( pUK == pUK2 )
 						{
-							*ppWarper = new GLWarpBlendXPL( (IXPlaneRef*)pDxDevice );
+							*ppWarper = new GLWarpBlendXPL(( IXPlaneRef* )pDxDevice);
 							break;
 						}
 					}
 
-				#ifndef VWB_WIN7_COMPAT
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( ID3D12CommandQueue ), (void**)&pUK2 ) ) )
+#ifndef VWB_WIN7_COMPAT
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(ID3D12CommandQueue), ( void** )&pUK2)) )
 					{
 						pUK2->Release();
-						if( pUK == pUK2 )
+						if ( pUK == pUK2 )
 						{
-							*ppWarper = new DX12WarpBlend( (ID3D12CommandQueue*)pDxDevice );
+							*ppWarper = new DX12WarpBlend(( ID3D12CommandQueue* )pDxDevice);
 							break;
 						}
 					}
-				#endif //ndef VWB_WIN7_COMPAT
+#endif //ndef VWB_WIN7_COMPAT
 
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( ID3D11Device ), (void**)&pUK2 ) ) )
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(ID3D11Device), ( void** )&pUK2)) )
 					{
 						pUK2->Release();
-						if( pUK == pUK2 )
+						if ( pUK == pUK2 )
 						{
-							*ppWarper = new DX11WarpBlend( (ID3D11Device*)pDxDevice );
-							break;
-						}
-					}
-
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( ID3D10Device1 ), (void**)&pUK2 ) ) )
-					{
-						pUK2->Release();
-						if( pUK == pUK2 )
-						{
-							*ppWarper = new DX10WarpBlend( (ID3D10Device*)pDxDevice );
+							*ppWarper = new DX11WarpBlend(( ID3D11Device* )pDxDevice);
 							break;
 						}
 					}
 
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( ID3D10Device ), (void**)&pUK2 ) ) )
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(ID3D10Device1), ( void** )&pUK2)) )
 					{
 						pUK2->Release();
-						if( pUK == pUK2 )
+						if ( pUK == pUK2 )
 						{
-							*ppWarper = new DX10WarpBlend( (ID3D10Device*)pDxDevice );
+							*ppWarper = new DX10WarpBlend(( ID3D10Device* )pDxDevice);
 							break;
 						}
 					}
 
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( IDirect3DDevice9Ex ), (void**)&pUK2 ) ) )
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(ID3D10Device), ( void** )&pUK2)) )
 					{
 						pUK2->Release();
-						if( pUK == pUK2 )
+						if ( pUK == pUK2 )
 						{
-							*ppWarper = new DX9EXWarpBlend( (LPDIRECT3DDEVICE9EX)pDxDevice );
+							*ppWarper = new DX10WarpBlend(( ID3D10Device* )pDxDevice);
 							break;
 						}
 					}
 
-					if( SUCCEEDED( pUK->QueryInterface( __uuidof( IDirect3DDevice9 ), (void**)&pUK2 ) ) )
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(IDirect3DDevice9Ex), ( void** )&pUK2)) )
 					{
 						pUK2->Release();
-						if( pUK == pUK2 )
+						if ( pUK == pUK2 )
 						{
-							*ppWarper = new DX9WarpBlend( (LPDIRECT3DDEVICE9)pDxDevice );
+							*ppWarper = new DX9EXWarpBlend(( LPDIRECT3DDEVICE9EX )pDxDevice);
 							break;
 						}
 					}
 
-		#endif //def WIN32
-				} while( 0 );
+					if ( SUCCEEDED(pUK->QueryInterface(__uuidof(IDirect3DDevice9), ( void** )&pUK2)) )
+					{
+						pUK2->Release();
+						if ( pUK == pUK2 )
+						{
+							*ppWarper = new DX9WarpBlend(( LPDIRECT3DDEVICE9 )pDxDevice);
+							break;
+						}
+					}
+
+#endif //def WIN32
+				} while ( 0 );
 			}
 		}
 		else
 		{
 			*ppWarper = new GLWarpBlend();
 		}
-		if( !*ppWarper )
-			throw (VWB_int)VWB_ERROR_GENERIC;
-	} catch ( VWB_int e )
-	{
-		logStr( 0, "FATAL: Error %d creating warper \"%s\".\n", e, szChannelName ? szChannelName : (*ppWarper)->channel );
-		return (VWB_ERROR)e;
+		if ( !*ppWarper )
+			throw ( VWB_int )VWB_ERROR_GENERIC;
 	}
-	if( NULL != szConfigFile && 0 != szConfigFile[0] )
+	catch ( VWB_int e )
 	{
-		if( VWB_ERROR_NONE != ((VWB_Warper_base*)*ppWarper)->ReadIniFile( szConfigFile, szChannelName ) )
+		logStr(0, "FATAL: Error %d creating warper \"%s\".\n", e, szChannelName ? szChannelName : (*ppWarper)->channel);
+		return ( VWB_ERROR )e;
+	}
+	return VWB_ERROR_NONE;
+}
+
+void report(VWB_Warper** ppWarper ) {
+	{
+		time_t t;
+		time(&t);
+		struct tm tm;
+		localtime_s(&tm, &t);
+		logStr(1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", 1900 + tm.tm_year, 1 + tm.tm_mon, tm.tm_mday, VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV);
+
+		filesystem::path szModPath;
+		filesystem::path szProcPath;
+#ifdef WIN32
+		wchar_t procPath[MAX_PATH]{ 0 };
+		if ( ::GetModuleFileNameW(0, procPath, MAX_PATH) )
+			szProcPath = procPath;
+		wchar_t modPath[MAX_PATH]{ 0 };
+		if ( ::GetModuleFileNameW(g_hModDll, modPath, MAX_PATH) )
+			szModPath = modPath;
+#else
+		Dl_info dl_info{};
+		szModPath = ( char* )dl_info.dli_fname;
+		if ( dladdr(( void* )VWB_CreateA, &dl_info) && szModPath )
+#endif //def WIN32
+		if ( !szModPath.empty() )
 		{
-			logStr( 0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile );
-			delete ((VWB_Warper_base*)*ppWarper);
+			if( (( VWB_Warper_base* )(*ppWarper))->isUTF8() )
+				logStr(1, "lib-path %s.\n", szModPath.u8string().c_str());
+			else
+				logStr(1, "lib-path %s.\n", szModPath.string().c_str());
+		}
+		if ( !szProcPath.empty() )
+		{
+			if ( (( VWB_Warper_base* )(*ppWarper))->isUTF8() )
+				logStr(1, "process path %s.\n", szProcPath.u8string().c_str());
+			else
+				logStr(1, "process path %s.\n", szProcPath.string().c_str());
+		}
+	}
+	if ( (( VWB_Warper_base* )(*ppWarper))->isUTF8() )
+		logStr(1, "UTF8 string mode.\n" );
+	else
+		logStr(1, "ASCII string mode.\n");
+
+	logStr(2,
+		"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
+		"calibFile=%s\n"
+		"calibIndex=%d\n"
+		"calibSplit=[%d,%d,%d,%d]\n"
+		"bTurnWithView=%d\n"
+		"bDoNotBlend=%d\n"
+		"eyePointProvider=%s\n"
+		"eyePointProviderParam=%s\n"
+		"eye=[%.5f, %.5f, %.5f]\n"
+		"near=%.5f\n"
+		"far=%.5f\n"
+		"bBicubic=%d\n"
+		"bUseGL110=%d\n"
+		"bPartialInput=%d\n"
+		"splice=%u\n"
+		"trans=[%.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f]\n"
+		"autoViewC=%.5f\n"
+		"bAutoView=%d\n"
+		"dir=[%.5f, %.5f, %.5f]\n"
+		"fov=[%.5f, %.5f, %.5f, %.5f]\n"
+		"screen=%.5f\n"
+		"optimalRes=[%d, %d]\n"
+		"optimalRect=[%d, %d, %d, %d]\n"
+		"port=%d\n"
+		"heartbeatPort=%d\n"
+		"address=%s\n"
+		"mouseMode=%d\n"
+		"bDoNoBlack=%d\n"
+		"overrideStatemask=%d\n"
+		"bFixWraparound=%d\n"
+		"D3D12RTVF=%d\n"
+		"blackScale=%f\n"
+		"\n",
+		(( VWB_Warper_base* )*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
+		(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
+		(*ppWarper)->path,
+		(*ppWarper)->calibFile,
+		(*ppWarper)->calibIndex,
+		(*ppWarper)->calibSplit[0], (*ppWarper)->calibSplit[1], (*ppWarper)->calibSplit[2], (*ppWarper)->calibSplit[3],
+		(*ppWarper)->bTurnWithView ? 1 : 0,
+		(*ppWarper)->bDoNotBlend ? 1 : 0,
+		(*ppWarper)->eyeProvider,
+		(*ppWarper)->eyeProviderParam,
+		(*ppWarper)->eye[0], (*ppWarper)->eye[1], (*ppWarper)->eye[2],
+		(*ppWarper)->nearDist,
+		(*ppWarper)->farDist,
+		(*ppWarper)->bBicubic ? 1 : 0,
+		(*ppWarper)->bUseGL110 ? 1 : 0,
+		(*ppWarper)->bPartialInput ? 1 : 0,
+		(*ppWarper)->splice,
+		(*ppWarper)->trans[0], (*ppWarper)->trans[1], (*ppWarper)->trans[2], (*ppWarper)->trans[3],
+		(*ppWarper)->trans[4], (*ppWarper)->trans[5], (*ppWarper)->trans[6], (*ppWarper)->trans[7],
+		(*ppWarper)->trans[8], (*ppWarper)->trans[9], (*ppWarper)->trans[10], (*ppWarper)->trans[11],
+		(*ppWarper)->trans[12], (*ppWarper)->trans[13], (*ppWarper)->trans[14], (*ppWarper)->trans[15],
+		(*ppWarper)->autoViewC,
+		(*ppWarper)->bAutoView ? 1 : 0,
+		(*ppWarper)->dir[0], (*ppWarper)->dir[1], (*ppWarper)->dir[2],
+		(*ppWarper)->fov[0], (*ppWarper)->fov[1], (*ppWarper)->fov[2], (*ppWarper)->fov[3],
+		(*ppWarper)->screenDist,
+		(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
+		(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,
+		(*ppWarper)->port,
+		(*ppWarper)->heartBeatPort,
+		(*ppWarper)->addr,
+		(*ppWarper)->mouseMode,
+		(*ppWarper)->bDoNoBlack,
+		(*ppWarper)->overrideStatemask,
+		(*ppWarper)->bFixWraparound,
+		(*ppWarper)->D3D12RTVF,
+		(*ppWarper)->blackScale
+	);
+
+};
+
+VWB_ERROR VWB_CreateU(void* pDxDevice, char8_t const* szConfigFile, char8_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char8_t const* szLogFile)
+{
+	if ( NULL == ppWarper )
+		return VWB_ERROR_PARAMETER;
+
+	*ppWarper = NULL;
+	g_logLevel = logLevel;
+	if ( szLogFile && szLogFile[0] )
+		g_logFilePath = szLogFile;
+	else
+		g_logFilePath = "VIOSOWarpBlend";
+
+	g_logFilePath = MkPath(g_logFilePath, ".log");
+
+	auto res = create(pDxDevice, (char const*)szChannelName, ppWarper);
+	if ( VWB_ERROR_NONE != res )
+		return res;
+
+	((VWB_Warper_base*)(*ppWarper))->setUTF8( true );
+
+	if ( NULL != szConfigFile && 0 != szConfigFile[0] )
+	{
+		if ( VWB_ERROR_NONE != (( VWB_Warper_base* )*ppWarper)->ReadIniFile(szConfigFile, (char const*)szChannelName) )
+		{
+			logStr(0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile);
+			delete (( VWB_Warper_base* )*ppWarper);
 			*ppWarper = NULL;
 			return VWB_ERROR_INI_LOAD;
 		}
 	}
 	else
 	{
-		if( NULL != szChannelName && 0 != szChannelName[0] )
-			strcpy_s( ((VWB_Warper_base*)*ppWarper)->channel, szChannelName );
+		if ( NULL != szChannelName && 0 != szChannelName[0] )
+			strcpy_s((( VWB_Warper_base* )*ppWarper)->channel, ( char const* )szChannelName);
 		else
-			strcpy_s( ((VWB_Warper_base*)*ppWarper)->channel, "default" );
+			strcpy_s((( VWB_Warper_base* )*ppWarper)->channel, "default");
 	}
 
+	report( ppWarper );
+
+	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR VWB_CreateA(void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile)
+{
+	if ( NULL == ppWarper )
+		return VWB_ERROR_PARAMETER;
+
+	*ppWarper = NULL;
+	g_logLevel = logLevel;
+	if ( szLogFile && szLogFile[0] )
+		g_logFilePath = szLogFile;
+	else
+		g_logFilePath = "VIOSOWarpBlend";
+
+	g_logFilePath = MkPath(g_logFilePath, ".log");
+
+	auto res = create(pDxDevice, ( char const* )szChannelName, ppWarper);
+	if ( VWB_ERROR_NONE != res )
+		return res;
+
+	if ( NULL != szConfigFile && 0 != szConfigFile[0] )
 	{
-		time_t t;
-		time( &t );
-		struct tm tm;
-		localtime_s( &tm, &t );
-		logStr( 1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", 1900 + tm.tm_year, 1 + tm.tm_mon, tm.tm_mday, VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV );
-
-		char* szModPath = NULL;
-		char* szProcPath = NULL;
-#ifdef WIN32
-		char procPath[MAX_PATH]{ 0 };
-		if( ::GetModuleFileNameA( 0, procPath, MAX_PATH ) )
-			szProcPath = procPath;
-		char modPath[MAX_PATH]{ 0 };
-		szModPath = modPath;
-		if( ::GetModuleFileNameA( g_hModDll, modPath, MAX_PATH ) )
-#else
-		Dl_info dl_info{};
-		szModPath = (char*) dl_info.dli_fname;
-		if( dladdr((void *)VWB_CreateA, &dl_info) && szModPath )
-#endif //def WIN32
-			logStr( 1, "lib-path %s.\n", szModPath );
-		if( szProcPath )
-			logStr( 1, "process path %s.\n", szProcPath );
+		if ( VWB_ERROR_NONE != (( VWB_Warper_base* )*ppWarper)->ReadIniFile(szConfigFile, szChannelName) )
+		{
+			logStr(0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile);
+			delete (( VWB_Warper_base* )*ppWarper);
+			*ppWarper = NULL;
+			return VWB_ERROR_INI_LOAD;
+		}
 	}
-	logStr( 2,
-			"%.4s-Warper \"%s\" created. Logging level is %d\nEvaluated parameters%s%s:\n"
-			"calibFile=%s\n"
-			"calibIndex=%d\n"
-			"calibSplit=[%d,%d,%d,%d]\n"
-			"bTurnWithView=%d\n"
-			"bDoNotBlend=%d\n"
-			"eyePointProvider=%s\n"
-			"eyePointProviderParam=%s\n"
-			"eye=[%.5f, %.5f, %.5f]\n"
-			"near=%.5f\n"
-			"far=%.5f\n"
-			"bBicubic=%d\n"
-			"bUseGL110=%d\n"
-			"bPartialInput=%d\n"
-			"splice=%u\n"
-			"trans=[%.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f; %.5f, %.5f, %.5f, %.5f]\n"
-			"autoViewC=%.5f\n"
-			"bAutoView=%d\n"
-			"dir=[%.5f, %.5f, %.5f]\n"
-			"fov=[%.5f, %.5f, %.5f, %.5f]\n"
-			"screen=%.5f\n"
-			"optimalRes=[%d, %d]\n"
-			"optimalRect=[%d, %d, %d, %d]\n"
-			"port=%d\n"
-			"heartbeatPort=%d\n"
-			"address=%s\n"
-			"mouseMode=%d\n"
-			"bDoNoBlack=%d\n"
-			"overrideStatemask=%d\n"
-			"bFixWraparound=%d\n"
-			"D3D12RTVF=%d\n"
-			"blackScale=%f\n"
-			"\n",
-			((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
-			(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
-			(*ppWarper)->path,
-			(*ppWarper)->calibFile,
-			(*ppWarper)->calibIndex,
-			(*ppWarper)->calibSplit[0], (*ppWarper)->calibSplit[1], (*ppWarper)->calibSplit[2], (*ppWarper)->calibSplit[3],
-			(*ppWarper)->bTurnWithView ? 1 : 0,
-			(*ppWarper)->bDoNotBlend ? 1 : 0,
-			(*ppWarper)->eyeProvider,
-			(*ppWarper)->eyeProviderParam,
-			(*ppWarper)->eye[0],(*ppWarper)->eye[1],(*ppWarper)->eye[2],
-			(*ppWarper)->nearDist,
-			(*ppWarper)->farDist,
-			(*ppWarper)->bBicubic ? 1 : 0,
-			(*ppWarper)->bUseGL110 ? 1 : 0,
-			(*ppWarper)->bPartialInput ? 1 : 0,
-			(*ppWarper)->splice,
-			(*ppWarper)->trans[ 0],(*ppWarper)->trans[ 1],(*ppWarper)->trans[ 2],(*ppWarper)->trans[ 3],
-			(*ppWarper)->trans[ 4],(*ppWarper)->trans[ 5],(*ppWarper)->trans[ 6],(*ppWarper)->trans[ 7],
-			(*ppWarper)->trans[ 8],(*ppWarper)->trans[ 9],(*ppWarper)->trans[10],(*ppWarper)->trans[11],
-			(*ppWarper)->trans[12],(*ppWarper)->trans[13],(*ppWarper)->trans[14],(*ppWarper)->trans[15],
-			(*ppWarper)->autoViewC,
-			(*ppWarper)->bAutoView ? 1 : 0,
-			(*ppWarper)->dir[0],(*ppWarper)->dir[1],(*ppWarper)->dir[2],
-			(*ppWarper)->fov[0],(*ppWarper)->fov[1],(*ppWarper)->fov[2],(*ppWarper)->fov[3],
-			(*ppWarper)->screenDist,
-			(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
-			(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
-			(*ppWarper)->port,
-			(*ppWarper)->heartBeatPort,
-			(*ppWarper)->addr,
-			(*ppWarper)->mouseMode,
-			(*ppWarper)->bDoNoBlack,
-			(*ppWarper)->overrideStatemask,
-			( *ppWarper )->bFixWraparound,
-			( *ppWarper )->D3D12RTVF,
-			( *ppWarper )->blackScale
-	);
+	else
+	{
+		if ( NULL != szChannelName && 0 != szChannelName[0] )
+			strcpy_s((( VWB_Warper_base* )*ppWarper)->channel, szChannelName);
+		else
+			strcpy_s((( VWB_Warper_base* )*ppWarper)->channel, "default");
+	}
+
+	report(ppWarper);
 
 	return VWB_ERROR_NONE;
 }
 
 VWB_ERROR VWB_CreateW( void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, wchar_t const* szLogFile )
 {
-	try
-	{
-		char szCF[MAX_PATH];
-		char* pszCF = NULL;
-		char szCN[MAX_PATH];
-		char* pszCN = NULL;
-		char szLF[MAX_PATH];
-		char* pszLF = NULL;
-		if( szConfigFile )
-		{
-			wcstombs_s( NULL, szCF, szConfigFile, MAX_PATH );
-			pszCF = szCF;
-		}
-		if( szChannelName )
-		{
-			wcstombs_s( NULL, szCN, szChannelName, MAX_PATH );
-			pszCN = szCN;
-		}
-		if( szLogFile )
-		{
-			wcstombs_s( NULL, szLF, szLogFile, MAX_PATH );
-			pszLF = szLF;
-		}
-		return VWB_CreateA( pDxDevice, pszCF, pszCN, ppWarper, logLevel, pszLF );
-	} catch(...)
-	{
-		return VWB_ERROR_PARAMETER;
-	}
+	return VWB_CreateU( pDxDevice, std::filesystem::path( szConfigFile ).u8string().c_str(), std::filesystem::path(szChannelName).u8string().c_str(), ppWarper, logLevel, std::filesystem::path(szLogFile).u8string().c_str() );
 }
 
 VWB_ERROR VWB_Init( VWB_Warper* pWarper )
@@ -724,9 +787,17 @@ VWB_ERROR VWB_render( VWB_Warper* pWarper, VWB_param inputTexture, VWB_uint rest
 	return err;
 }
 
-VWB_ERROR VWB_vwfInfo( char const* path, VWB_WarpBlendHeaderSet* set )
+VWB_ERROR VWB_vwfInfo(char const* path, VWB_WarpBlendHeaderSet* set)
 {
-	return ScanVWF( path, set );
+	return ScanVWF(path, set);
+}
+VWB_ERROR VWB_vwfInfoW(wchar_t const* path, VWB_WarpBlendHeaderSet* set)
+{
+	return ScanVWF(path, set);
+}
+VWB_ERROR VWB_vwfInfoU(char8_t const* path, VWB_WarpBlendHeaderSet* set)
+{
+	return ScanVWF(path, set);
 }
 
 VWB_ERROR VWB_vwfInfoC( char const* path, VWB_WarpBlendHeader* headers, VWB_uint* count )
@@ -746,7 +817,60 @@ VWB_ERROR VWB_vwfInfoC( char const* path, VWB_WarpBlendHeader* headers, VWB_uint
 				res = VWB_ERROR_FALSE;
 			else
 			{
+				*count = c;
 				for( VWB_uint i = 0; i != c; i++ )
+					headers[i] = *set[i];
+			}
+		}
+	}
+	return res;
+}
+
+VWB_ERROR VWB_vwfInfoCW(wchar_t const* path, VWB_WarpBlendHeader* headers, VWB_uint* count)
+{
+	if ( nullptr == count )
+		return VWB_ERROR_PARAMETER;
+	VWB_WarpBlendHeaderSet set;
+	VWB_ERROR res = ScanVWF(path, &set, true );
+	if ( VWB_ERROR_NONE == res )
+	{
+		VWB_uint c = ( VWB_uint )set.size();
+		if ( nullptr == headers )
+			*count = c;
+		else
+		{
+			if ( *count < c )
+				res = VWB_ERROR_FALSE;
+			else
+			{
+				*count = c;
+				for ( VWB_uint i = 0; i != c; i++ )
+					headers[i] = *set[i];
+			}
+		}
+	}
+	return res;
+}
+
+VWB_ERROR VWB_vwfInfoCU(char8_t const* path, VWB_WarpBlendHeader* headers, VWB_uint* count)
+{
+	if ( nullptr == count )
+		return VWB_ERROR_PARAMETER;
+	VWB_WarpBlendHeaderSet set;
+	VWB_ERROR res = ScanVWF(path, &set, true );
+	if ( VWB_ERROR_NONE == res )
+	{
+		VWB_uint c = ( VWB_uint )set.size();
+		if ( nullptr == headers )
+			*count = c;
+		else
+		{
+			if ( *count < c )
+				res = VWB_ERROR_FALSE;
+			else
+			{
+				*count = c;
+				for ( VWB_uint i = 0; i != c; i++ )
 					headers[i] = *set[i];
 			}
 		}
@@ -759,6 +883,11 @@ VWB_ERROR VWB__logString( VWB_int level, char const* str )
 	if( NULL == str || 0 == str[0] )
 		return VWB_ERROR_PARAMETER;
 	logStr( level, str );
+	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR VWB_logClear() {
+	logClear();
 	return VWB_ERROR_NONE;
 }
 
@@ -855,6 +984,7 @@ VWB_Warper_base::VWB_Warper_base()
 , m_fnEPPCreate( NULL )
 , m_fnEPPGet( NULL )
 , m_fnEPPRelease( NULL )
+, m_bUTF8( false )
 {
 	Defaults();
 	memset( &m_ep, 0, sizeof( m_ep ) );
@@ -933,9 +1063,9 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			"    Position: %d,%d\n",
 			wb.header.hostname,
 			wb.header.name,
-			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
+			int(wb.header.splitColumnIndex), int(wb.header.splitRowIndex), int(wb.header.splitColumns), int(wb.header.splitRows),
 			wb.header.width, wb.header.height,
-			(int)wb.header.offsetX, (int)wb.header.offsetY
+			int(wb.header.offsetX), int(wb.header.offsetY)
 	);
 
 	if (calibSplit[0])

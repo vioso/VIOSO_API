@@ -452,8 +452,8 @@ namespace VIOSOWarpBlend
         public static IntPtr DummyDevice;
         public static IntPtr cryptoKeyMem;
 
-        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_CreateA", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int VWB_Create(IntPtr dxDevice, [MarshalAs(UnmanagedType.LPStr)] String szCnfigFile, [MarshalAs(UnmanagedType.LPStr)] String szChannelName, out IntPtr warper, Int32 logLevel, [MarshalAs(UnmanagedType.LPStr)] String szLogFile);
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_CreateW", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_Create(IntPtr dxDevice, [MarshalAs(UnmanagedType.LPWStr)] String szConfigFile, [MarshalAs(UnmanagedType.LPWStr)] String szChannelName, out IntPtr warper, Int32 logLevel, [MarshalAs(UnmanagedType.LPWStr)] String szLogFile);
 
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_Init", CallingConvention = CallingConvention.Cdecl)]
         public static extern int VWB_Init(IntPtr warper);
@@ -538,8 +538,8 @@ namespace VIOSOWarpBlend
         * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAM if fname is not set or empty, VWB_ERROR_VWF_FILE_NOT_FOUND if path did not resolve, VWB_ERROR_GENERIC otherwise
         * @remarks The list is empied and all found headers are appended. */
         //VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfo, (char const* path, VWB_WarpBlendHeaderSet* set ) );  
-        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_vwfInfoC", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int VWB_vwfInfo([MarshalAs(UnmanagedType.LPStr)] String path, IntPtr set, ref uint size);
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_vwfInfoCW", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_vwfInfo([MarshalAs(UnmanagedType.LPWStr)] String path, IntPtr set, ref uint size);
 
         /** fills a float[16] with the currently set internally used matrix for render shader. Warper needs to be initialized as VWB_DUMMYDEVICE.
          * @param [IN]			pWarper	a valid warper
@@ -574,6 +574,12 @@ namespace VIOSOWarpBlend
         //VIOSOWARPBLEND_API(VWB_ERROR, VWB_destroyWarpBlendMeshC, (VWB_Warper* pWarper, VWB_WarpBlendMesh* mesh) );
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_destroyWarpBlendMeshC", CallingConvention = CallingConvention.Cdecl)]
         static extern int VWB_destroyWarpBlendMesh(IntPtr warper, ref MarshalMesh mesh);
+
+        /* clear the current log file
+        * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER otherwise */
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_logClear", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_logClear();
+
 
         /* get the version of the API
         * @param[OUT]			major	major version

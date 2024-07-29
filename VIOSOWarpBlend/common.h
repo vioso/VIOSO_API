@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <map>
 #include <string>
+#include <filesystem>
 
 #include "../Include/VIOSOWarpBlend.h"
 #include "logging.h"
@@ -119,6 +120,8 @@ protected:
 	pfn_CreateEyePointReceiver	 m_fnEPPCreate; /// eye point provider create function pointer
 	pfn_ReceiveEyePoint	m_fnEPPGet;			/// eye point provider getter function pointer
 	pfn_DeleteEyePointReceiver m_fnEPPRelease;	/// eye point provider release function pointer
+	bool m_bUTF8; /// threat chars as UTF-8, this is set by VWB_createW and VWB_createU
+
 
 public:
 	VWB_Warper_base();						/// constructor
@@ -165,9 +168,11 @@ public:
 	virtual VWB_ERROR getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh );
 
 	/// read the .ini file
-	VWB_ERROR ReadIniFile( char const* szConfigFile, char const* szChannelName );
+	VWB_ERROR ReadIniFile( std::filesystem::path configFile, char const* szChannelName );
 	char const* GetType() const { return (char const*)&m_type4cc; };
 	VWB_size getMappingSize() { return m_sizeMap; }
+	void setUTF8(bool utf8) { m_bUTF8 = utf8; }
+	bool isUTF8() const { return m_bUTF8; }
 protected:
 	/// set all default values to the VWB_Warper struct
 	void Defaults();

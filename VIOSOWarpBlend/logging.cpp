@@ -1,11 +1,12 @@
 #include "Platform.h"
 #include "logging.h"
-#include <stdio.h>
-#include <stdarg.h>
-#include <time.h>
+#include <chrono>
+#include <iostream>
+#include <fstream>
 
-char g_logFilePath[260] = {0};
 VWB_int g_logLevel = 2;
+std::filesystem::path g_logFilePath;
+
 #ifndef WIN32
 #define NOERROR 0
 #endif
@@ -14,67 +15,67 @@ int logStr( VWB_int level, char const* format, ... )
 {
 	if( g_logLevel >= level )
 	{
-		FILE* f = NULL;
+		std::ostream* pOs = nullptr;
+		std::ofstream ofs;
 		errno_t err;
-		if ( 
-			0 == g_logFilePath[0] 
+		if ( g_logFilePath.empty()
 			|| 
-			's' == g_logFilePath[0] &&
-			't' == g_logFilePath[1] &&
-			'd' == g_logFilePath[2] &&
-			'o' == g_logFilePath[3] &&
-			'u' == g_logFilePath[4] &&
-			't' == g_logFilePath[5] &&
-			'\0' == g_logFilePath[6]
+			's' == g_logFilePath.c_str()[0] &&
+			't' == g_logFilePath.c_str()[1] &&
+			'd' == g_logFilePath.c_str()[2] &&
+			'o' == g_logFilePath.c_str()[3] &&
+			'u' == g_logFilePath.c_str()[4] &&
+			't' == g_logFilePath.c_str()[5] &&
+			'\0' == g_logFilePath.c_str()[6]
 			)
 		{
-			f = stdout;
+			pOs = &std::cout;
 			err = NOERROR;
 		}
 		else if (
-			's' == g_logFilePath[0] &&
-			't' == g_logFilePath[1] &&
-			'd' == g_logFilePath[2] &&
-			'e' == g_logFilePath[3] &&
-			'r' == g_logFilePath[4] &&
-			'r' == g_logFilePath[5] &&
-			'\0' == g_logFilePath[6]
+			's' == g_logFilePath.c_str()[0] &&
+			't' == g_logFilePath.c_str()[1] &&
+			'd' == g_logFilePath.c_str()[2] &&
+			'e' == g_logFilePath.c_str()[3] &&
+			'r' == g_logFilePath.c_str()[4] &&
+			'r' == g_logFilePath.c_str()[5] &&
+			'\0' == g_logFilePath.c_str()[6]
 			)
 		{
-			f = stderr;
+			pOs = &std::cerr;
 			err = NOERROR;
 		}
 		else
 		{
 			int c = 0;
-			err = 13;
 			while( 10 != c++ )
 			{
-				err = fopen_s( &f, g_logFilePath, "a+" );
-				if( 13 == err )
+				ofs.open( g_logFilePath, std::ios_base::app );
+
+				if( !ofs.is_open() )
 					sleep( 1 );
 				else
+				{
+					pOs = &ofs;
 					break;
+				}
 			} 
 		}
-		if( NOERROR == err )
+		if( pOs )
 		{
-			va_list params;
-			
-			time_t t;
-			time( &t );
-			struct tm tm;
-			localtime_s( &tm, &t );
-			fprintf( f, "%02d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec );
-            va_start( params, format );
-            vfprintf(f, format, params);
-            va_end(params);
-            fputs("\n", f);
+			auto in_time_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+			//*pOs << std::put_time(std::localtime(&in_time_t), "%X");
 
-			if( f != stdout && f != stderr )
-			{
-				fclose(f);
-			}
+			va_list params;
+			va_list params_copy;
+            va_start( params, format );
+			va_copy(params_copy, params);
+            auto size = std::vsnprintf(nullptr, 0, format, params );
+			va_end(params_copy);
+			std::string out(size+1, 0);
+			std::vsnprintf(out.data(), size, format, params);
+			va_end(params);
+			*pOs << out << std::endl;
 		}
 	}
 	return 0;
@@ -83,13 +84,8 @@ int logStr( VWB_int level, char const* format, ... )
 void logClear()
 {
 	FILE* f = NULL;
-	char szBakFile[MAX_PATH];
-	strcpy_s( szBakFile, g_logFilePath );
-	strcat_s( szBakFile, ".bak" );
-	remove( szBakFile );
-	if( 0 == rename( g_logFilePath, szBakFile ) )
-		(nullptr); // removes warinig C6031
-
-	if( 0 == fopen_s( &f, g_logFilePath, "w+" ) )
-		fclose(f);
+	std::filesystem::path bakFile(g_logFilePath);
+	bakFile += ".bak";
+	std::filesystem::remove(bakFile);
+	std::filesystem::rename(g_logFilePath, bakFile);
 }

@@ -5,7 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <filesystem>
-#include "StringConversions.h"
+#include "../Include/StringConversions.h"
 
 namespace VWBUtil
 {

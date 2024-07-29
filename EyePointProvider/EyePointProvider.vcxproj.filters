@@ -18,10 +18,10 @@
     <ClCompile Include="src\EyePointProvider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\logging.cpp">
+    <ClCompile Include="..\VIOSOWarpBlend\socket.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\VIOSOWarpBlend\socket.cpp">
+    <ClCompile Include="..\VIOSOWarpBlend\logging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
