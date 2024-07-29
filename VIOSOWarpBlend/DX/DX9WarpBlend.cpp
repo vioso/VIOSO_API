@@ -319,8 +319,6 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( VWB_STATEMASK_VERTEX_SHADER & stateMask )
 		m_device->GetVertexShader( &pOldVS );
-	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
-		m_device->GetPixelShader( &pOldPS );
 
 	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
 		m_device->GetPixelShader( &pOldPS );

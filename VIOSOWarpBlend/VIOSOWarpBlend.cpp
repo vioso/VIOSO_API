@@ -81,7 +81,10 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		if( NO_ERROR == fopen_s( &f, path, "r" ) )
 			fclose(f);
 		else
+		{
+			logStr(0, "Error open \"%s\"", path);
 			return VWB_ERROR_INI_LOAD;
+		}
 
 		char s[1024];
 		char sDef[MAX_PATH + 1024];
@@ -940,9 +943,9 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			"    Position: %d,%d\n",
 			wb.header.hostname,
 			wb.header.name,
-			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
+			int(wb.header.splitColumnIndex), int(wb.header.splitRowIndex), int(wb.header.splitColumns), int(wb.header.splitRows),
 			wb.header.width, wb.header.height,
-			(int)wb.header.offsetX, (int)wb.header.offsetY
+			int(wb.header.offsetX), int(wb.header.offsetY)
 	);
 
 	if (calibSplit[0])
