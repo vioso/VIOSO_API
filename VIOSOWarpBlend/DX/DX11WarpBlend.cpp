@@ -1182,7 +1182,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			if( nullptr != ShowSystemCursor &&
 				0 != ( mouseMode & 2 ) )
 			{
-				if( PtInRect( &rWnd, ci.ptScreenPos ) )
+				if( m_focusWnd == ::WindowFromPoint( ci.ptScreenPos ) )
 				{
 					if( g_bCurEnabled )
 					{

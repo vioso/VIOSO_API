@@ -460,7 +460,7 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				if( nullptr != ShowSystemCursor &&
 					0 != ( mouseMode & 2 ) )
 				{
-					if( PtInRect( &rWnd, ci.ptScreenPos ) )
+					if( dcp.hFocusWindow == ::WindowFromPoint( ci.ptScreenPos ) )
 					{
 						if( g_bCurEnabled )
 						{
