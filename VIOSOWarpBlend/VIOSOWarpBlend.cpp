@@ -462,6 +462,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			"screen=%.5f\n"
 			"optimalRes=[%d, %d]\n"
 			"optimalRect=[%d, %d, %d, %d]\n"
+			"gamma=%.5f\n"
 			"port=%d\n"
 			"heartbeatPort=%d\n"
 			"address=%s\n"
@@ -500,6 +501,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			(*ppWarper)->screenDist,
 			(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
 			(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
+		    (*ppWarper)->gamma,
 			(*ppWarper)->port,
 			(*ppWarper)->heartBeatPort,
 			(*ppWarper)->addr,

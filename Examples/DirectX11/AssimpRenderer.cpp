@@ -101,7 +101,7 @@ float4 PS( PS_INPUT input) : SV_Target
 )END";
 
 
-AssimpRenderer::AssimpRenderer( ID3D11Device* dev, char const* path )
+AssimpRenderer::AssimpRenderer( ID3D11Device* dev, std::filesystem::path const& path )
 {
 	// Compile the vertex shader
 	CComPtr< ID3DBlob > codeBlob;
@@ -304,7 +304,7 @@ aiString getTexNameFrom( aiMaterial const& m )
 	return aiString( "" );
 }
 
-HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
+HRESULT AssimpRenderer::Load( filesystem::path const& path, ID3D11Device* dev )
 {
 	HRESULT hr = S_OK;
 	unique_ptr<aiPropertyStore, void( * )( aiPropertyStore* )> props( aiCreatePropertyStore(), &aiReleasePropertyStore );
@@ -318,17 +318,17 @@ HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
 		//aiSetImportPropertyInteger(props,AI_CONFIG_PP_PTV_KEEP_HIERARCHY,1);
 
 		// Call ASSIMPs C-API to load the file
-		filesystem::path pp( path );
-
-		string pps = pp.string();
-		if( '\"' == pps[0] )
+		// strip quotes
+		auto pathStr = path.native();
+		if( '\"' == pathStr.front() )
 		{
-			pps.erase( 0, 1 );
-			pps.erase( pps.size() - 1, 1 );
+			pathStr.erase( 0, 1 );
+			pathStr.erase( pathStr.size() - 1, 1 );
 		}
+		filesystem::path pathClean( pathStr );
 		unique_ptr<aiScene, void( * )( aiScene const* )> pScene(
 			(aiScene*)aiImportFileExWithProperties(
-				pps.c_str(),
+				(char const*)pathClean.u8string().c_str(), // assimp handles chars as UTF-8 encoded
 				ppstepsdefault,
 				nullptr, props.get()
 			),
@@ -376,12 +376,13 @@ HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
 					{
 						if( m_textures.size() < size_t( mesh.texIndex ) + 1 )
 							m_textures.resize( size_t( mesh.texIndex ) + 1 );
-						if( nullptr == m_textures[mesh.texIndex] )
+						if( nullptr == m_textures[mesh.texIndex] ) // index has not been loaded yet
 						{
 							aiMaterial& material = *scene.mMaterials[mesh.texIndex];
 							aiString texPath = getTexNameFrom( material );
 
 							CComPtr<ID3D11Texture2D> tex;
+							sd.pSysMem = nullptr;
 
 							if( texPath.data[0] == '*' ) // there is a texture index
 							{
@@ -398,7 +399,7 @@ HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
 								}
 								else if( 0 == strcmp( "png", scene.mTextures[i]->achFormatHint ) )
 								{
-									CPng png( (uint8_t*)scene.mTextures[i]->pcData, scene.mTextures[i]->mWidth );
+									CPng png( (char*)scene.mTextures[i]->pcData, scene.mTextures[i]->mWidth );
 
 									texDesc.Width = png.m_width;
 									texDesc.Height = png.m_height;
@@ -435,16 +436,13 @@ HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
 									i = i; // what other formats are common?
 									throw exception( "unknown texture format" );
 								}
-								if( sd.pSysMem )
-								{
-									hr = dev->CreateTexture2D( &texDesc, &sd, &tex );
-									if( FAILED( hr ) )
-										throw exception( "failed to create texture" );
-								}
 							}
 							else // load from file
 							{
-								CPng png( texPath.C_Str() );
+								filesystem::path texPPath( texPath.C_Str() );
+								if( texPPath.is_relative() )
+									texPPath = pathClean.parent_path() / texPPath;
+								CPng png( texPPath );
 								texDesc.Width = png.m_width;
 								texDesc.Height = png.m_height;
 								texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -475,6 +473,12 @@ HRESULT AssimpRenderer::Load( char const* path, ID3D11Device* dev )
 
 								sd.pSysMem = data.data();
 								//throw exception( (string("Trying to load ") + texPath.C_Str() + " -- load texture from file not implemented").c_str() );
+							}
+							if( sd.pSysMem )
+							{
+								hr = dev->CreateTexture2D( &texDesc, &sd, &tex );
+								if( FAILED( hr ) )
+									throw exception( "failed to create texture" );
 							}
 
 							if( tex )

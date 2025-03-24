@@ -66,8 +66,8 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
 /// @param path [IN] a comma separated list of paths to load
 /// @param bScanOnly [OPT|IN] scan only, if set to true, the actual loading is skipped; all data pointers are NULL. This is used to analyze the mappings and assign them to a specific channel by names and ident information in header
 /// @param [OPT|IN] a single index to load data. Do this after scanning, to save memory and loading time. The set headers are all filled, but mappings only loaded for that particular index. Set to -1 to load all.
-/// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if path null or empty string, VWB_ERROR_VWF_FILE_NOT_FOUND, if path can't be found or opened, VWB_ERROR_VWF_LOAD, if malformed, VWB_ERROR_GENERIC otherwise
 /// @param aesKey [OPT|IN] if set, encryption indication flag is set; must be char[16] array
+/// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if path null or empty string, VWB_ERROR_VWF_FILE_NOT_FOUND, if path can't be found or opened, VWB_ERROR_VWF_LOAD, if malformed, VWB_ERROR_GENERIC otherwise
 VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1, const uint8_t* aesKey = nullptr );
 
 /// @brief split a warpblend, 

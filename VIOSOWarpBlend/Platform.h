@@ -26,7 +26,7 @@
 #define VWB_inet_ntop_cast in_addr*
 #endif //defined( _MSC_VER )
 
-#ifdef WIN32
+#if defined( WIN32 ) || defined( WIN64 )
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:
 #define NOMINMAX

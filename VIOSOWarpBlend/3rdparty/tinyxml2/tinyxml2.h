@@ -188,7 +188,7 @@ template <class T, int INIT>
 class DynArray
 {
 public:
-    DynArray< T, INIT >() 
+    DynArray() 
     : _pool{0}
     {
         _mem = _pool;

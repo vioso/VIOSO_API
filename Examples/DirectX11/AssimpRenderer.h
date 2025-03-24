@@ -8,6 +8,7 @@
 #pragma once
 #include "DX11Program.h"
 #include <vector>
+#include <filesystem>
 
 class AssimpRenderer :
     public Renderer
@@ -39,8 +40,8 @@ protected:
     TextureList m_textures;
 
 public:
-    AssimpRenderer(ID3D11Device* dev, char const* path = nullptr);
-    HRESULT Load( char const* path, ID3D11Device* dev );
+    AssimpRenderer( ID3D11Device* dev, std::filesystem::path const& path = "");
+    HRESULT Load( std::filesystem::path const& path, ID3D11Device* dev );
     HRESULT LoadBase( ID3D11Device* dev );
     HRESULT LoadQuad( ID3D11Device* dev );
     virtual void render(ID3D11DeviceContext* ctx, XMMATRIX const& world, XMMATRIX const& view, XMMATRIX const& projection);

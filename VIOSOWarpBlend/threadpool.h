@@ -32,7 +32,7 @@ protected:
 		std::thread t;
 		Worker() {};
 		Worker(threadpool* pool) : t( std::thread( threadFn, &t, std::ref( *pool ) ) ){}
-		~Worker() { if( t.joinable() ) t.join(); } // TODO: see if join is true and nobody is busy...
+		~Worker() { if( t.joinable() ) t.join(); }
 		PAT_NOCPY_MOVE( Worker );
 	};
 

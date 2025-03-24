@@ -391,7 +391,7 @@ Usage:
                                 if( ++it != mode.end() )
                                 {
                                     w = stoi( *it );
-                                    if( ++it != mode.end() ) h = stoi( *it );
+                                    if( ++it != mode.end() ) h = stoi( *it++ );
                                 }
                             }
                         }
@@ -443,7 +443,7 @@ Usage:
                 for( auto& wnd : g_windows )
                 {
                     for( auto s = render.begin() + 1; s != render.end(); s++ )
-                        wnd->addRenderer( make_shared< AssimpRenderer >( wnd->getDevice(), to_string( *s ).c_str() ) );
+                        wnd->addRenderer( make_shared< AssimpRenderer >( wnd->getDevice(), *s ) );
                 }
             }
             else if( render[0] == L"image" )

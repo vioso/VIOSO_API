@@ -521,7 +521,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		
 		if( FAILED( hr ) )
 		{
-			logStr( 0, "ERROR: Could not create constant buffer: %08X\n", hr );
+			logStr( 0, "ERROR: Could not create vertex buffer: %08X\n", hr );
 			return VWB_ERROR_GENERIC;
 		}
 

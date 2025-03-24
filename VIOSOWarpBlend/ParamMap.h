@@ -90,15 +90,14 @@ namespace VWBUtil
                     }
                     else
                     {
-
                         for( size_t i = 1; i < p.size(); i++ )
                         {
                             auto ii = init.commands.find( p[i] );
                             if( init.commands.end() == ii )
-                                throw invalid_argument( string( "Unknown command or flag-" ) + char( p[i] ) );
+                                throw invalid_argument( string( "Unknown command or flag -" ) + char( p[i] ) );
                             arguments = params.emplace( value_type{ ii->second.attribute, {} } ).first;
-                            // override old arguments
-                            arguments->second = ii->second.arguments;
+                            // append old arguments
+                            arguments->second.insert( arguments->second.end(), ii->second.arguments.begin(), ii->second.arguments.end() );
                             if( auto iii = init.attributes.find( ii->second.attribute ); iii != init.attributes.end() && 0 != iii->second.numArguments && p.size() > i + 1 )
                             {
                                 arguments->second.emplace_back( p.substr( i + 1 ) );
@@ -149,27 +148,37 @@ namespace VWBUtil
                         else if( ii->second.mandatory )
                             throw invalid_argument( string( "Argument --" ) + to_string( attr.first ) + " must have some attribute." );
                         else
-                            throw invalid_argument( string( "Too few arguments for attribute --" ) + to_string( attr.first ) );
+                            throw invalid_argument( string( "Missing argument(s) for attribute --" ) + to_string( attr.first ) );
                     }
                     else if( !init.allowUnInit )
                         throw invalid_argument( string( "Unknown attribute --" ) + to_string( attr.first ) );
                 }
                 else if( attr.second.size() > 1 ) // check if multi
                 {
-                    if( auto ii = init.attributes.find( attr.first ); init.attributes.end() != ii && -1 != ii->second.numArguments && int( arguments->second.size() ) != ii->second.numArguments )
-                        throw invalid_argument( string( "Wrong number of arguments for attribute --" ) + to_string( attr.first ) );
+                    if( auto ii = init.attributes.find( attr.first ); init.attributes.end() != ii ) {
+                        if( 0 > ii->second.numArguments ) {
+                            if( int( attr.second.size() ) < -ii->second.numArguments )
+                                throw invalid_argument( string( "Too few arguments for attribute --" ) + to_string( attr.first ) + " must be at least " + std::to_string( -ii->second.numArguments ) );
+                        } else {
+                            if( -1 != ii->second.numArguments && int( attr.second.size() ) != ii->second.numArguments )
+                                throw invalid_argument( string( "Wrong number of arguments for attribute --" ) + to_string( attr.first ) + " must be " + std::to_string( ii->second.numArguments ) );
+                        }
+                    }
                 }
             }
 
-            // check for missing arguments
-            for( auto const& attr : init.attributes )
+            // check for missing arguments, if not "help"
+            if( !is( string_type( {'h','e','l','p'} ) ) )
             {
-                if( attr.second.mandatory && params.end() == params.find( attr.first ) )
+                for( auto const& attr : init.attributes )
                 {
-                    if( !attr.second.def.empty() )
-                        params.emplace( attr.first, attr.second.def );
-                    else
-                        throw invalid_argument( string( "Argument " ) + to_string( attr.first ) + " is mandatory." );
+                    if( attr.second.mandatory && params.end() == params.find( attr.first ) )
+                    {
+                        if( !attr.second.def.empty() )
+                            params.emplace( attr.first, attr.second.def );
+                        else
+                            throw invalid_argument( string( "Argument for --" ) + to_string( attr.first ) + " is mandatory." );
+                    }
                 }
             }
         }
@@ -195,14 +204,37 @@ namespace VWBUtil
         ParamMap& operator=( ParamMap const& ) = delete;
         ParamMap& operator=( ParamMap&& ) = default;
 
+		/// @brief check if a parameter is present
+		/// @param name the name of the parameter
+		/// @return true if the parameter is present
+        bool has( string_type const& name ) const {
+            if( auto it = params.find( name ); it != params.end() )
+                return true;
+            return false;
+        }
+
+        /// @brief check is a parameter is a set flag
+        /// @param name the name of the parameter
+        /// @return true if the parameter is a set flag
         bool is( string_type const& name ) const {
             if( auto it = params.find( name ); it != params.end() && !it->second.empty() && !it->second.front().empty() )
                 return 0 != it->second.front().front();
             return false;
         }
-        bool has( string_type const& name ) const {
-            if( auto it = params.find( name ); it != params.end() )
-                return true;
+        /// @brief check is a parameter is a set to a value
+        /// @param name the name of the parameter
+        /// @return true if the parameter is set to that value
+        bool is( string_type const& name, string_type const& value ) const {
+            if( auto it = params.find( name ); it != params.end() && !it->second.empty() && !it->second.front().empty() )
+                return value == it->second.front();
+            return false;
+        }
+        /// @brief check is a parameter is a set to an array of values
+        /// @param name the name of the parameter
+        /// @return true if the parameter is set to that value
+        bool is( string_type const& name, array_type const& values ) const {
+            if( auto it = params.find( name ); it != params.end() && !it->second.empty() && !it->second.front().empty() )
+                return values == it->second;
             return false;
         }
 
@@ -212,5 +244,113 @@ namespace VWBUtil
                 return it->second;
             return _empty;
         }
+
+        inline array_type const& get( string_type const& name ) const {
+            return operator[]( name );
+        }
+
+        string_type const& get( string_type const& name, size_t index ) const {
+            static const string_type _empty;
+            auto& arr = operator[]( name );
+            if( arr.size() > index )
+                return arr[index];
+            else
+                return _empty;
+        }
+
+        void set( string_type const& name, array_type const& value ) {
+            params[name] = value;
+        }
+        void set( string_type const& name ) {
+            params[name] = { string_type( 1, '\1' ) };
+        }
+
+		void append( string_type const& name, array_type const& values ) {
+			if( auto it = params.find( name ); it != params.end() )
+				it->second.insert( it->second.end(), values.begin(), values.end() );
+			else
+				params.emplace( value_type{ name, values } );
+		}
+        array_type erase( string_type const& name ) {
+            if( auto it = params.find( name ); it != params.end() )
+            {
+                auto ret = std::move(it->second);
+                params.erase( it );
+                return ret;
+            }
+            return {};
+        }
+        array_type erase( string_type const& name, size_t off, size_t count = -1 ) {
+            if( auto it = params.find( name ); it != params.end() )
+            {
+				if( off >= it->second.size() )
+					return {};
+                auto itP = it->second.begin() + off;
+                decltype( itP ) itPE;
+                auto itPM = std::make_move_iterator( itP );
+				decltype( itPM ) itPME;
+                if( count == -1 || off + count > it->second.size() ) {
+                    itPE = it->second.end();
+                    itPME = std::make_move_iterator( itPE );
+                } else {
+					itPE = it->second.begin() + off + count;
+                    itPME = std::make_move_iterator( itPE );
+                }
+                array_type ret( itPM, itPME );
+                it->second.erase( itP, itPE );
+                return ret;
+            }
+            return {};
+        }
     };
+
+	/// @brief simple matrix and vector parser. Input looks like [1,2,3;4,5,6;7,8,9].
+    /// @tparam VT a number type
+    /// @tparam CT a character type
+    /// @param s the input string to parse
+    /// @return a pair of vector and row counter
+    /// throws exception in case of parsing error
+    template< typename VT = float, typename CT >
+    std::pair<std::vector<VT>,uint32_t> toMatrix( std::basic_string<CT> const& s ) {
+        std::pair<std::vector<VT>,uint32_t> r;
+
+        // we use classic locale to avoid problems with commas and dots
+        std::basic_stringstream ss(s);
+        ss.imbue( std::locale::classic() );
+        char ch;
+        if (ss >> ch && ch == '[') {
+            uint32_t nCols = 0;
+            uint32_t col = 0;
+            while( 1 ) {
+
+                if( !( ss >> r.first.emplace_back() ) ) 
+                    throw std::exception( "failed to parse matrix, could not parse value");
+
+                // try to find separator
+                if (ss >> ch ) {
+                    if( ch == ',' ) { // new column
+                        col++;
+                    } else if( ch == ';' ) { // new row
+                        r.second++;
+                        if( 0 == nCols ) {
+                            nCols = col + 1;
+                        } else if( nCols != col + 1 ) {
+                            throw std::exception( "failed to parse matrix, inconsistent number of columns" );
+                        }
+                    } else if( ch == ']' ) { // end of matrix
+                        if( nCols == 0 || nCols == col + 1 ) {
+                            r.second++;
+                            return r;
+                        } else {
+                            throw std::exception("failed to parse matrix, not enough values in row");
+                        }
+                    }
+                } else {
+                    throw std::exception("failed to parse matrix, unexpected character or end of string");
+                }
+            }
+        }
+        throw std::exception("failed to parse matrix, '[' missing at start ");
+    }
+
 }; // namespace VWBUtil
