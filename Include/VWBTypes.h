@@ -218,6 +218,8 @@ struct VWB_Warper
 
 	/// optional input gamma adjustment, used to degamma / regamma when appying blacklevel compensation. Defaults to 2.2
 	VWB_float inputGamma;
+
+	VWB_float blackDarkCut;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

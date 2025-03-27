@@ -148,13 +148,13 @@ void main()
 		{
 			// degamma
 			FragColor = pow( FragColor, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+			vec4 blackd = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
 
 			// offset color to get min average black
-			FragColor += blackBias.y * black;					
+			FragColor += blackBias.y * blackd;
 
 			// scale down to avoid clipping vOut
-			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
+			FragColor *= vec4(1,1,1,1) - blackBias.z * blackd;
 
 			// regamma
 			FragColor = pow( FragColor, vec4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
@@ -200,13 +200,13 @@ void main()
 		{
 			// degamma
 			FragColor = pow( FragColor, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+			vec4 blackd = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
 
 			// offset color to get min average black
-			FragColor += blackBias.y * black;					
+			FragColor += blackBias.y * blackd;					
 
 			// scale down to avoid clipping vOut
-			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
+			FragColor *= vec4(1,1,1,1) - blackBias.z * blackd;
 	
 			// regamma
 			FragColor = pow( FragColor, vec4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		

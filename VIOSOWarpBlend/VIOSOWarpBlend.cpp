@@ -983,8 +983,13 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	m_sizeMap.cx = wbs[calibIndex]->header.width;
 	m_sizeMap.cy = wbs[calibIndex]->header.height;
 	m_blackBias.x = wbs[calibIndex]->header.blackScale * blackScale;
-	m_blackBias.y = wbs[calibIndex]->header.blackDark;
-	m_blackBias.z = wbs[calibIndex]->header.blackDark * wbs[calibIndex]->header.blackBright;
+	if( blackDarkCut ) {
+		m_blackBias.y = wbs[calibIndex]->header.blackDark;
+		m_blackBias.z = wbs[calibIndex]->header.blackDark * wbs[calibIndex]->header.blackBright;
+	} else {
+		m_blackBias.y = 1;
+		m_blackBias.z = wbs[calibIndex]->header.blackBright;
+	}
 	m_blackBias.w = inputGamma;
 
 	VWB_MAT44f B( trans );
