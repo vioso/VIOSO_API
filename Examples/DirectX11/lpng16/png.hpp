@@ -189,6 +189,9 @@ private:
             : std::ostream(&buff), buff(base, size) {}
     };
 
+	static void errFn( png_longjmp_ptr, png_const_charp msg ) {
+		throw std::exception( msg );
+	}
 public:
     // read from memory
     CPng()
@@ -205,7 +208,7 @@ public:
     {}
 
     // read from stream
-    CPng( std::istream& is ) : CPng() {
+    CPng( std::istream&& is ) : CPng() {
         if( is.bad() )
             throw std::exception( "file not found" );
  
@@ -221,9 +224,6 @@ public:
         m_pInfo = png_create_info_struct( m_pPngR );
         if( !m_pInfo )
             throw std::exception( "failed to create png info struct" );
-
-        if( setjmp( png_jmpbuf( m_pPngR ) ) )
-            throw std::exception( "Error: libpng encountered an error " );
 
         png_set_read_fn( m_pPngR, &is, &srdfn );
 
@@ -272,10 +272,10 @@ public:
     }
 
     // read from file
-    CPng(std::filesystem::path const& path) : CPng( (std::istream&)std::ifstream(path, std::ios::binary | std::ios::in ) ) {}
+    CPng(std::filesystem::path const& path) : CPng( (std::istream&&)std::ifstream(path, std::ios::binary | std::ios::in ) ) {}
         
     // read from memory
-    CPng(char* data, size_t size) : CPng( (std::istream&)imemstream(data, size) ) {}
+    CPng(char* data, size_t size) : CPng( (std::istream&&)imemstream(data, size) ) {}
 
     // create a container
     CPng(png_uint_32 width, png_uint_32 height, int colorType = PNG_COLOR_TYPE_RGB, int depth = 8 ) 
@@ -320,9 +320,6 @@ public:
         //if( colorType == PNG_COLOR_TYPE_PALETTE && 
         m_pPngW = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
         m_pInfo = png_create_info_struct(m_pPngW);
-
-        if( setjmp( png_jmpbuf( m_pPngW ) ) )
-            throw std::exception( "Error: libpng encountered an error " );
     }
 
 	~CPng()
@@ -567,7 +564,7 @@ public:
         return true;
     }
 
-    bool write(std::ostream& os) {
+    bool write(std::ostream&& os) {
         if( os.bad() )
             return false;
 
@@ -593,12 +590,12 @@ public:
 
     // write to file
     bool write(std::filesystem::path const& path) {
-        return write((std::ostream&)std::ofstream(path, std::ios::binary | std::ios::out));
+        return write((std::ostream&&)std::ofstream(path, std::ios::binary | std::ios::out));
     }
 
     // write to memory
     bool write(char* out, size_t size) {
-        return write((std::ostream&)omemstream(out, size ));
+        return write((std::ostream&&)omemstream(out, size ));
     }
 
     void convertRGB8toRGBA8( uint8_t* out ) const

@@ -10,7 +10,7 @@ if(NOT OPENGL_FOUND)
   message(ERROR "OPENGL not found!")
 endif(NOT OPENGL_FOUND)
 
-set( SOURCES logging.cpp PathHelper.cpp VIOSOWarpBlend.cpp vwf.cpp 3rdparty/aes/aes.c 3rdparty/tinyxml2/tinyxml2.cpp GL/GLWarpBlend.cpp GL/GLWarpBlendXPL.cpp)
+set( SOURCES logging.cpp PathHelper.cpp VIOSOWarpBlend.cpp VWF.cpp 3rdparty/aes/aes.c 3rdparty/tinyxml2/tinyxml2.cpp GL/GLWarpBlend.cpp GL/GLWarpBlendXPL.cpp)
 
 if(WIN32)
     set( SOURCES ${SOURCES}  DX/DXWarpBlend.cpp DX/DX9EXWarpBlend.cpp DX/DX9WarpBlend.cpp DX/DX10WarpBlend.cpp DX/DX11WarpBlend.cpp DX/DX12WarpBlend.cpp )

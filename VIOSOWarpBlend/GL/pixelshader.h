@@ -146,11 +146,9 @@ void main()
 			FragColor.rgb*= blend.rgb;		
 		if( !bDoNoBlack )               
 		{
-			const float gamma = 2.0;
-			const float diff = 0.5;
 			// degamma
-			FragColor = pow( FragColor, vec4( gamma, gamma, gamma, 1.0 ) );
-			black = pow( black, vec4( gamma - diff, gamma - diff, gamma - diff, 1.0 ) );
+			FragColor = pow( FragColor, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+			black = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
 
 			// offset color to get min average black
 			FragColor += blackBias.y * black;					
@@ -159,7 +157,7 @@ void main()
 			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
 
 			// regamma
-			FragColor = pow( FragColor, vec4( 1.0/gamma, 1.0/gamma, 1.0/gamma, 1.0 ) );		
+			FragColor = pow( FragColor, vec4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
 
 			// do lower clamp to stay above common black, upper is done anyway
 			FragColor = max( FragColor, black );				
@@ -200,12 +198,19 @@ void main()
 			FragColor.rgb*= blend.rgb;
 		if( !bDoNoBlack )
 		{
+			// degamma
+			FragColor = pow( FragColor, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+			black = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+
 			// offset color to get min average black
 			FragColor += blackBias.y * black;					
 
 			// scale down to avoid clipping vOut
 			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
 	
+			// regamma
+			FragColor = pow( FragColor, vec4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+
 			// do lower clamp to stay above common black, upper is done anyways
 			FragColor = max( FragColor, black );				
 		}

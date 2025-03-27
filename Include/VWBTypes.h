@@ -215,6 +215,9 @@ struct VWB_Warper
 
 	/// optional blacklevel scale adjustment, will be multiplied to VWB_WarpFileHeader5.blackScale. Defaults to 1.0
 	VWB_float blackScale;
+
+	/// optional input gamma adjustment, used to degamma / regamma when appying blacklevel compensation. Defaults to 2.2
+	VWB_float inputGamma;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------

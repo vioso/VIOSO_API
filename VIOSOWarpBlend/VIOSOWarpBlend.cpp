@@ -265,6 +265,9 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		fDef = GetIniFloat( "default", "blackScale", blackScale, path );
 		blackScale = GetIniFloat( channel, "blackScale", fDef, path );
 
+		fDef = GetIniFloat( "default", "inputGamma", inputGamma, path );
+		inputGamma = GetIniFloat( channel, "inputGamma", fDef, path );
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -419,6 +422,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		struct tm tm;
 		localtime_s( &tm, &t );
 		logStr( 1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", 1900 + tm.tm_year, 1 + tm.tm_mon, tm.tm_mday, VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV );
+	#ifdef _DEBUG
+		logStr( 1, "DEBUG" );
+	#endif
 
 		char* szModPath = NULL;
 		char* szProcPath = NULL;
@@ -472,6 +478,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			"bFixWraparound=%d\n"
 			"D3D12RTVF=%d\n"
 			"blackScale=%f\n"
+			"inputGamma=%f\n"
 			"\n",
 			((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 			(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
@@ -510,7 +517,8 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			(*ppWarper)->overrideStatemask,
 			( *ppWarper )->bFixWraparound,
 			( *ppWarper )->D3D12RTVF,
-			( *ppWarper )->blackScale
+			( *ppWarper )->blackScale,
+			( *ppWarper )->inputGamma
 	);
 
 	return VWB_ERROR_NONE;
@@ -875,9 +883,9 @@ VWB_Warper_base::VWB_Warper_base()
 	m_viewSizes.z = 1;
 	m_viewSizes.w = 1;
 	m_blackBias.x = 0;
-	m_blackBias.y = 0;
-	m_blackBias.z = 0;
-	m_blackBias.w = 0;
+	m_blackBias.y = 1;
+	m_blackBias.z = 1;
+	m_blackBias.w = 2.2f;
 }
 
 VWB_Warper_base::~VWB_Warper_base()
@@ -977,7 +985,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	m_blackBias.x = wbs[calibIndex]->header.blackScale * blackScale;
 	m_blackBias.y = wbs[calibIndex]->header.blackDark;
 	m_blackBias.z = wbs[calibIndex]->header.blackDark * wbs[calibIndex]->header.blackBright;
-	m_blackBias.w = 0;
+	m_blackBias.w = inputGamma;
 
 	VWB_MAT44f B( trans );
 	m_mBaseI = B.Inverted();
@@ -1304,6 +1312,7 @@ void VWB_Warper_base::Defaults()
 	gamma = 1;
 	D3D12RTVF = 28;
 	blackScale = 1.0f;
+	inputGamma = 2.2f;
 }
 
 VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )

@@ -1092,7 +1092,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	cb.blackBias[0] = m_blackBias.x;
 	cb.blackBias[1] = m_blackBias.y;
 	cb.blackBias[2] = m_blackBias.z;
-	cb.blackBias[3] = 0;
+	cb.blackBias[3] = m_blackBias.w;
 
 	if( mouseMode & 1 )
 	{
