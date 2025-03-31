@@ -489,8 +489,23 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	}
 	SetTexture( 3, m_texCur );
 	SetTexture( 4, m_texBlack );
+	float bb[4] = {
+		m_blackBias.x  * blackScale,
+		m_blackBias.y,
+		m_blackBias.z,
+		inputGamma };
 
-	m_device->SetPixelShaderConstantF( 8, m_blackBias, 1 );
+	if( blackDarkAdjust <= 0.5f )
+		bb[1] *= blackDarkAdjust * 2.0f;
+	else 
+		bb[1] += ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
+	if( blackBrightAdjust <= 0.5f )
+		bb[2] *= blackBrightAdjust * 2.0f;
+	else
+		bb[2] += ( blackBrightAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.z );
+	bb[2] *= bb[1];
+	bb[3] = inputGamma;
+	m_device->SetPixelShaderConstantF( 8, bb, 1 );
 
 	// remove dependency of d3d9x.lib
 	//D3DXMatrixOrthoOffCenterLH( &lOrthoMatrix, 0.0, static_cast<float>( m_sizeMap.cx ), 0.0, static_cast<float>( m_sizeMap.cy ), 0.0, 1.0 );

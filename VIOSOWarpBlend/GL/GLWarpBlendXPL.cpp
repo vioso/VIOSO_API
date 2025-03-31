@@ -290,8 +290,24 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 					);
 				else
 					glUniform4f( m_locOffsScale, 0.0f, 0.0f, 1.0f, 1.0f );
-				glUniform4f( m_locBlackBias,
-							 m_blackBias.x, m_blackBias.y, m_blackBias.z, m_blackBias.w );
+
+				float bb[4] = {
+					m_blackBias.x  * blackScale,
+					m_blackBias.y,
+					m_blackBias.z,
+					inputGamma };
+
+				if( blackDarkAdjust <= 0.5f )
+					bb[1] *= blackDarkAdjust * 2.0f;
+				else 
+					bb[1] += ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
+				if( blackBrightAdjust <= 0.5f )
+					bb[2] *= blackBrightAdjust * 2.0f;
+				else
+					bb[2] += ( blackBrightAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.z );
+				bb[2] *= bb[1];
+				bb[3] = inputGamma;
+				glUniform4fv( m_locBlackBias, 1, bb );
 			}
 
 			if( VWB_STATEMASK_VIEWPORT & stateMask )

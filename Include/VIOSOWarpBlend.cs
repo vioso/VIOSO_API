@@ -281,6 +281,15 @@ namespace VIOSOWarpBlend
 
             /// the screen distance this is where the render plane is, defaults to 1
             public float blackScale;
+
+            /// optional input gamma adjustment, used to degamma / regamma when appying blacklevel compensation. Defaults to 2.2
+            public float inputGamma;
+
+            /// optional blackDark adjustment, Set to 0 to set blackDark to 0, set to 1 to set blackDark to 1, set to 0.5 to keep value from VWF header. It interpolates linearly inbetween. Defaults to 0.5
+            public float blackDarkAdjust;
+
+            /// optional blackDark adjustment, like blackDarkAdjust, but for bright. Defaults to 0.5
+            public float blackBrightAdjust;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
