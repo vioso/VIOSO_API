@@ -229,6 +229,8 @@ Usage:
             if( mode[0] == L"file" )
             {
                 // analyze vwf
+                VWB::loadDll();
+                VWB::SetCryptoKey( (uint8_t*)"blalaberbla" );
                 string accu = accumulate( mode.begin() + 2, mode.end(), to_string( mode[1] ), []( string s, wstring const& o ) { return move(s) + ',' + to_string( o ); } );
 
                 std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( accu.c_str() );
@@ -261,6 +263,7 @@ Usage:
                         g_windows.push_back( ptr );
                     }
                 }
+				VWB::unloadDll();
             }
             else if( mode[0] == L"inifile" )
             {
