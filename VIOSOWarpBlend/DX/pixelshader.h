@@ -311,7 +311,7 @@ float4 tex2DBC(uniform Texture2D texCnt,
                                                 
 float4 PS( VS_OUT vIn ) : SV_Target                 
 {                                               
-	 float4 color = texContent.Sample( samLin, ( vIn.tex - offsScale.xy ) * offsScale.zw ); 
+	float4 color = texContent.Sample( samLin, ( vIn.tex - offsScale.xy ) * offsScale.zw ); 
     return color;                               
 }                                               
                                                 

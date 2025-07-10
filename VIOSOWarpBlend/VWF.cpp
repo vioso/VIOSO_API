@@ -1335,7 +1335,7 @@ VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY )
+VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY, VWB_uint hMonitor )
 {
 	if( NULL == path || 0 == *path )
 	{

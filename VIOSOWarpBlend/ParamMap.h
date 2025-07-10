@@ -87,8 +87,9 @@ namespace VWBUtil
                         if( !init.allowUnInit && init.attributes.end() == init.attributes.find( at ) )
                             throw invalid_argument( string( "Unknown attribute --" ) + to_string( at ) );
                         arguments = params.emplace( value_type{ at, {} } ).first;
+                        continue;
                     }
-                    else
+                    else if( 'A' <= p[1] ) 
                     {
                         for( size_t i = 1; i < p.size(); i++ )
                         {
@@ -104,9 +105,10 @@ namespace VWBUtil
                                 break;
                             }
                         }
+                        continue;
                     }
                 }
-                else if( arguments != params.end() )
+                if( arguments != params.end() )
                 { // this is an attribute
                     if( arguments->second.empty() )
                         arguments->second.emplace_back( p );

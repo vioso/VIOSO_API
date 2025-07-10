@@ -50,7 +50,7 @@
 ///   normally blackDark = blackBright = 1, but you'll loose color resolution. It might be better in dark scenario to just shift up, or in bright scenario to clamp lower.
 /// next chunk if not "vwf" is white (ambient correction), not used so far
 /// next chunk must be "vwf" for next channel
-/// (c) VIOSO GmbH 2024
+/// (c) VIOSO GmbH 2011 - 2024
 
 #include "../Include/VWBTypes.h"
 #include <iostream>
