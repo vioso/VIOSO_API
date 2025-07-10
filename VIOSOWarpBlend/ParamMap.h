@@ -112,7 +112,7 @@ namespace VWBUtil
                 { // this is an attribute
                     if( arguments->second.empty() )
                         arguments->second.emplace_back( p );
-                    else if( auto ii = init.attributes.find( arguments->first ); init.attributes.end() == ii || -1 == ii->second.numArguments || int( arguments->second.size() ) < ii->second.numArguments )
+                    else if( auto ii = init.attributes.find( arguments->first ); init.attributes.end() == ii || 0 > ii->second.numArguments || int( arguments->second.size() ) < ii->second.numArguments )
                         arguments->second.emplace_back( p );
                     else
                         throw invalid_argument( string( "Too many arguments for attribute --" ) + to_string( arguments->first ) + "." );
@@ -334,13 +334,15 @@ namespace VWBUtil
                         col++;
                     } else if( ch == ';' ) { // new row
                         r.second++;
+                        col++;
                         if( 0 == nCols ) {
-                            nCols = col + 1;
-                        } else if( nCols != col + 1 ) {
+                            nCols = col;
+                        } else if( col % nCols != 0 ) {
                             throw std::exception( "failed to parse matrix, inconsistent number of columns" );
                         }
                     } else if( ch == ']' ) { // end of matrix
-                        if( nCols == 0 || nCols == col + 1 ) {
+                        col++;
+                        if( nCols == 0 || col % nCols == 0 ) {
                             r.second++;
                             return r;
                         } else {

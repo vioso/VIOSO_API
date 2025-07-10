@@ -960,12 +960,14 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			"  Devicename: \"%s\"\n"
 			"   SplitInfo: (%i,%i) of (%i,%i)\n"
 			"  Resolution: %dx%d\n"
-			"    Position: %d,%d\n",
+			"    Position: %d,%d\n"
+			"  BlackLevel: %f,%f,%f\n",
 			wb.header.hostname,
 			wb.header.name,
 			int(wb.header.splitColumnIndex), int(wb.header.splitRowIndex), int(wb.header.splitColumns), int(wb.header.splitRows),
 			wb.header.width, wb.header.height,
-			int(wb.header.offsetX), int(wb.header.offsetY)
+			int(wb.header.offsetX), int(wb.header.offsetY),
+			wb.header.blackScale, wb.header.blackDark, wb.header.blackBright	
 	);
 
 	if (calibSplit[0])
@@ -1172,12 +1174,19 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
-			optimalRes.cx = wb.header.width;
-			optimalRes.cy = wb.header.height;
-			optimalRect.left =	0;
-			optimalRect.top =	0;
-			optimalRect.right = wb.header.width;
-			optimalRect.bottom =wb.header.height;
+			if( optimalRes.cx <= 0 || optimalRes.cy <= 0 ) {
+				optimalRes.cx = wb.header.width;
+				optimalRes.cy = wb.header.height;
+			}
+			if( optimalRect.right - optimalRect.left <= 0 ||
+				optimalRect.bottom - optimalRect.top <= 0 ) {
+				// if no rect is given, use the whole image
+				// this is the case for 2D mappings, where no partial rects are defined
+				optimalRect.left = 0;
+				optimalRect.top = 0;
+				optimalRect.right = wb.header.width;
+				optimalRect.bottom = wb.header.height;
+			}
 		}
 	}
 

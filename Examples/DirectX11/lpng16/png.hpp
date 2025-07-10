@@ -147,6 +147,10 @@ private:
         return (v < min) ? min : ( v > max ? max : v );
     }
 
+    constexpr static uint8_t clampU8( int v ) {
+        return (v < 0) ? 0 : ( v > 255 ? 255 : uint8_t(v) );
+    }
+
     static void srdfn( png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead )
     {
         auto io = (std::istream*)png_get_io_ptr( png_ptr );
@@ -189,9 +193,6 @@ private:
             : std::ostream(&buff), buff(base, size) {}
     };
 
-	static void errFn( png_longjmp_ptr, png_const_charp msg ) {
-		throw std::exception( msg );
-	}
 public:
     // read from memory
     CPng()
@@ -208,7 +209,7 @@ public:
     {}
 
     // read from stream
-    CPng( std::istream&& is ) : CPng() {
+    CPng( std::istream& is ) : CPng() {
         if( is.bad() )
             throw std::exception( "file not found" );
  
@@ -224,6 +225,9 @@ public:
         m_pInfo = png_create_info_struct( m_pPngR );
         if( !m_pInfo )
             throw std::exception( "failed to create png info struct" );
+
+        if( setjmp( png_jmpbuf( m_pPngR ) ) )
+            throw std::exception( "Error: libpng encountered an error " );
 
         png_set_read_fn( m_pPngR, &is, &srdfn );
 
@@ -272,10 +276,10 @@ public:
     }
 
     // read from file
-    CPng(std::filesystem::path const& path) : CPng( (std::istream&&)std::ifstream(path, std::ios::binary | std::ios::in ) ) {}
+    CPng(std::filesystem::path const& path) : CPng( (std::istream&)std::ifstream(path, std::ios::binary | std::ios::in ) ) {}
         
     // read from memory
-    CPng(char* data, size_t size) : CPng( (std::istream&&)imemstream(data, size) ) {}
+    CPng(char* data, size_t size) : CPng( (std::istream&)imemstream(data, size) ) {}
 
     // create a container
     CPng(png_uint_32 width, png_uint_32 height, int colorType = PNG_COLOR_TYPE_RGB, int depth = 8 ) 
@@ -320,6 +324,9 @@ public:
         //if( colorType == PNG_COLOR_TYPE_PALETTE && 
         m_pPngW = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
         m_pInfo = png_create_info_struct(m_pPngW);
+
+        if( setjmp( png_jmpbuf( m_pPngW ) ) )
+            throw std::exception( "Error: libpng encountered an error " );
     }
 
 	~CPng()
@@ -336,126 +343,365 @@ public:
         if(PNG_COLOR_TYPE_PALETTE == m_colorType) {
             // create map of levels, recording locations of this RGB uplift, a final color and a palette index
             typedef struct Bin{
-                uint32_t data;
+                union {
+                    uint32_t data;
+                    struct alignas(1) {
+                        uint8_t r;
+                        uint8_t g;
+                        uint8_t b;
+                        uint8_t a;
+					} rgb8u;
+				};
                 Bin() : data(0) {};
-                Bin( png_color const& col ) : data( uint32_t( col.red ) | ( uint32_t( col.green ) << 8 ) | ( uint32_t( col.blue ) << 16 ) ) {}
-                Bin( int r, int g, int b ) : data( clamp_value( 0, 255, r ) | (clamp_value( 0, 255, g ) << 8) | (clamp_value( 0, 255, b ) << 16 ) ) {}
+                Bin(png_color const& col) : rgb8u{ clampU8(col.red), clampU8(col.green), clampU8(col.blue), 0 } {}
+                Bin(int r, int g, int b) : rgb8u{ clampU8(r), clampU8(g), clampU8(b), 0 } {}
                 inline explicit Bin( uint32_t d ) : data(d) {}
+                static inline Bin e() { return Bin(-2); } // essential color reference
+                static inline Bin n() { return Bin(-1); } // needed color reference
 
-                // the less operator automaically orders bins in map, so first is always no uplift, if this exists
-                inline bool operator<(Bin const& other) const { return data < other.data; }
                 struct Hasher {
                     inline std::size_t operator()(Bin const& b) const { return std::hash<uint32_t>{}(b.data); }
                 };
                 inline bool operator==(Bin const& other) const { return data == other.data; }
                 inline bool operator!=(Bin const& other) const { return data != other.data; }
+				inline bool operator<(Bin const& other) const { return rgb8u.r + rgb8u.g + rgb8u.b < other.rgb8u.r + other.rgb8u.g + other.rgb8u.b; }
                 inline operator png_color() const {
                     return png_color{ uint8_t(data), uint8_t(data >> 8), uint8_t(data >> 16) };
                 }
 
-                inline Bin& average( Bin const& rhs) { 
-                    data =
-                        (((data & 0xFF) + (rhs.data & 0xFF)) / 2) |
-                        (((data & 0xFF00) + (rhs.data & 0xFF00)) / 2) |
-                        (((data & 0xFF0000) + (rhs.data & 0xFF0000)) / 2);
+                inline Bin& average( Bin const& rhs ) { 
+					rgb8u.r += rhs.rgb8u.r; rgb8u.r /= 2;
+					rgb8u.g += rhs.rgb8u.g; rgb8u.g /= 2;
+					rgb8u.b += rhs.rgb8u.b; rgb8u.b /= 2;
                     return *this;
                 }
-
+				/// @override
                 inline static Bin average(Bin const& lhs, Bin const& rhs) { 
                     return Bin(lhs).average(rhs);
                 }
 
-                inline uint32_t dist2(Bin const& other) const { // the squared distance, used to find close colors
-                    int32_t r = int32_t(data & 0xFF) - int32_t(other.data & 0xFF); r*= r;
-                    int32_t g = ( int32_t(data & 0xFF00) - int32_t(other.data & 0xFF00) ) >> 8; g*= g;
-                    int32_t b = ( int32_t(data & 0xFF000) - int32_t(other.data & 0xFF000) ) >> 16; b*= b;
-                    return r + g + b;
+                inline Bin& pivotedAverage( Bin const& rhs, int c1, int c2 ) { 
+					uint32_t c = c1 + c2;
+					uint32_t h = c / 2; // round not floor!
+                    rgb8u.r = uint8_t( ( c1 * rgb8u.r + c2 * rhs.rgb8u.r + h ) / c );
+					rgb8u.g = uint8_t( ( c1 * rgb8u.g + c2 * rhs.rgb8u.g + h ) / c );
+					rgb8u.b = uint8_t( ( c1 * rgb8u.b + c2 * rhs.rgb8u.b + h ) / c );
+                    return *this;
                 }
+				/// @override
+				inline static Bin pivotedAverage(Bin const& lhs, Bin const& rhs, int c1, int c2) {
+					return Bin(lhs).pivotedAverage(rhs, c1, c2);
+				}
+
+                inline bool hasReference() const { return 0 == ( data & 0x80000000 ); }
+
+                inline uint8_t r() const { return uint8_t(data & 0xFF); }
+                inline uint8_t g() const { return uint8_t((data & 0xFF00) >> 8); }
+                inline uint8_t b() const { return uint8_t((data & 0xFF0000) >> 16); }
+
+                inline uint32_t dist2(Bin const& other) const { // the squared distance, used to find close colors
+                    int32_t r_ = r() - other.r(); r_*= r_;
+                    int32_t g_ = g() - other.r(); g_*= g_;
+                    int32_t b_ = b() - other.r(); b_*= b_;
+
+                    return r_ + g_ + b_;
+                }
+
             } Bin;
 
             std::unordered_map<Bin, std::pair<Bin, int>, typename Bin::Hasher> levels; // mapping a color to a target color and a palette index
             // fill map with data
             if constexpr( std::is_floating_point_v<value_type> ) {
                 for(TI pB = in, pBE = pB + nChannels * m_width * m_height; pB != pBE && pB != inEnd; pB+= nChannels)
-                    levels.emplace(Bin(int(pB[nR] * scaleNum / scaleDenom), int(pB[nG] * scaleNum / scaleDenom), int(pB[nB] * scaleNum / scaleDenom)), std::pair<Bin, int>{ -1, -1 });
+                    if(auto [it, bNew] = levels.emplace(Bin(int(pB[nR] * scaleNum / scaleDenom), int(pB[nG] * scaleNum / scaleDenom), int(pB[nB] * scaleNum / scaleDenom)), std::pair<Bin, int>{ Bin::n(), 1 }); !bNew)
+                        it->second.second++;
+
             } else {
                 for(TI pB = in, pBE = pB + nChannels * m_width * m_height; pB != pBE && pB != inEnd; pB+= nChannels)
-                    levels.emplace(Bin(int(pB[nR]) * scaleNum / scaleDenom, int(pB[nG]) * scaleNum / scaleDenom, int(pB[nB]) * scaleNum / scaleDenom), std::pair<Bin, int>{ -1, -1 });
+					if(auto [it, bNew] = levels.emplace(Bin(int(pB[nR]) * scaleNum / scaleDenom, int(pB[nG]) * scaleNum / scaleDenom, int(pB[nB]) * scaleNum / scaleDenom), std::pair<Bin, int>{ Bin::n(), 1 }); !bNew)
+						it->second.second++;
             }
 
-            // merge levels, if more than 2^depth
-            const size_t maxLevels = size_t(1) << m_bitDepth;
-            size_t nLevels = levels.size();
-            while(nLevels > maxLevels)
-            {
-                auto m1 = levels.end();
-                auto m2 = levels.end();
+            const int maxLevels = size_t(1) << m_bitDepth;
+            if(levels.size() > maxLevels) {
+                ////////////
+                // gather essential colors
 
-                // find closest pair
-                uint32_t sMin = UINT_MAX;
+                // build a by count sorted list of colors
+                std::vector<std::pair<Bin, int >> sorted(levels.size());
+                auto itS = sorted.begin();
+                int all = 0;
+                for(auto const& l : levels) {
+                    itS->first = l.first;
+                    itS->second = l.second.second;
+                    all += l.second.second;
+                    itS++;
+                }
+                std::sort(sorted.begin(), sorted.end(), [](auto const& a, auto const& b) { return a.second > b.second; });
 
-                // we skip first entry, as this is usually (0,0,0)
-                for(auto a = ++levels.begin(); a != levels.end(); a++)
-                {
-                    if(Bin(-1) != a->second.first ) // already referenced
-                        continue;
-                    for(auto b = a; ++b != levels.end(); )
-                    {
-                        if(Bin(-1) != b->second.first )
-                            continue;
+                // calculate max colors and levels
+                const int maxColors = all * 4 / 10;
 
-                        auto s = a->first.dist2(b->first);
-                        if(s < sMin)
-                        {
-                            m1 = a;
-                            m2 = b;
-                            sMin = s;
+                // set all black essential
+                int accu = levels[Bin(0, 0, 0)].second;
+                int essential = 1;
+                levels[Bin(0, 0, 0)].first = Bin::e(); // mark as essential
+
+				// find brightest color and set as essential
+                if(0) { // has rather negative effect, as we lose a step and some darker color
+                    Bin max(0, 0, 0);
+                    ptrdiff_t iMax = INT_MAX;
+                    for(auto const& l : sorted) {
+                        if(max < l.first) {
+                            max = l.first;
+							iMax = &l - &sorted[0];
                         }
                     }
+                    if(iMax != INT_MAX) {
+                        levels[ sorted[iMax].first ].first = Bin::e(); // mark as essential
+                        essential++;
+					}
                 }
 
-                // merge pair, no need to check, as there is always a valid pair
-                // tree iterators are no L-values, so we need to create a new Bin and delete old then insert new
-                auto avg = Bin::average(m1->first, m2->first);
-                auto iIt = levels.emplace( std::move( avg ), std::pair<Bin, int>{ -1, -1 }).first;
-                nLevels--;
+                // find most frequent essential colors
+                for( auto const& l : sorted ) {
+                    if( accu >= maxColors )
+                        break;
+                    if( essential >= maxLevels )
+                        break;
 
-                if(m1->first != iIt->first ) // if m1 is not same as new, we set target to the merged color
-                    m1->second.first = iIt->first; // set target color
-                if( m2->first != iIt->first )
-                    m2->second.first = iIt->first;
+                    if( Bin(0, 0, 0) == l.first ) // skip black
+                        continue;
+
+                    accu += l.second;
+                    essential++;
+                    levels[l.first].first = Bin::e(); // mark as essential
+                }
+
+                // merge levels, if more than 2^depth
+                int nLevels = (int)levels.size(); // conversion to int is fine, there are max 2^24 colors
+                while(nLevels > maxLevels)
+                {
+                    auto m1 = levels.end();
+                    auto m2 = levels.end();
+
+                    // find closest pair
+                    uint32_t sMin = UINT_MAX;
+
+                    for(auto a = levels.begin(); a != levels.end(); a++)
+                    {
+                        if(a->second.first.hasReference())
+                            continue;
+
+                        for(auto b = a; ++b != levels.end(); )
+                        {
+                            if(b->second.first.hasReference())
+                                continue;
+
+							if(Bin::e() == a->second.first && Bin::e() == b->second.first) // skip essential
+                                continue;
+
+                            auto s = a->first.dist2(b->first);
+                            if( s < sMin || ( s <= sMin && m1->second.second + m2->second.second > a->second.second + b->second.second ) ) { // lower distance or same distance and less colors
+                                m1 = a;
+								m2 = b;
+                                sMin = s;
+                            }
+                        }
+                    }
+
+#ifdef _DEBUG
+                    // debug count needed before
+                    int n1 = 0;
+                    for(auto& l : levels) {
+                        if( !l.second.first.hasReference() )
+                            n1++;
+                    }
+                    if(n1 != nLevels)
+                        int u = 0;
+
+#endif // def _DEBUG
+                    // merge pair, no need to check, as there is always a valid pair
+                    // tree iterators are no L-values, so we need to create a new Bin and delete old then insert new
+                    auto iIt = levels.end();
+                    if( m1->second.first == Bin::e() ) { //m1 essential
+                        iIt = m1;
+                    } else if( m2->second.first == Bin::e() ) { //m2 essential
+                        iIt = m2;
+                    } else {
+                        auto avg = Bin::pivotedAverage( m1->first, m2->first, m1->second.second, m2->second.second );
+                        auto [oiIt, bNew] = levels.emplace(std::move(avg), std::pair<Bin, int>{ Bin::n(), 0 });
+                        iIt = oiIt;
+                        if( !bNew ) {
+                            if( iIt->second.first.hasReference() ) {
+                                iIt->second.first = Bin::n(); // we revive that color and mark as needed
+                            } else {
+                                if( m1->first != iIt->first && m2->first != iIt->first ) {
+                                    // here is a very spacial case, where a merge hit an existing needed color, which was not m1 or m2
+                                    // this decreases the number of valid levels another time
+                                    nLevels--;
+                                }
+                            }
+                        }
+                    }
+                    nLevels--;
+
+                    // reference the original colors to the new color
+                    if(m1->first != iIt->first) { // if m1 is not same as new, we set target to the merged color
+                        m1->second.first = iIt->first; // set reference color
+                        iIt->second.second += m1->second.second; // merge count
+						m1->second.second = 0; // set count to 0
+                    }
+                    if(m2->first != iIt->first) {
+                        m2->second.first = iIt->first; // set reference color
+						iIt->second.second += m2->second.second; // merge count
+						m2->second.second = 0; // set count to 0
+                    }
+
+#ifdef _DEBUG
+                    // debug count needed after
+                    int n2 = 0;
+                    for(auto& l : levels) {
+                        if( !l.second.first.hasReference() )
+                            n2++;
+                    }
+                    if(n2 != nLevels)
+                        int u = 0;
+#endif // def _DEBUG
+                }
             }
-
             // create palette indices
             // iterating the entries and enumerate all, that hasn't been merged down, and save palette data
             int pal = 0;
             m_paletteData.resize( size_t(1) << m_bitDepth);
             for(auto& l : levels) {
-                if(l.second.first == Bin(-1)) {
+                if(!l.second.first.hasReference() ) {
                     m_paletteData[pal] = l.first;
                     l.second.second = pal++;
                 }
             }
+
+            struct Weights {
+                uint8_t n;
+                uint8_t n1;
+            } const weights[] = {
+                { 1, 1 }, // { total, part of col1 }
+                { 5, 4 },
+                { 4, 3 },
+                { 3, 2 },
+                { 5, 3 },
+                { 2, 1 },
+                { 5, 2 },
+                { 3, 1 },
+                { 4, 1 },
+                { 5, 1 },
+                { 1, 0 },
+            };
             // set palette indices for merged colors
+            struct alignas(1) DitherInfo {
+                uint8_t col1;
+                uint8_t col2;
+                uint8_t w; // weight
+            };
+
+			std::vector<DitherInfo> ditherData;
+			ditherData.reserve(levels.size());
+			for(auto& l : levels) {
+				if( l.second.first.hasReference()) {
+                    // for a dithered color, we need to find the next two colors
+                    // first is the indexed of the color itself
+                    auto lIt1 = levels.find(l.second.first);
+					while(lIt1->second.first.hasReference())
+						lIt1 = levels.find(lIt1->second.first);
+                    // now we need to find the other next color
+                    auto r = l.first.r();
+                    auto g = l.first.g();
+                    auto b = l.first.b();
+                    auto r1 = lIt1->first.r();
+                    auto g1 = lIt1->first.g();
+                    auto b1 = lIt1->first.b();
+
+                    auto lIt2 = levels.end();
+					uint32_t sMin = UINT_MAX;
+					for(auto it = levels.begin(); it != levels.end(); it++) {
+						if(it->first == lIt1->first)
+							continue;
+						if(it->second.first.hasReference()) // skip referenced
+							continue;
+						auto s = l.first.dist2(it->first);
+                        if( s <= sMin ) { // lower distance or same distance and less colors
+                            // each channel must be same or other direction 
+                            auto r2 = it->first.r();
+                            auto g2 = it->first.g();
+                            auto b2 = it->first.b();
+                            if( ( r1 <= r && r <= r2 && 
+                                  g1 <= g && g <= g2 && 
+                                  b1 <= b && b <= b2 ) ||
+                                ( r2 <= r && r <= r1 &&
+                                  g2 <= g && g <= g1 &&
+                                  b2 <= b && b <= b1 ) ) {
+                                lIt2 = it;
+                                sMin = s;
+                            }
+                        }
+					}
+
+                    if( lIt2 != levels.end() && sMin < 22 ) {
+                    // find weights, we try to find the best match
+                        uint8_t best = 0;
+                        float sMin = FLT_MAX;
+                        for(auto const& w : weights) {
+							auto n2 = w.n - w.n1;
+                            auto dr = float( uint32_t(lIt1->first.r()) * w.n1 + uint32_t(lIt2->first.r()) * n2 ) / w.n - l.first.r();
+                            auto dg = float( uint32_t(lIt1->first.g()) * w.n1 + uint32_t(lIt2->first.g()) * n2 ) / w.n - l.first.g();
+                            auto db = float( uint32_t(lIt1->first.b()) * w.n1 + uint32_t(lIt2->first.b()) * n2 ) / w.n - l.first.b();
+
+                            auto s = dr * dr + dg * dg + db * db;
+                            if(s < sMin) {
+                                best = int(&w - &weights[0]);
+                                sMin = s;
+                            }
+                        }
+                        // add
+                        ditherData.emplace_back( DitherInfo{ uint8_t( lIt1->second.second ), uint8_t( lIt2->second.second ), best } );
+                    }
+                    else {
+                        ditherData.emplace_back( DitherInfo{ uint8_t( lIt1->second.second ), 0 , 0 } ); // just the color itself
+                    }
+				} else {
+					ditherData.emplace_back( DitherInfo{ uint8_t( l.second.second ), 0 ,0 } ); // just the color itself
+				}
+			}
+
+            // update color index to ditherData index
+			pal = 0;
             for(auto& l : levels) {
-                if(l.second.first != Bin(-1))
-                    l.second.second = levels[l.second.first].second;
+				l.second.second = pal++;
             }
 
-            // fill palette info and raw data
+            // fill raw data
+            srand(42);
             std::vector<uint8_t> rawIndex(m_width* m_height, 0);
             size_t i = 0;
             if constexpr( std::is_floating_point_v<value_type> ) {
                 for(TI pB = in, pBE = pB + nChannels * m_width * m_height; pB != pBE && pB != inEnd; pB+= nChannels, i++ )
                 {
 					Bin cc(int(pB[nR] * scaleNum / scaleDenom), int(pB[nG] * scaleNum / scaleDenom), int(pB[nB] * scaleNum / scaleDenom));
-					rawIndex[i] = levels[cc].second;
+					auto const& dd = ditherData[levels[cc].second];
+					if( rand() * weights[dd.w].n / ( RAND_MAX + 1 ) < weights[dd.w].n1 )
+						rawIndex[i] = dd.col1;
+					else
+						rawIndex[i] = dd.col2;
                 }
             } else {
                 for(TI pB = in, pBE = pB + nChannels * m_width * m_height; pB != pBE && pB != inEnd; pB+= nChannels, i++)
                 {
                     Bin cc(int(pB[nR]) * scaleNum / scaleDenom, int(pB[nG]) * scaleNum / scaleDenom, int(pB[nB]) * scaleNum / scaleDenom);
-                    rawIndex[i] = levels[cc].second;
+                    auto const& dd = ditherData[levels[cc].second];
+                    if( rand() * weights[dd.w].n / ( RAND_MAX + 1 ) < weights[dd.w].n1 )
+                        rawIndex[i] = dd.col1;
+                    else
+                        rawIndex[i] = dd.col2;
                 }
             }
 
@@ -564,7 +810,7 @@ public:
         return true;
     }
 
-    bool write(std::ostream&& os) {
+    bool write(std::ostream& os) {
         if( os.bad() )
             return false;
 
@@ -590,12 +836,12 @@ public:
 
     // write to file
     bool write(std::filesystem::path const& path) {
-        return write((std::ostream&&)std::ofstream(path, std::ios::binary | std::ios::out));
+        return write((std::ostream&)std::ofstream(path, std::ios::binary | std::ios::out));
     }
 
     // write to memory
     bool write(char* out, size_t size) {
-        return write((std::ostream&&)omemstream(out, size ));
+        return write((std::ostream&)omemstream(out, size ));
     }
 
     void convertRGB8toRGBA8( uint8_t* out ) const
@@ -609,6 +855,33 @@ public:
             *o++ = *in++;
             *o++ = *in++;
             *o++ = 255;
+        }
+    }
+
+    void convertRGB8toRGB32F( float* out, int scaleNum = 1, int scaleDenom = 255 ) const
+    {
+        uint8_t const* in = m_imageData.data();
+        auto o = out;
+        float scale = float(scaleNum) / float(scaleDenom);
+        for( auto e = in + ptrdiff_t( m_width ) * m_height * 3; in != e; )
+        {
+            *o++ = float(*in++) * scale;
+            *o++ = float(*in++) * scale;
+            *o++ = float(*in++) * scale;
+        }
+    }
+
+    void convertRGBA8toRGB32F( float* out, int scaleNum = 1, int scaleDenom = 255 ) const
+    {
+        uint8_t const* in = m_imageData.data();
+        auto o = out;
+        float scale = float(scaleNum) / float(scaleDenom);
+        for( auto e = in + ptrdiff_t( m_width ) * m_height * 4; in != e; )
+        {
+            *o++ = float(*in++) * scale;
+            *o++ = float(*in++) * scale;
+            *o++ = float(*in++) * scale;
+			in++; // skip alpha
         }
     }
 
@@ -667,7 +940,7 @@ public:
         const auto padd = lnSz - size_t(m_width) * m_bitDepth / 8;
         for(auto ln = out, lnE = out + m_width * m_height; ln != lnE; ln+= m_width, d+= padd ) {
             int shift = 8;
-            for(auto i = ln, iE = ln + m_width; i != iE; i++ ) {
+            for(auto i = ln, lnE = ln + m_width; i != lnE; i++ ) {
                 shift -= m_bitDepth;
 
                 *i = (((*d) >> shift) & mask ) << upShift;
@@ -693,7 +966,7 @@ public:
         const auto mask = (1 << m_bitDepth) - 1;
         for(auto ln = out, lnE = out + m_width * m_height * 3; ln != lnE; ln+= 3 * m_width, d+= padd ) {
             int shift = 8;
-            for(auto i = ln, iE = ln + m_width; i != iE; i+= 3 ) {
+            for(auto i = ln, lnE = ln + m_width; i != lnE; i+= 3 ) {
                 shift -= m_bitDepth;
 
                 int pal = ((*d) >> shift) & mask;
@@ -723,7 +996,7 @@ public:
         const auto mask = (1 << m_bitDepth) - 1;
         for(auto ln = out, lnE = out + m_width * m_height * 3; ln != lnE; ln+= 3 * m_width, d+= padd ) {
             int shift = 8;
-            for(auto i = ln, iE = ln + m_width; i != iE; i+= 4 ) {
+            for(auto i = ln, lnE = ln + m_width; i != lnE; i+= 4 ) {
                 shift -= m_bitDepth;
 
                 int pal = ((*d) >> shift) & mask;

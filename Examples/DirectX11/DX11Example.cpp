@@ -226,6 +226,8 @@ Usage:
             bool noWarp = g_params.is( L"nowarp" );
             bool preview = g_params.is( L"small" );
             wstring ini = g_params[L"ini"].empty() ? L"" : g_params[L"ini"][0];
+            if( g_params[L"mode"][0] == L"inifile" && 1 < g_params[L"mode"].size() )
+                ini = g_params[L"mode"][1];
             if( mode[0] == L"file" )
             {
                 // analyze vwf
@@ -252,7 +254,7 @@ Usage:
                     {
                         auto ptr = make_shared<VIOSOWarperWindow>( chName.c_str(), hInstance, l, t, wi, hi, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, g_createDeviceFlags, false, ini.c_str() );
                         auto& w = ptr->getWarper().get();
-                        strcpy_s( w.calibFile, h.path );
+                        strcpy_s( w.calibFile, accu.c_str() );
                         w.calibIndex = ( int )i;
                         w.calibSplit[0] = 0;
                         w.calibSplit[1] = 0;
