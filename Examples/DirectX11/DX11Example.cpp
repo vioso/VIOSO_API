@@ -1,3 +1,11 @@
+// Example source file for VIOSO API
+// using DX11 graphics interface
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #include "DX11Program.h"
 
 #include "resource.h"
@@ -218,9 +226,13 @@ Usage:
             bool noWarp = g_params.is( L"nowarp" );
             bool preview = g_params.is( L"small" );
             wstring ini = g_params[L"ini"].empty() ? L"" : g_params[L"ini"][0];
+            if( g_params[L"mode"][0] == L"inifile" && 1 < g_params[L"mode"].size() )
+                ini = g_params[L"mode"][1];
             if( mode[0] == L"file" )
             {
                 // analyze vwf
+                VWB::loadDll();
+                VWB::SetCryptoKey( (uint8_t*)"blalaberbla" );
                 string accu = accumulate( mode.begin() + 2, mode.end(), to_string( mode[1] ), []( string s, wstring const& o ) { return move(s) + ',' + to_string( o ); } );
 
                 std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( accu.c_str() );
@@ -242,7 +254,7 @@ Usage:
                     {
                         auto ptr = make_shared<VIOSOWarperWindow>( chName.c_str(), hInstance, l, t, wi, hi, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, g_createDeviceFlags, false, ini.c_str() );
                         auto& w = ptr->getWarper().get();
-                        strcpy_s( w.calibFile, h.path );
+                        strcpy_s( w.calibFile, accu.c_str() );
                         w.calibIndex = ( int )i;
                         w.calibSplit[0] = 0;
                         w.calibSplit[1] = 0;
@@ -253,6 +265,7 @@ Usage:
                         g_windows.push_back( ptr );
                     }
                 }
+				VWB::unloadDll();
             }
             else if( mode[0] == L"inifile" )
             {
@@ -383,7 +396,7 @@ Usage:
                                 if( ++it != mode.end() )
                                 {
                                     w = stoi( *it );
-                                    if( ++it != mode.end() ) h = stoi( *it );
+                                    if( ++it != mode.end() ) h = stoi( *it++ );
                                 }
                             }
                         }
@@ -435,7 +448,7 @@ Usage:
                 for( auto& wnd : g_windows )
                 {
                     for( auto s = render.begin() + 1; s != render.end(); s++ )
-                        wnd->addRenderer( make_shared< AssimpRenderer >( wnd->getDevice(), to_string( *s ).c_str() ) );
+                        wnd->addRenderer( make_shared< AssimpRenderer >( wnd->getDevice(), *s ) );
                 }
             }
             else if( render[0] == L"image" )

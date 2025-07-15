@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #include "DX9EXWarpBlend.h"
 #include "pixelshader.h"
 
@@ -287,8 +294,6 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( VWB_STATEMASK_VERTEX_SHADER & stateMask )
 		m_device->GetVertexShader( &pOldVS );
-	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
-		m_device->GetPixelShader( &pOldPS );
 
 	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
 		m_device->GetPixelShader( &pOldPS );
@@ -351,8 +356,8 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		float vals[4] = { 
 			(float)optimalRect.left / (float)optimalRes.cx,
 			(float)optimalRect.top / (float)optimalRes.cy,
-			((float)optimalRect.right - (float)optimalRect.left ) / (float)optimalRes.cx,
-			((float)optimalRect.bottom - (float)optimalRect.top ) / (float)optimalRes.cy 
+			(float)optimalRes.cx / ((float)optimalRect.right - (float)optimalRect.left ),
+			(float)optimalRes.cy / ((float)optimalRect.bottom - (float)optimalRect.top ) 
 		};
 		m_device->SetPixelShaderConstantF( 6, vals, 1 );
 	}
@@ -440,7 +445,7 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				if( nullptr != ShowSystemCursor &&
 					0 != ( mouseMode & 2 ) )
 				{
-					if( PtInRect( &rWnd, ci.ptScreenPos ) )
+					if( dcp.hFocusWindow == ::WindowFromPoint( ci.ptScreenPos ) )
 					{
 						if( g_bCurEnabled )
 						{
@@ -484,8 +489,23 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	}
 	SetTexture( 3, m_texCur );
 	SetTexture( 4, m_texBlack );
+	float bb[4] = {
+		m_blackBias.x  * blackScale,
+		m_blackBias.y,
+		m_blackBias.z,
+		inputGamma };
 
-	m_device->SetPixelShaderConstantF( 8, m_blackBias, 1 );
+	if( blackDarkAdjust <= 0.5f )
+		bb[1] *= blackDarkAdjust * 2.0f;
+	else 
+		bb[1] += ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
+	if( blackBrightAdjust <= 0.5f )
+		bb[2] *= blackBrightAdjust * 2.0f;
+	else
+		bb[2] += ( blackBrightAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.z );
+	bb[2] *= bb[1];
+	bb[3] = inputGamma;
+	m_device->SetPixelShaderConstantF( 8, bb, 1 );
 
 	// remove dependency of d3d9x.lib
 	//D3DXMatrixOrthoOffCenterLH( &lOrthoMatrix, 0.0, static_cast<float>( m_sizeMap.cx ), 0.0, static_cast<float>( m_sizeMap.cy ), 0.0, 1.0 );

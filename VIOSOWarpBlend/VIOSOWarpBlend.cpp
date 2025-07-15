@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #ifdef WIN32
 #include "DX/DX9WarpBlend.h"
 #include "DX/DX9EXWarpBlend.h"
@@ -74,7 +81,10 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		if( NO_ERROR == fopen_s( &f, path, "r" ) )
 			fclose(f);
 		else
+		{
+			logStr(0, "Error open \"%s\"", path);
 			return VWB_ERROR_INI_LOAD;
+		}
 
 		char s[1024];
 		char sDef[MAX_PATH + 1024];
@@ -255,6 +265,15 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 		fDef = GetIniFloat( "default", "blackScale", blackScale, path );
 		blackScale = GetIniFloat( channel, "blackScale", fDef, path );
 
+		fDef = GetIniFloat( "default", "inputGamma", inputGamma, path );
+		inputGamma = GetIniFloat( channel, "inputGamma", fDef, path );
+
+		fDef = GetIniFloat( "default", "blackDarkAdjust", blackDarkAdjust, path );
+		blackDarkAdjust = GetIniFloat( channel, "blackDarkAdjust", fDef, path );
+
+		fDef = GetIniFloat( "default", "blackBrightAdjust", blackBrightAdjust, path );
+		blackBrightAdjust = GetIniFloat( channel, "blackBrightAdjust", fDef, path );
+
 		iDef = GetIniInt( "default", "debugBreak", 0, path );
 		if( GetIniInt( channel, "debugBreak", iDef, path ) )
 		{
@@ -409,6 +428,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		struct tm tm;
 		localtime_s( &tm, &t );
 		logStr( 1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", 1900 + tm.tm_year, 1 + tm.tm_mon, tm.tm_mday, VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV );
+	#ifdef _DEBUG
+		logStr( 1, "DEBUG" );
+	#endif
 
 		char* szModPath = NULL;
 		char* szProcPath = NULL;
@@ -452,6 +474,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			"screen=%.5f\n"
 			"optimalRes=[%d, %d]\n"
 			"optimalRect=[%d, %d, %d, %d]\n"
+			"gamma=%.5f\n"
 			"port=%d\n"
 			"heartbeatPort=%d\n"
 			"address=%s\n"
@@ -461,6 +484,9 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			"bFixWraparound=%d\n"
 			"D3D12RTVF=%d\n"
 			"blackScale=%f\n"
+			"inputGamma=%f\n"
+			"blackDarkAdjust=%f\n"
+			"blackBrightAdjust=%f\n"
 			"\n",
 			((VWB_Warper_base*)*ppWarper)->GetType(), (*ppWarper)->channel, g_logLevel,
 			(*ppWarper)->path[0] ? " from\n" : ", no .ini file set, using defaults",
@@ -490,6 +516,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			(*ppWarper)->screenDist,
 			(*ppWarper)->optimalRes.cx, (*ppWarper)->optimalRes.cy,
 			(*ppWarper)->optimalRect.left, (*ppWarper)->optimalRect.top, (*ppWarper)->optimalRect.right, (*ppWarper)->optimalRect.bottom,  
+		    (*ppWarper)->gamma,
 			(*ppWarper)->port,
 			(*ppWarper)->heartBeatPort,
 			(*ppWarper)->addr,
@@ -498,7 +525,10 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			(*ppWarper)->overrideStatemask,
 			( *ppWarper )->bFixWraparound,
 			( *ppWarper )->D3D12RTVF,
-			( *ppWarper )->blackScale
+			( *ppWarper )->blackScale,
+			( *ppWarper )->inputGamma,
+			( *ppWarper )->blackDarkAdjust,
+			( *ppWarper )->blackBrightAdjust
 	);
 
 	return VWB_ERROR_NONE;
@@ -863,8 +893,8 @@ VWB_Warper_base::VWB_Warper_base()
 	m_viewSizes.z = 1;
 	m_viewSizes.w = 1;
 	m_blackBias.x = 0;
-	m_blackBias.y = 0;
-	m_blackBias.z = 0;
+	m_blackBias.y = 1;
+	m_blackBias.z = 1;
 	m_blackBias.w = 0;
 }
 
@@ -924,18 +954,47 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	}
 
 	VWB_WarpBlend& wb = *wbs[calibIndex];
+	int oRes[2] = {
+		int( 1.0f / wb.header.vCntDispPx[4] ),
+		int( 1.0f / wb.header.vCntDispPx[5] )
+	};
+	int oRect[4] = {
+		int( wb.header.vPartialCnt[0] * oRes[0] ),
+		int( wb.header.vPartialCnt[1] * oRes[1] ),
+		int( wb.header.vPartialCnt[2] * oRes[0] ),
+		int( wb.header.vPartialCnt[3] * oRes[1] )
+	};
+
+	if( 0 >= oRect[2] - oRect[0] ||
+		0 >= oRect[3] - oRect[1] ||
+		0 >= oRes[0] || 0 >= oRes[1] ) {
+		logStr( 1, "Warning: Invalid content bounds. Recalculating..." );
+		CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
+	}
 
 	logStr( 2, "Mapping Info:\n"
 			"    Hostname: \"%s\"\n"
 			"  Devicename: \"%s\"\n"
 			"   SplitInfo: (%i,%i) of (%i,%i)\n"
 			"  Resolution: %dx%d\n"
-			"    Position: %d,%d\n",
+			"    Position: %d,%d\n"
+			"  optimalRes: [%d,%d]\n"
+			" optimalRect: [%d,%d,%d,%d]\n",
 			wb.header.hostname,
 			wb.header.name,
 			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
 			wb.header.width, wb.header.height,
-			(int)wb.header.offsetX, (int)wb.header.offsetY
+			(int)wb.header.offsetX, (int)wb.header.offsetY,
+			oRes[0], oRes[1],
+			oRect[0], oRect[1], oRect[2], oRect[3]
+	);
+
+	CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
+	logStr( 2, "Recalculated Bounds:\n"
+			"  optimalRes: [%d,%d]\n"
+			" optimalRect: [%d,%d,%d,%d]\n",
+			oRes[0], oRes[1],
+			oRect[0], oRect[1], oRect[2], oRect[3]
 	);
 
 	if (calibSplit[0])
@@ -962,10 +1021,9 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 	m_sizeMap.cx = wbs[calibIndex]->header.width;
 	m_sizeMap.cy = wbs[calibIndex]->header.height;
-	m_blackBias.x = wbs[calibIndex]->header.blackScale * blackScale;
+	m_blackBias.x = wbs[calibIndex]->header.blackScale;
 	m_blackBias.y = wbs[calibIndex]->header.blackDark;
-	m_blackBias.z = wbs[calibIndex]->header.blackDark * wbs[calibIndex]->header.blackBright;
-	m_blackBias.w = 0;
+	m_blackBias.z = wbs[calibIndex]->header.blackBright;
 
 	VWB_MAT44f B( trans );
 	m_mBaseI = B.Inverted();
@@ -1143,12 +1201,26 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
-			optimalRes.cx = wb.header.width;
-			optimalRes.cy = wb.header.height;
-			optimalRect.left =	0;
-			optimalRect.top =	0;
-			optimalRect.right = wb.header.width;
-			optimalRect.bottom =wb.header.height;
+			if( bFixWraparound )
+			{
+				VWB_ERROR res = FixWraparound( *wbs[calibIndex] );
+				if( VWB_ERROR_NONE != res )
+					logStr( 0, "ERROR: FixWraparound returns error %d.\n", res );
+			}
+
+			if( optimalRes.cx <= 0 || optimalRes.cy <= 0 ) {
+				optimalRes.cx = wb.header.width;
+				optimalRes.cy = wb.header.height;
+			}
+			if( optimalRect.right - optimalRect.left <= 0 ||
+				optimalRect.bottom - optimalRect.top <= 0 ) {
+				// if no rect is given, use the whole image
+				// this is the case for 2D mappings, where no partial rects are defined
+				optimalRect.left = 0;
+				optimalRect.top = 0;
+				optimalRect.right = wb.header.width;
+				optimalRect.bottom = wb.header.height;
+			}
 		}
 	}
 
@@ -1292,6 +1364,9 @@ void VWB_Warper_base::Defaults()
 	gamma = 1;
 	D3D12RTVF = 28;
 	blackScale = 1.0f;
+	inputGamma = 2.2f;
+	blackDarkAdjust = 0.5f;
+	blackBrightAdjust = 0.5f;
 }
 
 VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
@@ -1838,12 +1913,24 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 		if( minU != FLT_MAX && minV != FLT_MAX &&
 			maxU != -FLT_MAX && maxV != -FLT_MAX )
 		{
-			wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
-			wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
-			wb.header.vPartialCnt[0] = minU;
-			wb.header.vPartialCnt[1] = minV;
-			wb.header.vPartialCnt[2] = maxU;
-			wb.header.vPartialCnt[3] = maxV;
+			if( wb.header.vCntDispPx[4] || wb.header.vCntDispPx[4] ) { // if we got a content size, we keep it. Just recalculating the partial rect
+				auto fX = 1.0f / ( wb.header.vCntDispPx[4] * wb.header.width * ( maxU - minU ) );
+				auto fY = 1.0f / ( wb.header.vCntDispPx[5] * wb.header.height * ( maxV - minV ) );
+				wb.header.vPartialCnt[0] = minU * fX;
+				wb.header.vPartialCnt[1] = minV * fY;
+				wb.header.vPartialCnt[2] = maxU * fX;
+				wb.header.vPartialCnt[3] = maxV * fY;
+			} else {
+				wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
+				wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
+				wb.header.vPartialCnt[0] = minU;
+				wb.header.vPartialCnt[1] = minV;
+				wb.header.vPartialCnt[2] = maxU;
+				wb.header.vPartialCnt[3] = maxV;
+				logStr( 2, "FixWraparound calculated new content size in wrap mode:\n"
+						"  optimalRes: [%d,%d]\n",
+						int( 1.0f / wb.header.vCntDispPx[4] ), int( 1.0f / wb.header.vCntDispPx[4] ) );
+			}
 		}
 		else
 		{
@@ -1851,6 +1938,14 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 			return VWB_ERROR_GENERIC;
 		}
 	}
+
+	logStr( 2, "FixWraparound calculated new bounds in wrap mode:\n"
+			" optimalRect: [%d,%d,%d,%d]\n",
+			int( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] ),
+			int( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] ),
+			int( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] ),
+			int( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] )
+	);
 
 	return VWB_ERROR_NONE;
 }

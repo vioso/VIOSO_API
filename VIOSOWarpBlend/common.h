@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #define SAFERELEASE( x ) if( x ){ x->Release(); x = NULL; }
 
 #if !defined( VWB_common_h )

@@ -1,3 +1,7 @@
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+
 #include "DX9WarpBlend.h"
 #include "pixelshader.h"
 
@@ -315,8 +319,6 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( VWB_STATEMASK_VERTEX_SHADER & stateMask )
 		m_device->GetVertexShader( &pOldVS );
-	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
-		m_device->GetPixelShader( &pOldPS );
 
 	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )
 		m_device->GetPixelShader( &pOldPS );
@@ -458,7 +460,7 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				if( nullptr != ShowSystemCursor &&
 					0 != ( mouseMode & 2 ) )
 				{
-					if( PtInRect( &rWnd, ci.ptScreenPos ) )
+					if( dcp.hFocusWindow == ::WindowFromPoint( ci.ptScreenPos ) )
 					{
 						if( g_bCurEnabled )
 						{
@@ -503,7 +505,23 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	SetTexture( 3, m_texCur );
 	SetTexture( 4, m_texBlack );
 
-	m_device->SetPixelShaderConstantF( 8, m_blackBias, 1 );
+	float bb[4] = {
+		m_blackBias.x  * blackScale,
+		m_blackBias.y,
+		m_blackBias.z,
+		inputGamma };
+
+	if( blackDarkAdjust <= 0.5f )
+		bb[1] *= blackDarkAdjust * 2.0f;
+	else 
+		bb[1] += ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
+	if( blackBrightAdjust <= 0.5f )
+		bb[2] *= blackBrightAdjust * 2.0f;
+	else
+		bb[2] += ( blackBrightAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.z );
+	bb[2] *= bb[1];
+	bb[3] = inputGamma;
+	m_device->SetPixelShaderConstantF( 8, bb, 1 );
 
 	// Set ortho projection filling the viewport
 	// remove dependency of d3d9x.lib

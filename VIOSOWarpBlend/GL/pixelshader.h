@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 GLchar const* s_szPasstrough_vertex_shader_v110 = R"END(
 #version 110
 void main()
@@ -134,19 +141,25 @@ void main()
 		    tex.y*= 1.02;										
 		    tex.y-= 0.01;										
 		}	
-		tex.xy/= blend.a;
 		FragColor = _texture2D( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );			
 		if( !bDoNotBlend )					
 			FragColor.rgb*= blend.rgb;		
 		if( !bDoNoBlack )               
 		{
+			// degamma
+			FragColor = pow( FragColor, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+			vec4 blackd = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+
 			// offset color to get min average black
-			FragColor += blackBias.y * black;					
+			FragColor += blackBias.y * blackd;
 
 			// scale down to avoid clipping vOut
-			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
-	
-			// do lower clamp to stay above common black, upper is done anyways
+			FragColor *= vec4(1,1,1,1) - blackBias.z * blackd;
+
+			// regamma
+			FragColor = pow( FragColor, vec4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+
+			// do lower clamp to stay above common black, upper is done anyway
 			FragColor = max( FragColor, black );				
 		}
 		FragColor.a = 1.0;
@@ -185,12 +198,19 @@ void main()
 			FragColor.rgb*= blend.rgb;
 		if( !bDoNoBlack )
 		{
+			// degamma
+			FragColor = pow( FragColor, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+			vec4 blackd = pow( black, vec4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+
 			// offset color to get min average black
-			FragColor += blackBias.y * black;					
+			FragColor += blackBias.y * blackd;					
 
 			// scale down to avoid clipping vOut
-			FragColor *= vec4(1,1,1,1) - blackBias.z * black;
+			FragColor *= vec4(1,1,1,1) - blackBias.z * blackd;
 	
+			// regamma
+			FragColor = pow( FragColor, vec4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+
 			// do lower clamp to stay above common black, upper is done anyways
 			FragColor = max( FragColor, black );				
 		}

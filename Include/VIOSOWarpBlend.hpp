@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #pragma once
 #ifndef VIOSOWARPBLEND_HPP
 #define VIOSOWARPBLEND_HPP
@@ -23,7 +30,7 @@ private:
 
 #ifdef WIN32
 	static HMODULE hMVIOSOWARPBLEND_DYNAMIC;
-	static void loadDll( const char* dllPath )
+	static void _loadDll( const char* dllPath )
 	{
 		try {
 			if( NULL == dllPath || 0 == dllPath[0] )
@@ -54,7 +61,7 @@ private:
 		}
 	}
 
-	static void loadDll( const wchar_t* dllPath )
+	static void _loadDll( const wchar_t* dllPath )
 	{
 		try {
 			if( NULL == dllPath || 0 == dllPath[0] )
@@ -85,7 +92,7 @@ private:
 		}
 	}
 
-	static void unloadDll()
+	static void _unloadDll()
 	{
 		#define VIOSOWARPBLEND_API( ret, name, args ) name = NULL;
 		#include "VIOSOWarpBlend.h"
@@ -96,7 +103,7 @@ private:
 #else
 	#define HMODULE void*
 	static HMODULE hMVIOSOWARPBLEND_DYNAMIC;
-	static void loadDll( const char* dllPath )
+	static void _loadDll( const char* dllPath )
 	{
         char str[MAX_PATH]{};
 		try {
@@ -129,7 +136,7 @@ private:
 		}
 	}
 
-	static void unloadDll()
+	static void _unloadDll()
 	{
 		#define VIOSOWARPBLEND_API( ret, name, args ) name = NULL;
 		#include "VIOSOWarpBlend.h"
@@ -144,7 +151,7 @@ public:
 		: m_warper( NULL )
 	{
 		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
+			_loadDll( dllPath );
 		VWB_ERROR err = VWB_CreateA( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
 		if( VWB_ERROR_NONE != err )
 			throw err;
@@ -155,7 +162,7 @@ public:
 		if( VWB_Destroy && m_warper )
 			VWB_Destroy( m_warper );
 		if( 0 == --instanceCounter )
-			unloadDll();
+			_unloadDll();
 	}
 
 	VWB_Warper& get() { return *m_warper; }
@@ -176,28 +183,28 @@ public:
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( nullptr != path )
 			if( 1 == ++instanceCounter )
-				loadDll( dllPath );
+				_loadDll( dllPath );
 		if( instanceCounter )
 			ret = VWB_vwfInfo( path, set );
 		if( nullptr == path )
 			if( 0 == --instanceCounter )
-				unloadDll();
+				_unloadDll();
 		return ret;
 	}
 	static VWB_ERROR VwfInfoC( const char* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
+			_loadDll( dllPath );
 		if( instanceCounter )
 			ret = VWB_vwfInfoC( path, set, count );
 		if( 0 == --instanceCounter )
-			unloadDll();
+			_unloadDll();
 		return ret;
 	}
 	static std::vector<VWB_WarpBlendHeader> VwfInfo( char const* path, const char* dllPath = nullptr ) {
 		std::vector<VWB_WarpBlendHeader> set;
 		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
+			_loadDll( dllPath );
 		VWB_uint c = 0;
 		auto ret = VWB_vwfInfoC( path, nullptr, &c );
 		if( VWB_ERROR_NONE == ret )
@@ -206,7 +213,7 @@ public:
 			ret = VWB_vwfInfoC( path, set.data(), &c );
 		}
 		if( 0 == --instanceCounter )
-			unloadDll();
+			_unloadDll();
 		if( VWB_ERROR_NONE != ret )
 			throw ret;
 		return set;
@@ -222,7 +229,7 @@ public:
 		: m_warper( NULL )
 	{
 		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
+			_loadDll( dllPath );
 		VWB_ERROR err = VWB_CreateW( pDxDevice, szConfigFile, szChannelName, &m_warper, logLevel, szLogFile );
 		if( VWB_ERROR_NONE != err )
 			throw err;
@@ -231,28 +238,43 @@ public:
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( nullptr != path )
 			if( 1 == ++instanceCounter )
-				loadDll( dllPath );
+				_loadDll( dllPath );
 		if( instanceCounter )
 			ret = VWB_vwfInfo( path, set );
 		if( nullptr == path )
 			if( 0 == --instanceCounter )
-				unloadDll();
+				_unloadDll();
 		return ret;
 	}
 	static VWB_ERROR VwfInfoC( const wchar_t* dllPath, char const* path, VWB_WarpBlendHeader* set, VWB_uint* count ) {
 		VWB_ERROR ret = VWB_ERROR_NONE;
 		if( 1 == ++instanceCounter )
-			loadDll( dllPath );
+			_loadDll( dllPath );
 		if( instanceCounter )
 			ret = VWB_vwfInfoC( path, set, count );
 		if( 0 == --instanceCounter )
-			unloadDll();
+			_unloadDll();
 		return ret;
+	}
+	static VWB_ERROR loadDll( const wchar_t* dllPath = nullptr ){
+		VWB_ERROR ret = VWB_ERROR_NONE;
+		if( 1 == ++instanceCounter )
+			try {
+			_loadDll( dllPath );
+		} catch( std::exception& e ) {
+			UNREFERENCED_PARAMETER( e );
+			return VWB_ERROR_GENERIC;
+		}
+		return ret;
+	}
+	static void unloadDll(){
+		if( 0 == --instanceCounter )
+			_unloadDll();
 	}
 	//static std::vector<VWB_WarpBlendHeader> VwfInfo( wchar_t const* path, const wchar_t* dllPath = nullptr ) {
 	//	std::vector<VWB_WarpBlendHeader> set;
 	//	if( 1 == ++instanceCounter )
-	//		loadDll( dllPath );
+	//		_loadDll( dllPath );
 	//	VWB_uint c = 0;
 	//	auto ret = VWB_vwfInfoC( path, nullptr, &c );
 	//	if( VWB_ERROR_NONE == ret )
@@ -261,7 +283,7 @@ public:
 	//		ret = VWB_vwfInfoC( path, set.data(), &c );
 	//	}
 	//	if( 0 == --instanceCounter )
-	//		unloadDll();
+	//		_unloadDll();
 	//	if( VWB_ERROR_NONE != ret )
 	//		throw ret;
 	//	return set;

@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #ifndef VWB_WIN7_COMPAT
 #include "DX12WarpBlend.h"
 #include "../3rdparty/d3dX/Include/d3dx12.h"
@@ -763,8 +770,8 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		{
 			cb.offsScale[0] = (FLOAT)optimalRect.left / (FLOAT)optimalRes.cx;
 			cb.offsScale[1] = (FLOAT)optimalRect.top / (FLOAT)optimalRes.cy;
-			cb.offsScale[2] = ( (FLOAT)optimalRect.right - (FLOAT)optimalRect.left ) / (FLOAT)optimalRes.cx;
-			cb.offsScale[3] = ( (FLOAT)optimalRect.bottom - (FLOAT)optimalRect.top ) / (FLOAT)optimalRes.cy;
+			cb.offsScale[2] = (FLOAT)optimalRes.cx / ( (FLOAT)optimalRect.right - (FLOAT)optimalRect.left );
+			cb.offsScale[3] = (FLOAT)optimalRes.cy / ( (FLOAT)optimalRect.bottom - (FLOAT)optimalRect.top );
 		}
 		else
 		{
@@ -773,10 +780,17 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			cb.offsScale[2] = 1.0f;
 			cb.offsScale[3] = 1.0f;
 		}
-		cb.blackBias[0] = m_blackBias.x;
-		cb.blackBias[1] = m_blackBias.y;
-		cb.blackBias[2] = m_blackBias.z;
-		cb.blackBias[3] = 0;
+		cb.blackBias[0] = m_blackBias.x * blackScale;
+		if( blackDarkAdjust <= 0.5f )
+			cb.blackBias[1] = blackDarkAdjust * 2.0f * m_blackBias.y;
+		else 
+			cb.blackBias[1] = m_blackBias.y + ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
+		if( blackBrightAdjust <= 0.5f )
+			cb.blackBias[2] = blackBrightAdjust * 2.0f * m_blackBias.z;
+		else
+			cb.blackBias[2] = m_blackBias.z + ( blackBrightAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.z );
+		cb.blackBias[2] *= cb.blackBias[1];
+		cb.blackBias[3] = inputGamma;
 	}
 
 	cl->SetGraphicsRootSignature( m_rootSignature );

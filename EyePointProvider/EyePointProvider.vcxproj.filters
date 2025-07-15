@@ -26,9 +26,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VIOSOWarpBlend\Include\EyePointProvider.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\VIOSOWarpBlend\logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>

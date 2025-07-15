@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #include "GLWarpBlendXPL.h"
 
 GLWarpBlendXPL::GLWarpBlendXPL( IXPlaneRef* pXPL ): GLWarpBlend()
@@ -254,8 +261,8 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 		if( !overlay )
 		{
 			SetTexture( m_locWarp, m_texWarp, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locBlend, m_texBlend );
-			SetTexture( m_locBlack, m_texBlack );
+			SetTexture( m_locBlend, m_texBlend, GL_CLAMP, GL_NEAREST );
+			SetTexture( m_locBlack, m_texBlack, GL_CLAMP, GL_NEAREST );
 			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
 		}
 		else
@@ -283,8 +290,24 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 					);
 				else
 					glUniform4f( m_locOffsScale, 0.0f, 0.0f, 1.0f, 1.0f );
-				glUniform4f( m_locBlackBias,
-							 m_blackBias.x, m_blackBias.y, m_blackBias.z, m_blackBias.w );
+
+				float bb[4] = {
+					m_blackBias.x  * blackScale,
+					m_blackBias.y,
+					m_blackBias.z,
+					inputGamma };
+
+				if( blackDarkAdjust <= 0.5f )
+					bb[1] *= blackDarkAdjust * 2.0f;
+				else 
+					bb[1] += ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
+				if( blackBrightAdjust <= 0.5f )
+					bb[2] *= blackBrightAdjust * 2.0f;
+				else
+					bb[2] += ( blackBrightAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.z );
+				bb[2] *= bb[1];
+				bb[3] = inputGamma;
+				glUniform4fv( m_locBlackBias, 1, bb );
 			}
 
 			if( VWB_STATEMASK_VIEWPORT & stateMask )

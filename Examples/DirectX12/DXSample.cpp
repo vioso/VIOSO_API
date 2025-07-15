@@ -14,17 +14,14 @@
 
 //using namespace Microsoft::WRL;
 
-DXSample::DXSample(UINT width, UINT height, std::wstring name) :
-    m_width(width),
-    m_height(height),
+DXSample::DXSample(RECT windowRect, std::wstring name) :
+    m_windowRect(windowRect),
     m_title(name),
     m_useWarpDevice(false)
 {
     WCHAR assetsPath[512];
     GetAssetsPath(assetsPath, _countof(assetsPath));
     m_assetsPath = assetsPath;
-
-    m_aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 }
 
 DXSample::~DXSample()
@@ -81,11 +78,20 @@ void DXSample::ParseCommandLineArgs(WCHAR* argv[], int argc)
 {
     for (int i = 1; i < argc; ++i)
     {
-        if (_wcsnicmp(argv[i], L"-warp", wcslen(argv[i])) == 0 || 
-            _wcsnicmp(argv[i], L"/warp", wcslen(argv[i])) == 0)
-        {
-            m_useWarpDevice = true;
-            m_title = m_title + L" (WARP)";
+        if( argv[i][0] == '-' || argv[i][0] == '/' ) {
+            if( _wcsnicmp( &argv[i][1], L"warp", wcslen( argv[i] ) ) == 0 ) {
+                m_useWarpDevice = true;
+                m_title = m_title + L" (WARP)";
+            } else if( _wcsnicmp( &argv[i][1], L"assets", wcslen( argv[i] ) ) == 0 && i + 1 < argc ) {
+                m_assetsPath = argv[++i];
+				if( m_assetsPath.back() != L'\\' && m_assetsPath.back() != L'/' ) // add trailing slash if not present
+                    m_assetsPath += L'\\';
+            } else if( _wcsnicmp( &argv[i][1], L"rect", wcslen( argv[i] ) ) == 0 && i + 4 < argc ) {
+                m_windowRect.left = _wtoi( argv[++i] );
+                m_windowRect.top = _wtoi( argv[++i] );
+                m_windowRect.right = _wtoi( argv[++i] );
+                m_windowRect.bottom = _wtoi( argv[++i] );
+            }
         }
     }
 }

@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #ifndef VWB_PLATFORM_INCLUDE_HPP
 #define VWB_PLATFORM_INCLUDE_HPP
 
@@ -19,7 +26,7 @@
 #define VWB_inet_ntop_cast in_addr*
 #endif //defined( _MSC_VER )
 
-#ifdef WIN32
+#if defined( WIN32 ) || defined( WIN64 )
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:
 #define NOMINMAX

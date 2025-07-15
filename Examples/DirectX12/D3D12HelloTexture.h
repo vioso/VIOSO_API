@@ -32,6 +32,7 @@ class D3D12HelloTexture : public DXSample
 {
 public:
     D3D12HelloTexture(UINT width, UINT height, std::wstring name);
+    virtual void ParseCommandLineArgs(_In_reads_(argc) WCHAR* argv[], int argc);
 
     virtual void OnInit();
     virtual void OnUpdate();
@@ -40,9 +41,6 @@ public:
 
 private:
     static const UINT FrameCount = 2;
-    static const UINT TextureWidth = 256;
-    static const UINT TextureHeight = 256;
-    static const UINT TexturePixelSize = 4;    // The number of bytes used to represent a pixel in the texture.
 
     struct Vertex
     {
@@ -88,6 +86,15 @@ private:
     ComPtr<ID3D12Fence> m_fence;
     UINT64 m_fenceValue;
 
+    // VIOSO dll path
+    std::string m_dllPath;
+    // VIOSO ini path
+    std::wstring m_iniPath;
+    // VIOSO channel name
+    std::wstring m_channelName;
+    // image path
+	std::wstring m_imagePath;
+
     #ifdef USE_VIOSO_API
     VWB_Warper* m_warper;	               // the VIOSO warper
     #endif
@@ -97,4 +104,6 @@ private:
     std::vector<UINT8> GenerateTextureData();
     void DrawSomething();
     void WaitForPreviousFrame();
+    virtual void OnKeyDown( UINT8 key ) { if( VK_ESCAPE == key ) PostQuitMessage( 0 );  }
+
 };

@@ -1,3 +1,10 @@
+// VIOSO API
+// http://bitbucket.org/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2024
+// This code is published under BSD 2-Clause license
+// see LICENSE.md
+// https://opensource.org/license/bsd-2-clause
+
 #ifndef __VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__
 #define __VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__
 #include <stdint.h>
@@ -208,6 +215,15 @@ struct VWB_Warper
 
 	/// optional blacklevel scale adjustment, will be multiplied to VWB_WarpFileHeader5.blackScale. Defaults to 1.0
 	VWB_float blackScale;
+
+	/// optional input gamma adjustment, used to degamma / regamma when appying blacklevel compensation. Defaults to 2.2
+	VWB_float inputGamma;
+
+	/// optional blackDark adjustment, Set to 0 to set blackDark to 0, set to 1 to set blackDark to 1, set to 0.5 to keep value from VWF header. It interpolates linearly inbetween. Defaults to 0.5
+	VWB_float blackDarkAdjust;
+
+	/// optional blackDark adjustment, like blackDarkAdjust, but for bright. Defaults to 0.5
+	VWB_float blackBrightAdjust;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------
