@@ -4,9 +4,9 @@
 #define VWB_Version_MAJ 1
 #define VWB_Version_MIN 6
 #define VWB_Version_MAI 20
-#define VWB_Version_REV 91
-#define VWB_Version_CUR 2023
-#define VWB_Version_DATE "2023/10/18 21:58:08"
+#define VWB_Version_REV 1096
+#define VWB_Version_CUR 2025
+#define VWB_Version_DATE "2025/07/14 17:23:12"
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED

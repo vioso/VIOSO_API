@@ -11,10 +11,23 @@
 
 #include "stdafx.h"
 #include "D3D12HelloTexture.h"
+#include "../../VIOSOWarpBlend/logging.h"
 
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-    D3D12HelloTexture sample(1280, 720, L"D3D12 Hello Texture");
-    return Win32Application::Run(&sample, hInstance, nCmdShow);
+	strcpy_s( g_logFilePath, "D3D12Example.log" );
+    try {
+        D3D12HelloTexture sample( 1280, 720, L"Display1" );
+        return Win32Application::Run( &sample, hInstance, nCmdShow );
+	} catch( const HrException& e ) {
+		logStr( 0, "Error: %s (HRESULT: 0x%08X)\n", e.what(), e.Error() );
+		return -1;
+	} catch( const std::exception& e ) {
+		logStr( 0, "Error: %s\n", e.what() );
+		return -1;
+	} catch( ... ) {
+		logStr( 0, "Unknown error occurred.\n" );
+		return -1;
+	}
 }

@@ -1100,8 +1100,8 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	{
 		cb.offsScale[0] = (FLOAT)optimalRect.left / (FLOAT)optimalRes.cx;
 		cb.offsScale[1] = (FLOAT)optimalRect.top / (FLOAT)optimalRes.cy;
-		cb.offsScale[2] = ((FLOAT)optimalRect.right - (FLOAT)optimalRect.left ) / (FLOAT)optimalRes.cx;
-		cb.offsScale[3] = ((FLOAT)optimalRect.bottom - (FLOAT)optimalRect.top ) / (FLOAT)optimalRes.cy;
+		cb.offsScale[2] = (FLOAT)optimalRes.cx / ((FLOAT)optimalRect.right - (FLOAT)optimalRect.left );
+		cb.offsScale[3] = (FLOAT)optimalRes.cy / ((FLOAT)optimalRect.bottom - (FLOAT)optimalRect.top );
 	}
 	else
 	{

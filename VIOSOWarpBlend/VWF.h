@@ -52,6 +52,8 @@ VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set );
 /// @return VWB_ERROR_NONE in case of success 
 VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma = 0 );
 
+VWB_ERROR CalculateBounds( VWB_WarpBlend& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY );
+
 /// @brief creates an unwarped mapping and adds it to the given set. All warp maps are "bypass", that means they mimic an unwarped display, all pixels used, no blend
 /// @param [OUT] set				the set to add
 /// @param [IN] path				the path, the mapping was loaded from, must not be empty. Will be expanded to a valid path. Can be used later to save.

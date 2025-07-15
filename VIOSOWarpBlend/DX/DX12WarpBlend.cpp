@@ -659,6 +659,8 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_texBB->SetName( L"VWB_backbuffercopytexture" );
 			m_sizeIn.cx = (VWB_int)descRT.Width;
 			m_sizeIn.cy = (VWB_int)descRT.Height;
+			logStr( 2, "clone texture (%dx%d) created.", m_sizeIn.cx, m_sizeIn.cy );
+
 		}
 
 		// prepare pipeline for copy
@@ -716,6 +718,7 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				D3D12_RESOURCE_DESC descIn = m_texBB->GetDesc();
 				m_sizeIn.cx = (VWB_int)descIn.Width;
 				m_sizeIn.cy = (VWB_int)descIn.Height;
+				logStr( 2, "new input texture (%dx%d).", m_sizeIn.cx, m_sizeIn.cy );
 			}
 		}
 	}
@@ -739,8 +742,8 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		{
 			cb.offsScale[0] = (FLOAT)optimalRect.left / (FLOAT)optimalRes.cx;
 			cb.offsScale[1] = (FLOAT)optimalRect.top / (FLOAT)optimalRes.cy;
-			cb.offsScale[2] = ( (FLOAT)optimalRect.right - (FLOAT)optimalRect.left ) / (FLOAT)optimalRes.cx;
-			cb.offsScale[3] = ( (FLOAT)optimalRect.bottom - (FLOAT)optimalRect.top ) / (FLOAT)optimalRes.cy;
+			cb.offsScale[2] = (FLOAT)optimalRes.cx / ( (FLOAT)optimalRect.right - (FLOAT)optimalRect.left );
+			cb.offsScale[3] = (FLOAT)optimalRes.cy / ( (FLOAT)optimalRect.bottom - (FLOAT)optimalRect.top );
 		}
 		else
 		{
