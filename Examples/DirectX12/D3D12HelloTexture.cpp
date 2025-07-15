@@ -20,6 +20,8 @@
 #include "stdafx.h"
 #include "D3D12HelloTexture.h"
 #include <sstream>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 template <class T>
 constexpr auto& keep( T&& x ) noexcept {
@@ -31,19 +33,50 @@ HMODULE g_hModDll = NULL;
 #ifdef USE_VIOSO_API
 #define VIOSOWARPBLEND_DYNAMIC_IMPLEMENT
 #include "../../Include/VIOSOWarpBlend.h"
-LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
-LPCTSTR s_channel = _T( "IG1" );
 #endif //def USE_VIOSO_API
 
 D3D12HelloTexture::D3D12HelloTexture(UINT width, UINT height, std::wstring name) :
-    DXSample(width, height, name),
-    m_frameIndex(0),
+    DXSample( RECT{ 0,0,(int)width, (int)height }, name ),
     m_viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)),
     m_scissorRect(0, 0, static_cast<LONG>(width), static_cast<LONG>(height)),
     m_rtvDescriptorSize(0),
+    m_rotY(0),
     m_constantBufferMap( NULL ),
-    m_rotY(0)
+    m_vertexBufferView{},
+    m_frameIndex(0),
+	m_fenceEvent( nullptr ),
+	m_fenceValue( 0 ),
+    m_dllPath( "ViosoWarpBlend64" ),
+	m_iniPath( L"ViosoWarpBlend.ini" ),
+	m_channelName( name )
+#ifdef USE_VIOSO_API
+    ,m_warper(nullptr)
+#endif
 {
+}
+
+// Helper function for parsing any supplied command line args.
+_Use_decl_annotations_
+void D3D12HelloTexture::ParseCommandLineArgs(WCHAR* argv[], int argc)
+{
+	DXSample::ParseCommandLineArgs( argv, argc );
+    for (int i = 1; i < argc; ++i)
+    {
+        if( argv[i][0] == '-' || argv[i][0] == '/' ) {
+            if( _wcsnicmp( &argv[i][1], L"ini", wcslen( argv[i] ) ) == 0 && i + 1 < argc ) {
+                m_iniPath = argv[++i];
+            } else if( _wcsnicmp( &argv[i][1], L"dll", wcslen( argv[i] ) ) == 0 && i + 1 < argc ) {
+                std::wstring p = argv[++i];
+                m_dllPath.clear();
+                for( auto& c : p )
+                    m_dllPath.push_back( (char)c );
+            } else if( _wcsnicmp( &argv[i][1], L"name", wcslen( argv[i] ) ) == 0 && i + 1 < argc ) {
+                m_channelName = argv[++i];
+            } else if( _wcsnicmp( &argv[i][1], L"image", wcslen( argv[i] ) ) == 0 && i + 1 < argc ) {
+                m_imagePath = argv[++i];
+            }
+        }
+    }
 }
 
 void D3D12HelloTexture::OnInit()
@@ -52,15 +85,21 @@ void D3D12HelloTexture::OnInit()
     LoadAssets();
  #ifdef USE_VIOSO_API
     #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
+    #define VIOSOWARPBLEND_FILE m_dllPath.c_str()
 	#include "../../Include/VIOSOWarpBlend.h"
 
-    if(
-        nullptr == VWB_Create ||
-        nullptr == VWB_Init ||
-        VWB_ERROR_NONE != VWB_Create( m_commandQueue.Get(), s_configFile, s_channel, &m_warper, 0, NULL ) ||
-        VWB_ERROR_NONE != VWB_Init( m_warper )
-        )
-        throw std::runtime_error( "Failed to initialize VIOSO Warper" );
+    if( nullptr != VWB_Create &&
+        nullptr != VWB_Init ) {
+        if( VWB_ERROR_NONE == VWB_Create( m_commandQueue.Get(), m_iniPath.c_str(), m_channelName.c_str(), &m_warper, 0, NULL ) ) {
+            if( VWB_ERROR_NONE != VWB_Init( m_warper ) ) {
+                throw std::runtime_error( "Failed to initialize VIOSO Warper" );
+            }
+        } else {
+            throw std::runtime_error( "Failed to create VIOSO Warper" );
+        }
+    }
+    else
+        throw std::runtime_error( ( std::string( "Failed to load VIOSO Warper from \"" ) + m_dllPath.c_str() + "\"" ).c_str() );
 #endif //def USE_VIOSO_API
 }
 
@@ -122,13 +161,16 @@ void D3D12HelloTexture::LoadPipeline()
     // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     swapChainDesc.BufferCount = FrameCount;
-    swapChainDesc.Width = m_width;
-    swapChainDesc.Height = m_height;
+    swapChainDesc.Width = m_windowRect.right - m_windowRect.left;
+	swapChainDesc.Height = m_windowRect.bottom - m_windowRect.top;
     swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.SampleDesc.Count = 1;
 
+    m_viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>( m_windowRect.right - m_windowRect.left ), static_cast<float>( m_windowRect.bottom - m_windowRect.top ) );
+    m_scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>( m_windowRect.right - m_windowRect.left ), static_cast<LONG>( m_windowRect.bottom - m_windowRect.top ) );
+        
     ComPtr<IDXGISwapChain1> swapChain;
     ThrowIfFailed(factory->CreateSwapChainForHwnd(
         m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
@@ -279,21 +321,17 @@ void D3D12HelloTexture::LoadAssets()
     // Create the vertex buffer.
     {
         // Define the geometry for a triangle.
+        const float l = 0.624869351909327509780f;
+        const float t = 0.087488663525924005222f;
         m_vertexBufferData =
         {
-            //{ { 0.0f, 0.25f * m_aspectRatio, 0.0f }, { 0.5f, 0.0f } },
-            //{ { 0.25f, -0.25f * m_aspectRatio, 0.0f }, { 1.0f, 1.0f } },
-            //{ { -0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 1.0f } }
+            { {   -l,  t,  1.0f }, { 0.0f, 0.0f } },
+            { {    l,  t,  1.0f }, { 1.0f, 0.0f } },
+            { {    l, -t,  1.0f }, { 1.0f, 1.0f } },
 
-
-
-            { {   -1.0f, -1.0f,   3.0f }, { 0.0f, 0.0f } },
-            { {    1.0f, -1.0f,   4.0f }, { 1.0f, 1.0f } },
-            { {    1.0f, -1.0f,   3.0f }, { 1.0f, 0.0f } },
-
-            { {   -1.0f, -1.0f,   3.0f }, { 0.0f, 0.0f } },
-            { {   -1.0f, -1.0f,   4.0f }, { 0.0f, 1.0f } },
-            { {    1.0f, -1.0f,   4.0f }, { 1.0f, 1.0f } },
+            { {   -l,  t,  1.0f }, { 0.0f, 0.0f } },
+            { {    l, -t,  1.0f }, { 1.0f, 1.0f } },
+            { {   -l, -t,  1.0f }, { 0.0f, 1.0f } },
         };
 
         const UINT vertexBufferSize = UINT(m_vertexBufferData.size() * sizeof( Vertex ));
@@ -354,12 +392,40 @@ void D3D12HelloTexture::LoadAssets()
 
     // Create the texture.
     {
+        // Copy data to the intermediate upload heap and then schedule a copy 
+        // from the upload heap to the Texture2D.
+        std::vector<UINT8> texture;
+        int width = 0;
+        int height = 0;
+        if( !m_imagePath.empty() ) {
+            std::string as( MAX_PATH, 0 );
+            int len = WideCharToMultiByte( CP_ACP, 0, m_imagePath.c_str(), -1, &as[0], (int)as.size(), nullptr, nullptr );
+            if( len > 0 ) {
+                as.resize( len - 1 ); // remove trailing null
+            } else {
+                as.clear();
+            }
+            auto img = stbi_load( as.c_str(), &width, &height, nullptr, 4 );
+            if( !img ) {
+                throw std::runtime_error( "Failed to load image: " + as );
+            }
+            texture.resize( width* height* 4 );
+            texture = std::vector<UINT8>( img, img + width * height * 4 );
+            stbi_image_free( img );
+        } 
+        if( !width ) {
+            // Generate a checkerboard texture.
+            texture = GenerateTextureData();
+            width = 256;
+            height = 256;
+        }
+
         // Describe and create a Texture2D.
         D3D12_RESOURCE_DESC textureDesc = {};
         textureDesc.MipLevels = 1;
         textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        textureDesc.Width = TextureWidth;
-        textureDesc.Height = TextureHeight;
+        textureDesc.Width = width;
+        textureDesc.Height = height;
         textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
         textureDesc.DepthOrArraySize = 1;
         textureDesc.SampleDesc.Count = 1;
@@ -385,14 +451,10 @@ void D3D12HelloTexture::LoadAssets()
             nullptr,
             IID_PPV_ARGS(&textureUploadHeap)));
 
-        // Copy data to the intermediate upload heap and then schedule a copy 
-        // from the upload heap to the Texture2D.
-        std::vector<UINT8> texture = GenerateTextureData();
-
-        D3D12_SUBRESOURCE_DATA textureData = {};
-        textureData.pData = &texture[0];
-        textureData.RowPitch = TextureWidth * TexturePixelSize;
-        textureData.SlicePitch = textureData.RowPitch * TextureHeight;
+         D3D12_SUBRESOURCE_DATA textureData = {};
+        textureData.pData = texture.data();
+        textureData.RowPitch = UINT( width * 4 );
+        textureData.SlicePitch = textureData.RowPitch * UINT( height );
 
         UpdateSubresources(m_commandList.Get(), m_texture.Get(), textureUploadHeap.Get(), 0, 0, 1, &textureData);
         m_commandList->ResourceBarrier(1, &keep(CD3DX12_RESOURCE_BARRIER::Transition(m_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)));
@@ -433,15 +495,15 @@ void D3D12HelloTexture::LoadAssets()
 // Generate a simple black and white checkerboard texture.
 std::vector<UINT8> D3D12HelloTexture::GenerateTextureData()
 {
-    const UINT rowPitch = TextureWidth * TexturePixelSize;
+    const UINT rowPitch = 256 * 4;
     const UINT cellPitch = rowPitch >> 3;        // The width of a cell in the checkboard texture.
-    const UINT cellHeight = TextureWidth >> 3;    // The height of a cell in the checkerboard texture.
-    const UINT textureSize = rowPitch * TextureHeight;
+    const UINT cellHeight = 256 >> 3;    // The height of a cell in the checkerboard texture.
+    const UINT textureSize = rowPitch * 256;
 
     std::vector<UINT8> data(textureSize);
     UINT8* pData = &data[0];
 
-    for (UINT n = 0; n < textureSize; n += TexturePixelSize)
+    for (UINT n = 0; n < textureSize; n += 4)
     {
         UINT x = n % rowPitch;
         UINT y = n / rowPitch;
@@ -518,12 +580,14 @@ void D3D12HelloTexture::OnDestroy()
     // Ensure that the GPU is no longer referencing resources that are about to be
     // cleaned up by the destructor.
     WaitForPreviousFrame();
-
+#ifdef USE_VIOSO_API
+	if( m_warper ) {
+		VWB_Destroy( m_warper );
+		m_warper = nullptr;
+	}
+#endif
     CloseHandle(m_fenceEvent);
     m_constantBuffer->Unmap( 0, NULL );
-    #ifdef USE_VIOSO_API
-    VWB_Destroy( m_warper );
-    #endif // def USE_VIOSO_API
 }
 
 void D3D12HelloTexture::DrawSomething()

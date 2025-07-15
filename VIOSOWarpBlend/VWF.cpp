@@ -410,8 +410,8 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 													}
 													AES_CBC_decrypt_buffer( &ctx, (uint8_t*)pWB->pWarp, nRecords * sizeof( VWB_WarpRecord ) );
 
-														nSets--;
-														break;
+													nSets--;
+													break;
 												}
 												else
 													logStr( 0, "ERROR: Passkey missing. The file has been encrypted.\n" );
@@ -1310,6 +1310,95 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma )
 		}
 	}
 
+	return VWB_ERROR_NONE;
+}
+
+VWB_ERROR CalculateBounds( VWB_WarpBlend& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY ) {
+	if( NULL == wb.pWarp )
+	{
+		logStr( 0, "ERROR: Warp texture missing. Seriously.\n" );
+		return VWB_ERROR_WARP;
+	}
+
+	if( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) {
+		logStr( 0, "ERROR: Warp texture is 3D. Can't calculate bounds on that\n" );
+		return VWB_ERROR_WARP;
+	}
+
+	VWB_float minXf = FLT_MAX , minYf = FLT_MAX, maxXf = -FLT_MAX, maxYf = -FLT_MAX;
+
+	if( wb.pBlend ) {
+		if( wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV2 ) {
+			VWB_BlendRecord2* pB = wb.pBlend2;
+			for( VWB_WarpRecord* pW = wb.pWarp, *pWE = wb.pWarp + (ptrdiff_t)wb.header.width * (ptrdiff_t)wb.header.height; pW != pWE; pW++, pB++ ) {
+				if( 1.0f == pW->z && // only consider valid pixels
+					( pB->r != 0 || pB->g != 0 || pB->b != 0 ) ) {
+					if( minXf > pW->x )
+						minXf = pW->x;
+					if( maxXf < pW->x )
+						maxXf = pW->x;
+					if( minYf > pW->y )
+						minYf = pW->y;
+					if( maxYf < pW->y )
+						maxYf = pW->y;
+				}
+			}
+		} else if( wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV3 ) {
+			VWB_BlendRecord3* pB = wb.pBlend3;
+			for( VWB_WarpRecord* pW = wb.pWarp, *pWE = wb.pWarp + (ptrdiff_t)wb.header.width * (ptrdiff_t)wb.header.height; pW != pWE; pW++, pB++ ) {
+				if( 1.0f == pW->z && // only consider valid pixels
+					( pB->r != 0 || pB->g != 0 || pB->b != 0 ) ) {
+					if( minXf > pW->x )
+						minXf = pW->x;
+					if( maxXf < pW->x )
+						maxXf = pW->x;
+					if( minYf > pW->y )
+						minYf = pW->y;
+					if( maxYf < pW->y )
+						maxYf = pW->y;
+				}
+			}
+		} else {
+			VWB_BlendRecord* pB = wb.pBlend;
+			for( VWB_WarpRecord* pW = wb.pWarp, *pWE = wb.pWarp + (ptrdiff_t)wb.header.width * (ptrdiff_t)wb.header.height; pW != pWE; pW++, pB++ ) {
+				if( 1.0f == pW->z && // only consider valid pixels
+					( pB->r != 0 || pB->g != 0 || pB->b != 0 ) ) {
+					if( minXf > pW->x )
+						minXf = pW->x;
+					if( maxXf < pW->x )
+						maxXf = pW->x;
+					if( minYf > pW->y )
+						minYf = pW->y;
+					if( maxYf < pW->y )
+						maxYf = pW->y;
+				}
+			}
+		}
+	} else {
+		for( VWB_WarpRecord* pW = wb.pWarp, *pWE = wb.pWarp + (ptrdiff_t)wb.header.width * (ptrdiff_t)wb.header.height; pW != pWE; pW++ ) {
+			if( 1.0f == pW->z ) {// only consider valid pixels
+				if( minXf > pW->x )
+					minXf = pW->x;
+				if( maxXf < pW->x )
+					maxXf = pW->x;
+				if( minYf > pW->y )
+					minYf = pW->y;
+				if( maxYf < pW->y )
+					maxYf = pW->y;
+			}
+		}
+	}
+
+	if( FLT_MAX == minXf || FLT_MAX == minYf || -FLT_MAX == maxXf || -FLT_MAX == maxYf ) {
+		logStr( 0, "ERROR: Warp texture is empty. Can't calculate bounds on that\n" );
+		return VWB_ERROR_WARP;
+	}
+	resX = int( 0.99f + VWB_float( wb.header.width ) / ( maxXf - minXf ) );
+	resY = int( 0.99f + VWB_float( wb.header.height ) / ( maxYf - minYf ) );
+	minX = int( minXf * resX );
+	minY = int( minYf * resY );
+	maxX = int( 0.99f + ( maxXf * resX ) );
+	maxY = int( 0.99f + ( maxYf * resY ) );
 	return VWB_ERROR_NONE;
 }
 

@@ -356,8 +356,8 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		float vals[4] = { 
 			(float)optimalRect.left / (float)optimalRes.cx,
 			(float)optimalRect.top / (float)optimalRes.cy,
-			((float)optimalRect.right - (float)optimalRect.left ) / (float)optimalRes.cx,
-			((float)optimalRect.bottom - (float)optimalRect.top ) / (float)optimalRes.cy 
+			(float)optimalRes.cx / ((float)optimalRect.right - (float)optimalRect.left ),
+			(float)optimalRes.cy / ((float)optimalRect.bottom - (float)optimalRect.top ) 
 		};
 		m_device->SetPixelShaderConstantF( 6, vals, 1 );
 	}

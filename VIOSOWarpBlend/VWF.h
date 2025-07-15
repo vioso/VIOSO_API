@@ -56,7 +56,10 @@
 #include <iostream>
 
 /// @brief free memory used by a VWB_WarpBlend structure
-/// @param free memory used by a VWB_WarpBlend structure
+/// @param wb [INOUT] the warp blend to free
+/// @param set [INOUT] the warp blend set to free
+/// @param set [INOUT] the warp blend header set to free
+/// @return true on success, false if wb is NULL or malformed
 bool DeleteVWF( VWB_WarpBlend& wb );
 bool DeleteVWF( VWB_WarpBlendSet& set );
 bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
@@ -92,8 +95,16 @@ VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map
 VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, std::ostream& os );
 VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, char const* path );
 
+/// @brief merges warp and blend information from the set into a single VWB_WarpBlend structure, if the same monitor is addressed
+/// it also offsets and scales the warp if a split is partially used
+/// @param the warp blend set to verify
+/// @param iScanIndex a specific index to verify, if set to -1, all indices are verified
+/// @return 
 bool VerifySet( VWB_WarpBlendSet& set, int iScanIndex = -1 );
 
+/// @brief scan a vwf file, to get the warp and blend information, but not loading the data
+/// @param path [IN] the path to the vwf file to scan
+/// @param set [OUT] the set to fill with the warp and blend information
 VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set );
 
 /// @brief upgrade set to be loaded to shader
@@ -105,6 +116,17 @@ VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set );
 /// @param [IN|OPT] gamma  the used gamma value
 /// @return VWB_ERROR_NONE in case of success 
 VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma = 0 );
+
+/// @brief	Calculate the bounds of the warp map.
+/// @param [IN] wb the warp blend to calculate the bounds for.
+/// @param [OUT] resX the optimal resolution in X direction.
+/// @param [OUT] resY the optimal resolution in Y direction.
+/// @param [OUT] minX the minimum X coordinate of the warp map.
+/// @param [OUT] minY the minimum Y coordinate of the warp map.
+/// @param [OUT] maxX the maximum X coordinate of the warp map.
+/// @param [OUT] maxY the maximum Y coordinate of the warp map.
+/// @return VWB_ERROR_NONE on success, VWB_ERROR_WARP if the warp map of the set is missing or malformed
+VWB_ERROR CalculateBounds( VWB_WarpBlend& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY );
 
 /// @brief creates an unwarped mapping and adds it to the given set. 
 /// All warp maps are "bypass", that means they mimic an unwarped display, all pixels used
@@ -118,8 +140,9 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma = 0 );
 /// @param [IN] splitH				the number of rows in the split
 /// @param [IN] splitX				the split display's column index
 /// @param [IN] splitY				the split display's row index
+/// @param [IN] hMonitor			the monitor handle, if 0, the first monitor is used
 /// @return VWB_ERROR_NONE in cas of success, VWB_ERROR_PARAMETER if some parameter is out of bound
-VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW = 1, int splitH = 1, int splitX = 0, int splitY = 0 );
+VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW = 1, int splitH = 1, int splitX = 0, int splitY = 0, VWB_uint hMonitor = 0 );
 
 /// @brief Adds or replaces a blacklevel (beta) map.
 /// It sets FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR to wb.header.flags

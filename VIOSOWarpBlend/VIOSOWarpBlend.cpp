@@ -954,6 +954,23 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	}
 
 	VWB_WarpBlend& wb = *wbs[calibIndex];
+	int oRes[2] = {
+		int( 1.0f / wb.header.vCntDispPx[4] ),
+		int( 1.0f / wb.header.vCntDispPx[5] )
+	};
+	int oRect[4] = {
+		int( wb.header.vPartialCnt[0] * oRes[0] ),
+		int( wb.header.vPartialCnt[1] * oRes[1] ),
+		int( wb.header.vPartialCnt[2] * oRes[0] ),
+		int( wb.header.vPartialCnt[3] * oRes[1] )
+	};
+
+	if( 0 >= oRect[2] - oRect[0] ||
+		0 >= oRect[3] - oRect[1] ||
+		0 >= oRes[0] || 0 >= oRes[1] ) {
+		logStr( 1, "Warning: Invalid content bounds. Recalculating..." );
+		CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
+	}
 
 	logStr( 2, "Mapping Info:\n"
 			"    Hostname: \"%s\"\n"
@@ -961,13 +978,23 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			"   SplitInfo: (%i,%i) of (%i,%i)\n"
 			"  Resolution: %dx%d\n"
 			"    Position: %d,%d\n"
-			"  BlackLevel: %f,%f,%f\n",
+			"  optimalRes: [%d,%d]\n"
+			" optimalRect: [%d,%d,%d,%d]\n",
 			wb.header.hostname,
 			wb.header.name,
-			int(wb.header.splitColumnIndex), int(wb.header.splitRowIndex), int(wb.header.splitColumns), int(wb.header.splitRows),
+			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
 			wb.header.width, wb.header.height,
-			int(wb.header.offsetX), int(wb.header.offsetY),
-			wb.header.blackScale, wb.header.blackDark, wb.header.blackBright	
+			(int)wb.header.offsetX, (int)wb.header.offsetY,
+			oRes[0], oRes[1],
+			oRect[0], oRect[1], oRect[2], oRect[3]
+	);
+
+	CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
+	logStr( 2, "Recalculated Bounds:\n"
+			"  optimalRes: [%d,%d]\n"
+			" optimalRect: [%d,%d,%d,%d]\n",
+			oRes[0], oRes[1],
+			oRect[0], oRect[1], oRect[2], oRect[3]
 	);
 
 	if (calibSplit[0])
@@ -1174,6 +1201,13 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
+			if( bFixWraparound )
+			{
+				VWB_ERROR res = FixWraparound( *wbs[calibIndex] );
+				if( VWB_ERROR_NONE != res )
+					logStr( 0, "ERROR: FixWraparound returns error %d.\n", res );
+			}
+
 			if( optimalRes.cx <= 0 || optimalRes.cy <= 0 ) {
 				optimalRes.cx = wb.header.width;
 				optimalRes.cy = wb.header.height;
@@ -1879,12 +1913,24 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 		if( minU != FLT_MAX && minV != FLT_MAX &&
 			maxU != -FLT_MAX && maxV != -FLT_MAX )
 		{
-			wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
-			wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
-			wb.header.vPartialCnt[0] = minU;
-			wb.header.vPartialCnt[1] = minV;
-			wb.header.vPartialCnt[2] = maxU;
-			wb.header.vPartialCnt[3] = maxV;
+			if( wb.header.vCntDispPx[4] || wb.header.vCntDispPx[4] ) { // if we got a content size, we keep it. Just recalculating the partial rect
+				auto fX = 1.0f / ( wb.header.vCntDispPx[4] * wb.header.width * ( maxU - minU ) );
+				auto fY = 1.0f / ( wb.header.vCntDispPx[5] * wb.header.height * ( maxV - minV ) );
+				wb.header.vPartialCnt[0] = minU * fX;
+				wb.header.vPartialCnt[1] = minV * fY;
+				wb.header.vPartialCnt[2] = maxU * fX;
+				wb.header.vPartialCnt[3] = maxV * fY;
+			} else {
+				wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
+				wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
+				wb.header.vPartialCnt[0] = minU;
+				wb.header.vPartialCnt[1] = minV;
+				wb.header.vPartialCnt[2] = maxU;
+				wb.header.vPartialCnt[3] = maxV;
+				logStr( 2, "FixWraparound calculated new content size in wrap mode:\n"
+						"  optimalRes: [%d,%d]\n",
+						int( 1.0f / wb.header.vCntDispPx[4] ), int( 1.0f / wb.header.vCntDispPx[4] ) );
+			}
 		}
 		else
 		{
@@ -1892,6 +1938,14 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 			return VWB_ERROR_GENERIC;
 		}
 	}
+
+	logStr( 2, "FixWraparound calculated new bounds in wrap mode:\n"
+			" optimalRect: [%d,%d,%d,%d]\n",
+			int( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] ),
+			int( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] ),
+			int( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] ),
+			int( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] )
+	);
 
 	return VWB_ERROR_NONE;
 }

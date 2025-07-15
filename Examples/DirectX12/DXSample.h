@@ -17,7 +17,7 @@
 class DXSample
 {
 public:
-    DXSample(UINT width, UINT height, std::wstring name);
+    DXSample(RECT windowRect, std::wstring name);
     virtual ~DXSample();
 
     virtual void OnInit() = 0;
@@ -30,21 +30,18 @@ public:
     virtual void OnKeyUp(UINT8 /*key*/)     {}
 
     // Accessors.
-    UINT GetWidth() const           { return m_width; }
-    UINT GetHeight() const          { return m_height; }
+    RECT const& GetRect() const     { return m_windowRect; }
     const WCHAR* GetTitle() const   { return m_title.c_str(); }
 
-    void ParseCommandLineArgs(_In_reads_(argc) WCHAR* argv[], int argc);
+    virtual void ParseCommandLineArgs(_In_reads_(argc) WCHAR* argv[], int argc);
 
 protected:
     std::wstring GetAssetFullPath(LPCWSTR assetName);
     void GetHardwareAdapter(_In_ IDXGIFactory2* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter);
     void SetCustomWindowText(LPCWSTR text);
 
-    // Viewport dimensions.
-    UINT m_width;
-    UINT m_height;
-    float m_aspectRatio;
+    // window rect
+    RECT m_windowRect;
 
     // Adapter info.
     bool m_useWarpDevice;
