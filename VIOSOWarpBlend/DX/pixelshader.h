@@ -218,6 +218,7 @@ cbuffer ConstantBuffer : register( b0 )
                                                 
 SamplerState samLin : register( s0 );
 SamplerState samWarp : register( s1 );
+SamplerState samContent : register( s2 );
                                                 
 //-------------------------------------------------------------
 struct VS_INPUT												
@@ -271,10 +272,10 @@ float4 tex2DBC(uniform Texture2D texCnt,
 	t1*= params.zw;
 
 	return
-		( texCnt.Sample( samLin, t0 ) * s0.x +
-		  texCnt.Sample( samLin, float2( t1.x, t0.y ) ) * s1.x ) * s0.y +
-		( texCnt.Sample( samLin, float2( t0.x, t1.y ) ) * s0.x +
-		  texCnt.Sample( samLin, t1 ) * s1.x ) * s1.y;
+		( texCnt.Sample( samContent, t0 ) * s0.x +
+		  texCnt.Sample( samContent, float2( t1.x, t0.y ) ) * s1.x ) * s0.y +
+		( texCnt.Sample( samContent, float2( t0.x, t1.y ) ) * s0.x +
+		  texCnt.Sample( samContent, t1 ) * s1.x ) * s1.y;
 }
                                                 
 float4 PS( VS_OUT vIn ) : SV_Target                 
@@ -300,7 +301,7 @@ float4 PSWB( VS_OUT vIn ) : SV_Target
 		    tex.y-= 0.01;                           
 		}                                           
 		tex.xy/= blend.a;
-		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
+		vOut = texContent.Sample( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );  
 		vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
@@ -340,7 +341,7 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 //			vOut = float4( tex.x, tex.y, 0, 1 );
 //		else
 //			vOut = float4( 0, 0, 0, 1 );
-		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
+		vOut = texContent.Sample( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );  
 		float4 vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
@@ -447,6 +448,7 @@ cbuffer ConstantBuffer : register( b0 )
                                                 
 sampler samLin : register( s0 );               
 sampler samWarp : register( s1 );               
+sampler samContent : register( s2 );
                                                 
 //-------------------------------------------------------------
 struct VS_INPUT												
@@ -500,15 +502,15 @@ float4 tex2DBC(uniform Texture2D texCnt,
 	t1*= params.zw;
 
 	return
-		( texCnt.Sample( samLin, t0 ) * s0.x +
-		  texCnt.Sample( samLin, float2( t1.x, t0.y ) ) * s1.x ) * s0.y +
-		( texCnt.Sample( samLin, float2( t0.x, t1.y ) ) * s0.x +
-		  texCnt.Sample( samLin, t1 ) * s1.x ) * s1.y;
+		( texCnt.Sample( samContent, t0 ) * s0.x +
+		  texCnt.Sample( samContent, float2( t1.x, t0.y ) ) * s1.x ) * s0.y +
+		( texCnt.Sample( samContent, float2( t0.x, t1.y ) ) * s0.x +
+		  texCnt.Sample( samContent, t1 ) * s1.x ) * s1.y;
 }
                                                 
 float4 PS( VS_OUT vIn ) : SV_Target                 
 {                                               
-	 float4 color = texContent.Sample( samLin, ( vIn.tex - offsScale.xy ) * offsScale.zw ); 
+	 float4 color = texContent.Sample( samContent, ( vIn.tex - offsScale.xy ) * offsScale.zw ); 
     return color;                               
 }                                               
                                                 
@@ -530,7 +532,7 @@ float4 PSWB( VS_OUT vIn ) : SV_Target
 		}                                           
 		tex.xy/= blend.a;
 		tex.y = 1 - tex.y;
-		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
+		vOut = texContent.Sample( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );  
 		vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
@@ -569,7 +571,7 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 		tex.x/=2;                              
 		tex.y/=2;                               
 		tex.xy+= 0.5;                           
-		vOut = texContent.Sample( samLin, ( tex.xy - offsScale.xy ) * offsScale.zw );  
+		vOut = texContent.Sample( samContent, ( tex.xy - offsScale.xy ) * offsScale.zw );  
 		vCur = texCur.Sample( samLin, ( tex.xy - offsScaleCur.xy ) * offsScaleCur.zw );  
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      

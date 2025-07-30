@@ -1917,13 +1917,11 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 		if( minU != FLT_MAX && minV != FLT_MAX &&
 			maxU != -FLT_MAX && maxV != -FLT_MAX )
 		{
-			if( wb.header.vCntDispPx[4] || wb.header.vCntDispPx[4] ) { // if we got a content size, we keep it. Just recalculating the partial rect
-				auto fX = 1.0f / ( wb.header.vCntDispPx[4] * wb.header.width * ( maxU - minU ) );
-				auto fY = 1.0f / ( wb.header.vCntDispPx[5] * wb.header.height * ( maxV - minV ) );
-				wb.header.vPartialCnt[0] = minU * fX;
-				wb.header.vPartialCnt[1] = minV * fY;
-				wb.header.vPartialCnt[2] = maxU * fX;
-				wb.header.vPartialCnt[3] = maxV * fY;
+			if( wb.header.vCntDispPx[4] < 1.f / wb.header.width && wb.header.vCntDispPx[5] < 1.f / wb.header.height ) { // if we got a content size, we keep it. Just recalculating the partial rect
+				wb.header.vPartialCnt[0] = minU;
+				wb.header.vPartialCnt[1] = minV;
+				wb.header.vPartialCnt[2] = maxU;
+				wb.header.vPartialCnt[3] = maxV;
 			} else {
 				wb.header.vCntDispPx[4] = ( maxU - minU ) / wb.header.width;
 				wb.header.vCntDispPx[5] = ( maxV - minV ) / wb.header.height;
@@ -1931,10 +1929,9 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 				wb.header.vPartialCnt[1] = minV;
 				wb.header.vPartialCnt[2] = maxU;
 				wb.header.vPartialCnt[3] = maxV;
-
 				logStr( 2, "FixWraparound calculated new content size in wrap mode:\n"
 						"  optimalRes: [%d,%d]\n",
-						int( 1.0f / wb.header.vCntDispPx[4] ), int( 1.0f / wb.header.vCntDispPx[4] ) );
+						int( 1.0f / wb.header.vCntDispPx[4] ), int( 1.0f / wb.header.vCntDispPx[5] ) );
 			}
 		}
 		else
@@ -1943,6 +1940,7 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 			return VWB_ERROR_GENERIC;
 		}
 	}
+
 	logStr( 2, "FixWraparound calculated new bounds in wrap mode:\n"
 			" optimalRect: [%d,%d,%d,%d]\n",
 			int( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] ),

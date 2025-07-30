@@ -193,6 +193,21 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					0,
 					D3D12_SHADER_VISIBILITY_ALL
 				},
+				{
+					D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+					D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+					D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+					D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+					0,
+					0,
+					D3D12_COMPARISON_FUNC_NEVER,
+					D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK,
+					0.0f,
+					D3D12_FLOAT32_MAX,
+					2,
+					0,
+					D3D12_SHADER_VISIBILITY_ALL
+				},
 
 			};
 
@@ -404,7 +419,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				(UINT64)m_sizeMap.cy,//UINT Height;
 				1,//UINT16 DepthOrArraySize;
 				1,//UINT16 MipLevels;
-				0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R16G16_UNORM,//DXGI_FORMAT Format;
+				0 != (wb.header.flags & FLAG_WARPFILE_HEADER_3D) ? DXGI_FORMAT_R32G32B32_FLOAT : bFixWraparound ? DXGI_FORMAT_R32G32_FLOAT : DXGI_FORMAT_R16G16_UNORM,//DXGI_FORMAT Format;
 				{1,0},//DXGI_SAMPLE_DESC SampleDesc;
 				D3D12_TEXTURE_LAYOUT_UNKNOWN,// D3D12_TEXTURE_LAYOUT Layout;
 				D3D12_RESOURCE_FLAG_NONE,// D3D12_RESOURCE_FLAGS Flags;
@@ -426,6 +441,19 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					d[2] = s->z;
 				}
 			}
+			else if( bFixWraparound ) {
+				UINT sz = 2 * m_sizeMap.cx;
+				data.RowPitch = sizeof( float ) * sz;
+				sz *= m_sizeMap.cy;
+				data.SlicePitch = sizeof( float ) * sz;
+				data.pData = new float[sz];
+				float* d = (float*)data.pData;
+				for( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + (ptrdiff_t)m_sizeMap.cx * (ptrdiff_t)m_sizeMap.cy; s != sE; d += 2, s++ )
+				{
+					d[0] = s->x;
+					d[1] = s->y;
+				}
+			} 
 			else
 			{
 				UINT sz = 2 * m_sizeMap.cx;
@@ -442,7 +470,13 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			}
 
 			hr = CreateAndFillTexture( m_device, m_cl, textureDesc, data, m_texWarp, stagingTexs, L"VWB_warptexture" );
-			delete[]( float* )data.pData;
+			if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
+				delete[]( float* )data.pData;
+			else if( bFixWraparound )
+				delete[]( float* )data.pData;
+			else
+				delete[]( unsigned short* )data.pData;
+
 			if( FAILED( hr ) )
 			{
 				logStr( 0, "ERROR: Could not fill warp texture: %08X\n", hr );
