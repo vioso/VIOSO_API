@@ -126,7 +126,15 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma = 0 );
 /// @param [OUT] maxX the maximum X coordinate of the warp map.
 /// @param [OUT] maxY the maximum Y coordinate of the warp map.
 /// @return VWB_ERROR_NONE on success, VWB_ERROR_WARP if the warp map of the set is missing or malformed
-VWB_ERROR CalculateBounds( VWB_WarpBlend& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY );
+VWB_ERROR CalculateBounds( VWB_WarpBlend const& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY );
+
+/// @brief	Calculate the dimensions of the warp map. This is a how big the UV coodrinate space is in pixels
+/// it is the length of the uv horizontally and vertically
+/// @param [IN] wb the warp blend to calculate the bounds for.
+/// @param [OUT] dimX the horizontal dimension X direction.
+/// @param [OUT] dimY the vertical dimension Y direction.
+/// @return VWB_ERROR_NONE on success, VWB_ERROR_WARP if the warp map of the set is missing or malformed
+VWB_ERROR CalculateDimensions( VWB_WarpBlend const& wb, int& dimX, int& dimY );
 
 /// @brief creates an unwarped mapping and adds it to the given set. 
 /// All warp maps are "bypass", that means they mimic an unwarped display, all pixels used
