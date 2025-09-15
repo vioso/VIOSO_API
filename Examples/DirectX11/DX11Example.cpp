@@ -468,26 +468,24 @@ Usage:
             }
         }
 
-        // Main message loop
         MSG msg = { 0 };
-        while( WM_QUIT != msg.message )
-        {
-            if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) )
-            {
-                TranslateMessage( &msg );
-                DispatchMessage( &msg );
-            }
-            else
-            {
-                for( auto& wnd : g_windows )
-                {
-                    wnd->preRender();
-                    wnd->render();
-                    wnd->postRender();
+        if( !g_windows.empty() ) {
+            // Main message loop
+            while( WM_QUIT != msg.message ) {
+                if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ) {
+                    TranslateMessage( &msg );
+                    DispatchMessage( &msg );
+                } else {
+                    for( auto& wnd : g_windows ) {
+                        wnd->preRender();
+                        wnd->render();
+                        wnd->postRender();
+                    }
                 }
             }
+        } else {
+            MessageBoxA( 0, std::string("No outputs.\nFor help use -h or --help." ).c_str(), "Error", MB_OK );
         }
-
         g_windows.clear();
 
         #ifdef _DEBUG
@@ -507,6 +505,10 @@ Usage:
         #endif //dev _DEBUG
 
         return ( int )msg.wParam;
+    }
+    catch( VWB_ERROR e ) {
+        MessageBoxA( 0, ( std::string("VWB ERROR: ") + VWB::GetErrorCStr(e) + "\nFor help use -h or --help." ).c_str(), "Library Parameters", MB_OK );
+        return -3;
     }
 	catch( std::invalid_argument& e )
 	{

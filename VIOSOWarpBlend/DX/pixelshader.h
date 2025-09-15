@@ -89,21 +89,21 @@ float4 PSWB( VS_OUT vIn ) : COLOR
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
 	}
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+	}                                           
 	vOut.a = 1;                                  
 	return vOut;                                 
 }                                               
@@ -129,18 +129,18 @@ float4 PSWB3D( VS_OUT vIn ) : COLOR
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+	}                                           
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
 
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                
@@ -176,18 +176,18 @@ float4 PSWBBC( VS_OUT vIn ) : COLOR
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
 	}
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+	}                                           
 	vOut.a = 1;                                 
 	return vOut;                                
 }                                               
@@ -213,17 +213,17 @@ float4 PSWB3DBC( VS_OUT vIn ) : COLOR
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+	}                                           
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                
@@ -337,18 +337,18 @@ float4 PSWB( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
 	}
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+	}                                           
 	vOut.a = 1;                                 
 	return vOut;                                
 }                                               
@@ -382,17 +382,17 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+	}                                           
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                
@@ -426,18 +426,18 @@ float4 PSWBBC( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
 	}
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+	}                                           
 	vOut.a = 1;                                 
 	return vOut;                                
 }                                               
@@ -463,17 +463,17 @@ float4 PSWB3DBC( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+	}                                           
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                
@@ -588,18 +588,18 @@ float4 PSWB( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
 	}
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+	}                                           
 	vOut.a = 1;                                 
 	return vOut;                                
 }                                               
@@ -632,17 +632,17 @@ float4 PSWB3D( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+	}                                           
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                
@@ -677,18 +677,18 @@ float4 PSWBBC( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
 	}
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
+	}                                           
 	vOut.a = 1;                                 
 	return vOut;                                
 }                                               
@@ -714,17 +714,17 @@ float4 PSWB3DBC( VS_OUT vIn ) : SV_Target
 		vOut.rgb = vCur.a * vCur.rgb + vOut.rgb * ( 1.0 - vCur.a );
 		if( bBorder.y > 0.5 )                      
 			vOut.rgb*= blend.rgb;			        
-		if( bBorder.z > 0.5 )                      
-		{                                           
-			// degamma
-			vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
-			vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
-			vOut += blackBias.y * black;// offset color to get min average black
-			// regamma
-			vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
-			vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
-		}                                           
+	}                                           
+	if( bBorder.z > 0.5 )                      
+	{                                           
+		// degamma
+		vOut = pow( vOut, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		black = pow( black, float4( blackBias.w, blackBias.w, blackBias.w, 1.0 ) );
+		vOut *= float4(1,1,1,1) - blackBias.z * black; // scale down to avoid clipping vOut
+		vOut += blackBias.y * black;// offset color to get min average black
+		// regamma
+		vOut = pow( vOut, float4( 1.0/blackBias.w, 1.0/blackBias.w, 1.0/blackBias.w, 1.0 ) );		
+		vOut = max( vOut, black ); // do lower clamp to stay above common black, upper is done anyways
 	}                                           
 	vOut.a = 1;                                
 	return vOut;                                

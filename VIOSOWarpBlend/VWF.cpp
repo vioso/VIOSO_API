@@ -337,7 +337,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 
 		logStr( 2, "Open \"%s\"...\n", pp );
 		std::ifstream ifs( pp, std::ios_base::in | std::ios_base::binary );
-		if( !ifs.fail() )
+		if( ifs.is_open() )
 		{
 			logStr( 2, "File found and openend.\n" );
 			VWB_WarpSetFileHeader h0;
@@ -1487,14 +1487,15 @@ VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 		set->shrink_to_fit(); // release the vector's memory
 
 	VWB_WarpBlendSet wbs;
+	auto ret = VWB_ERROR_NONE;
 	if(path && path[0] )
-		LoadVWF( wbs, path, true, -1 );
+		ret = LoadVWF( wbs, path, true, -1 );
 
 	for( auto const& d : wbs )
 	{
 		set->push_back( d );
 	}
-	return VWB_ERROR_NONE;
+	return ret;
 }
 
 VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY, VWB_uint hMonitor )

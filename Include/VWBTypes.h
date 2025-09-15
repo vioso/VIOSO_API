@@ -43,7 +43,7 @@ typedef struct VWB_rect { VWB_int left, top, right, bottom; } VWB_rect; /// a si
 /** Error enumerator */
 typedef enum VWB_ERROR
 {
-	VWB_ERROR_NONE = 0,			/// No error, we succeeded
+	VWB_ERROR_NONE = 0,			/// no error, we succeeded
 	VWB_ERROR_GENERIC = -1,		/// a generic error, this might be anything, check log file
 	VWB_ERROR_PARAMETER = -2,	/// a parameter error, provided parameter are missing or inappropriate
 	VWB_ERROR_INI_LOAD = -3,	/// ini could notbe loaded
@@ -51,11 +51,11 @@ typedef enum VWB_ERROR
 	VWB_ERROR_WARP = -5,		/// warp invalid or could not be loaded to graphic hardware, check log file
 	VWB_ERROR_SHADER = -6,		/// shader program failed to load, usually because of not supported hardware, check log file
 	VWB_ERROR_VWF_LOAD = -7,	/// mappings file broken or version mismatch
-	VWB_ERROR_VWF_FILE_NOT_FOUND = -8, /// cannot find mapping file
-	VWB_ERROR_NOT_IMPLEMENTED = -9,		/// Not implemented, this function is yet to come
-	VWB_ERROR_NETWORK = -10,		/// Network could not be initialized
+	VWB_ERROR_VWF_FILE_NOT_FOUND = -8, /// can't find mapping file
+	VWB_ERROR_NOT_IMPLEMENTED = -9,		/// not implemented, this function is yet to come
+	VWB_ERROR_NETWORK = -10,		/// network could not be initialized
 	VWB_ERROR_NDI = -11,		/// NDI could not be initialized
-	VWB_ERROR_FALSE = -16,		/// No error, but nothing has been done
+	VWB_ERROR_FALSE = -16,		/// no error, but nothing has been done
 } VWB_ERROR;
 
 typedef enum VWB_STATEMASK
