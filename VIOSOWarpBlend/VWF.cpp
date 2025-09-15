@@ -43,6 +43,7 @@ bool DeleteVWF( VWB_WarpBlendSet& set )
 			delete (*it);
 		}
 	}
+	set.clear();
 	return true;
 }
 
@@ -55,6 +56,7 @@ bool DeleteVWF( VWB_WarpBlendHeaderSet& set )
 			delete (*it);
 		}
 	}
+	set.clear();
 	return true;
 }
 
@@ -335,7 +337,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 
 		logStr( 2, "Open \"%s\"...\n", pp );
 		std::ifstream ifs( pp, std::ios_base::in | std::ios_base::binary );
-		if( !ifs.fail() )
+		if( ifs.is_open() )
 		{
 			logStr( 2, "File found and openend.\n" );
 			VWB_WarpSetFileHeader h0;
@@ -1313,7 +1315,7 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma )
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR CalculateBounds( VWB_WarpBlend& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY ) {
+VWB_ERROR CalculateBounds( VWB_WarpBlend const& wb, int& resX, int& resY, int& minX, int& minY, int& maxX, int& maxY ) {
 	if( NULL == wb.pWarp )
 	{
 		logStr( 0, "ERROR: Warp texture missing. Seriously.\n" );
@@ -1402,6 +1404,77 @@ VWB_ERROR CalculateBounds( VWB_WarpBlend& wb, int& resX, int& resY, int& minX, i
 	return VWB_ERROR_NONE;
 }
 
+VWB_ERROR CalculateDimensions( VWB_WarpBlend const& wb, int& dimX, int& dimY ) {
+	if( NULL == wb.pWarp ) {
+		logStr( 0, "ERROR: Warp texture missing. Seriously.\n" );
+		return VWB_ERROR_WARP;
+	}
+	if( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) {
+		logStr( 0, "ERROR: Warp texture is 3D. Can't calculate dimensions on that\n" );
+		return VWB_ERROR_WARP;
+	}
+	int ow, oh, ol, ot, ori, ob;
+	if( auto res = CalculateBounds( wb, ow, oh, ol, ot, ori, ob ); res != VWB_ERROR_NONE ) {
+		return res;
+	}
+
+	// find corners
+	const int wh = wb.header.width / 2;
+	const int hh = wb.header.height / 2;
+	auto pW = wb.pWarp;
+	struct Corner {
+		int l;
+		int x, y;
+		VWB_WarpRecord const* p;
+		Corner( int initL ) : l{ initL }, x{ 0 }, y{ 0 }, p{ nullptr } {}
+		Corner( int _l, int _x, int _y, VWB_WarpRecord const* _p ) : l{ _l }, x{ _x }, y{ _y }, p{ _p } {}
+	} tl( INT_MAX ), tr( INT_MIN ), bl( INT_MAX ), br( INT_MIN );
+
+	for( int y = hh - wb.header.height; y != hh; y++ )
+		for( int x = wh - wb.header.width; x != wh; x++, pW++ )
+		{
+			if( 0.5f <= pW->z )
+			{
+				int d1 = x + y; // Manhatten distance
+				int d2 = x - y;
+
+				// top left
+				if( d1 < tl.l )
+					tl = Corner( d1, x, y, pW );
+
+				// top right
+				if( d2 > tr.l )
+					tr = Corner( d2, x, y, pW );
+
+				// bottom left
+				if( d2 < bl.l )
+					bl = Corner( d2, x, y, pW );
+
+				//bottom right
+				if( d1 > br.l )
+					br = Corner( d1, x, y, pW );
+			}
+		}
+	float lx = tr.p->x + br.p->x - tl.p->x - bl.p->x;
+	lx *= lx;
+	float t = tr.p->y + br.p->y - tl.p->y - bl.p->y;
+	lx += t * t;
+	lx = sqrtf( lx ) / 2;
+	float ly = bl.p->x + br.p->x - tl.p->x - tr.p->x;
+	ly *= ly;
+	t = bl.p->y + br.p->y - tl.p->y - tr.p->y;
+	ly += t * t;
+	ly = sqrtf( ly ) / 2;
+	dimX = int( lx * ow ); // width in pixels
+	dimY = int( ly * oh ); // height in pixels
+	if( dimX < 10 || dimY < 10 ) {
+		logStr( 0, "ERROR: Warp texture uv space is too small. Can't calculate dimensions on that\n" );
+		return VWB_ERROR_WARP;
+	}
+		
+	return VWB_ERROR_NONE;
+}
+
 VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 {
 	if(NULL == set)
@@ -1414,14 +1487,15 @@ VWB_ERROR ScanVWF(char const* path, VWB_WarpBlendHeaderSet* set)
 		set->shrink_to_fit(); // release the vector's memory
 
 	VWB_WarpBlendSet wbs;
+	auto ret = VWB_ERROR_NONE;
 	if(path && path[0] )
-		LoadVWF( wbs, path, true, -1 );
+		ret = LoadVWF( wbs, path, true, -1 );
 
 	for( auto const& d : wbs )
 	{
 		set->push_back( d );
 	}
-	return VWB_ERROR_NONE;
+	return ret;
 }
 
 VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW, int splitH, int splitX, int splitY, VWB_uint hMonitor )

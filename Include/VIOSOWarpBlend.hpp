@@ -223,7 +223,24 @@ public:
 	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
 	VWB_ERROR DestroyWarpBlendMesh( VWB_WarpBlendMesh& mesh ) { return VWB_destroyWarpBlendMesh( m_warper, mesh ); }
 	static VWB_ERROR SetCryptoKey( uint8_t const* key ) { return VWB_setCryptoKey( key ); }
-
+	static char const* GetErrorCStr( VWB_ERROR const& err ) {
+		switch( err ) {
+		case VWB_ERROR_NONE: return "no";
+		case VWB_ERROR_GENERIC: return "generic error";
+		case VWB_ERROR_PARAMETER: return "parameter error";
+		case VWB_ERROR_INI_LOAD: return "ini could not be loaded";
+		case VWB_ERROR_BLEND: return "blend invalid or coud not be loaded to graphic hardware";
+		case VWB_ERROR_WARP: return "warp invalid or could not be loaded to graphic hardware";
+		case VWB_ERROR_SHADER: return "shader program failed to load";
+		case VWB_ERROR_VWF_LOAD: return "mappings file broken or version mismatch";
+		case VWB_ERROR_VWF_FILE_NOT_FOUND: return "can't find mapping file";
+		case VWB_ERROR_NOT_IMPLEMENTED: return "not implemented, this function is yet to come";
+		case VWB_ERROR_NETWORK: return "network could not be initialized";
+		case VWB_ERROR_NDI: return "NDI could not be initialized";
+		case VWB_ERROR_FALSE: return "false";
+		default: return "unknown";
+		}
+	}
 	#ifdef WIN32
 	VWB( wchar_t const* dllPath, void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, wchar_t const* szLogFile = NULL )
 		: m_warper( NULL )
