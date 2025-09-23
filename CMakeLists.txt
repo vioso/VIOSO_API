@@ -22,8 +22,10 @@ if( VCPKG_INSTALLED_DIR )
 endif()
 
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/3rdparty")
+set(COMMON_DIR ${CMAKE_SOURCE_DIR}/common)
 include_directories(${CMAKE_SOURCE_DIR}/Include)
 include_directories(${THIRD_PARTY_DIR})
+include_directories(${COMMON_DIR})
 
 # we want all binaries to be compiled in the same directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

@@ -4,13 +4,13 @@ set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 find_path(Stb_INCLUDE_DIR NAMES stb_image.h)
 if (NOT Stb_INCLUDE_DIR)
-  message(FATAL_ERROR "stb headers not found. Install 'libstb-dev' or set Stb_INCLUDE_DIR")
+  message(FATAL_ERROR "stb headers not found. apt install libstb-dev, vcpkg install stb or add to path")
 endif()
 
 file( GLOB HEADERS ../include/*.h ../include/*.hpp )
 
-set( SOURCES logging.cpp PathHelper.cpp VIOSOWarpBlend.cpp VWF.cpp dp.cpp ${THIRD_PARTY_DIR}/aes/aes.c GL/GLWarpBlend.cpp GL/GLWarpBlendXPL.cpp)
-set( HEADERS ${HEADERS} common.h resource.h mmath.h logging.h PathHelper.h VWF.h dp.h ${THIRD_PARTY_DIR}/aes/aes.h GL/GLWarpBlend.h GL/GLWarpBlendXPL.h)
+set( SOURCES ${COMMON_DIR}/logging.cpp ${COMMON_DIR}/PathHelper.cpp VIOSOWarpBlend.cpp VWF.cpp dpXML.cpp ${THIRD_PARTY_DIR}/aes/aes.c GL/GLWarpBlend.cpp GL/GLWarpBlendXPL.cpp)
+set( HEADERS ${HEADERS} common.h resource.h ${COMMON_DIR}/mmath.h ${COMMON_DIR}/logging.h ${COMMON_DIR}/PathHelper.h VWF.h dpXML.h ${THIRD_PARTY_DIR}/aes/aes.h GL/GLWarpBlend.h GL/GLWarpBlendXPL.h)
 
 if(WIN32)
     set( SOURCES ${SOURCES}  DX/DXWarpBlend.cpp DX/DX9EXWarpBlend.cpp DX/DX9WarpBlend.cpp DX/DX10WarpBlend.cpp DX/DX11WarpBlend.cpp DX/DX12WarpBlend.cpp )

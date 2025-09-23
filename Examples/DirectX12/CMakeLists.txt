@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 3.9)
 
 project(DirectX12 DESCRIPTION "VIOSOWarpBlend D3D 12 Example")
 
-set(SOURCES	"stdafx.cpp" "D3D12HelloTexture.cpp" "DXSample.cpp" "Main.cpp" "Win32Application.cpp" "shaders.hlsl" "../../VIOSOWarpBlend/logging.cpp" )
-set(HEADERS	"d3dx12.h" "stdafx.h" "D3D12HelloTexture.h" "DXSample.h" "DXSampleHelper.h" "stb_image.h" "Win32Application.h" "../../VIOSOWarpBlend/logging.h" )
+find_package(stb REQUIRED)
+
+set(SOURCES	"stdafx.cpp" "D3D12HelloTexture.cpp" "DXSample.cpp" "Main.cpp" "Win32Application.cpp" "shaders.hlsl" "${COMMON_DIR}/logging.cpp" )
+set(HEADERS	"d3dx12.h" "stdafx.h" "D3D12HelloTexture.h" "DXSample.h" "DXSampleHelper.h" "Win32Application.h" "${COMMON_DIR}/logging.h" )
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
 
@@ -14,19 +16,6 @@ add_custom_command(
             $<TARGET_FILE_DIR:DirectX12>
 )
 
-target_link_libraries(${PROJECT_NAME} VIOSOWarpBlend)
-
-if(WIN32)
-	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-		set(LIB_ARCH_PATH "Win32")
-	else()
-		set(LIB_ARCH_PATH "x64")
-	endif()
-endif(WIN32)
-
 include_directories(${THIRD_PARTY_DIR}/d3dX/include/)
-target_link_libraries (${PROJECT_NAME} 
-	d3d12 dxgi d3dcompiler
-	${THIRD_PARTY_DIR}/d3dX/lib/${LIB_ARCH_PATH}/dxerr.lib
-	)
+target_link_libraries(${PROJECT_NAME} VIOSOWarpBlend d3d12 dxgi d3dcompiler	)
 target_compile_definitions(${PROJECT_NAME} PRIVATE UNICODE _UNICODE)

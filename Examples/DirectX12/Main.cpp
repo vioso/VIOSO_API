@@ -11,7 +11,7 @@
 
 #include "stdafx.h"
 #include "D3D12HelloTexture.h"
-#include "../../VIOSOWarpBlend/logging.h"
+#include "logging.h"
 
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)

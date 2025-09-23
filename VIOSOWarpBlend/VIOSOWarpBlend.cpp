@@ -51,7 +51,7 @@
 #include "logging.h"
 #include "../Include/StringConversions.h"
 #include "VWF.h"
-#include "dp.h"
+#include "dpXML.h"
 #include "tinyxml2.h"
 
 
@@ -884,7 +884,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 			// convert to absolute path
 			auto path_views = split( path.native(), fs::path::string_type::value_type( ',' ) );
 			std::vector<fs::path> paths( path_views.begin(), path_views.end() );
-			err = LoadDP( set, paths, ( (VWB_Warper*)pWarper )->bFlipWarpmeshVertices, ( (VWB_Warper*)pWarper )->bFlipWarpmeshTexcoords );
+			err = LoadDPXML( set, paths, ( (VWB_Warper*)pWarper )->bFlipWarpmeshVertices, ( (VWB_Warper*)pWarper )->bFlipWarpmeshTexcoords );
 			// update trans matrix, it swaps y and z and moves to pos
 			VWB_MAT44f(
 				 1000.f,    0.f,    0.f, -set.back()->header.pos[0],
