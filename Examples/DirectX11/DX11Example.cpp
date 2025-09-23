@@ -9,7 +9,7 @@
 #include "DX11Program.h"
 
 #include "resource.h"
-#include "../../VIOSOWarpBlend/StringConversions.h"
+#include "../../Include/StringConversions.h"
 #include "../../VIOSOWarpBlend/ParamMap.h"
 
 #include "../../Include/VIOSOWarpBlend.hpp"
@@ -41,7 +41,7 @@ public:
     {
 
         try {
-            m_pWarper = make_unique<VWB>(nullptr, m_dev, iniFile, channelName, logLevel, logFile );
+            m_pWarper = make_unique<VWB>("", m_dev, iniFile, std::filesystem::path(channelName).u8string().c_str(), logLevel, logFile );
         }
         catch (VWB_ERROR& err)
         {
@@ -233,7 +233,7 @@ Usage:
                 // analyze vwf
                 VWB::loadDll();
                 VWB::SetCryptoKey( (uint8_t*)"blalaberbla" );
-                string accu = accumulate( mode.begin() + 2, mode.end(), to_string( mode[1] ), []( string s, wstring const& o ) { return move(s) + ',' + to_string( o ); } );
+                wstring accu = accumulate( mode.begin() + 2, mode.end(), mode[1], []( wstring s, wstring const& o ) { return move(s) + L',' + o; } );
 
                 std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( accu.c_str() );
                 for( size_t i = 0; i != set.size(); i++ )
@@ -269,7 +269,7 @@ Usage:
             }
             else if( mode[0] == L"inifile" )
             {
-                VWB vwb( nullptr, VWB_DUMMYDEVICE, to_string( ini ).c_str(), "default" );
+                VWB vwb( "", VWB_DUMMYDEVICE, ini, u8"default" );
                 auto set = VWB::VwfInfo( vwb.get().calibFile );
                 if( set.empty() )
                     throw invalid_argument( string( "Could not find vwf file " ) + vwb.get().calibFile + " from default section in " + to_string(ini));

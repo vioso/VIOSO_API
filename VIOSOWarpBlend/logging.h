@@ -9,8 +9,9 @@
 #define VWB_LOGGING_HPP
 
 #include "../Include/VWBTypes.h"
+#include <filesystem>
 extern VWB_int g_logLevel;
-extern char g_logFilePath[260];
+extern std::filesystem::path g_logFilePath;
 
 int logStr( VWB_int level, char const* format, ... ); // log someting, ALWAYS returns 0!
 void logClear(); // backup and purge logfile

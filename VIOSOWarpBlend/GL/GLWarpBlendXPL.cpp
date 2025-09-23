@@ -52,11 +52,10 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 		}
 		if( 4 <= g_logLevel )
 		{
-			char o[MAX_PATH];
-			strcpy_s( o, g_logFilePath );
-			strcat_s( o, ".tex.warp.bmp" );
-			savetex( o, m_texWarp );
-			logStr( 4, "Warp texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o );
+			std::filesystem::path o(g_logFilePath);
+			o += ".tex.warp.bmp";
+			savetex(o.string().c_str(), m_texWarp);
+			logStr(4, "Warp texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str());
 		}
 
 		if( wbs[calibIndex]->pBlend2 )
@@ -71,11 +70,10 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 			}
 			if( 4 <= g_logLevel )
 			{
-				char o[MAX_PATH];
-				strcpy_s( o, g_logFilePath );
-				strcat_s( o, ".tex.blend.bmp" );
-				savetex( o, m_texBlend );
-				logStr( 4, "Blend texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o );
+				std::filesystem::path o(g_logFilePath);
+				o += ".tex.blend.bmp";
+				savetex(o.string().c_str(), m_texBlend);
+				logStr(4, "Blend texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str());
 			}
 		}
 		else
@@ -95,11 +93,10 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 			}
 			if( 4 <= g_logLevel )
 			{
-				char o[MAX_PATH];
-				strcpy_s( o, g_logFilePath );
-				strcat_s( o, ".tex.black.bmp" );
-				savetex( o, m_texBlack );
-				logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
+				std::filesystem::path o(g_logFilePath);
+				o += ".tex.black.bmp";
+				savetex(o.string().c_str(), m_texBlack);
+				logStr(4, "Blacklevel texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str());
 			}
 		}
 		else
@@ -245,11 +242,10 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if (4 <= g_logLevel)
 	{
-		char o[MAX_PATH];
-		strcpy_s( o, g_logFilePath );
-		strcat_s( o, ".tex.in.bmp" );
-		savetex( o, iSrc );
-		logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
+		std::filesystem::path o(g_logFilePath);
+		o += ".tex.in.bmp";
+		savetex(o.string().c_str(), iSrc);
+		logStr(4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o.string().c_str());
 	}
 
 	// set own params

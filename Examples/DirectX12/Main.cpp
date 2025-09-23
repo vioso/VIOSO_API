@@ -16,7 +16,7 @@
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-	strcpy_s( g_logFilePath, "D3D12Example.log" );
+	g_logFilePath = "D3D12Example.log";
     try {
         D3D12HelloTexture sample( 1280, 720, L"Display1" );
         return Win32Application::Run( &sample, hInstance, nCmdShow );

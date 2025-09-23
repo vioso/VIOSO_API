@@ -16,6 +16,7 @@
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
+#include <X11/extensions/Xrandr.h>
 #define ARRAYSIZE(arr) (sizeof(arr)/sizeof(arr[0]))
 
 #endif // def WIN32
@@ -29,13 +30,18 @@
 #include <math.h>
 #include <vector>
 #include <string>
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <memory>
+#include <filesystem>
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/euler_angles.hpp"
 #include "glm/gtc/type_ptr.hpp"
+
+using namespace std;
+namespace fs = filesystem;
 
 #define USE_VIOSO_API
 const int c_numTri = 30;
@@ -43,8 +49,11 @@ const int c_numTri = 30;
 #ifdef USE_VIOSO_API
 #include "../../Include/VIOSOWarpBlend.hpp"
 
-const char* s_configFile = "VIOSOWarpBlendGL.ini";
-std::shared_ptr<VWB> pWarper;
+//fs::path configFile = "data/VIOSOWarpBlendGL.ini";
+//fs::path configFile = "data/dynamic/config.xml";
+fs::path configFile = "data/directionalShading/config.xml";
+
+shared_ptr<VWB> pWarper;
 #endif //USE_VIOSO_API
 
 typedef char GLchar;
@@ -70,7 +79,7 @@ struct Vertex
 	GLfloat u, v;
 };
 #pragma pack( pop )
-typedef std::vector<Vertex> Vertices;
+typedef vector<Vertex> Vertices;
 Vertices vertices;
 
 GLchar const* pszShaders[] = {
@@ -223,7 +232,7 @@ bool InitGL( GLvoid )										// All Setup For OpenGL Goes Here
 		glGetProgramiv( iProg, GL_INFO_LOG_LENGTH, &maxLength );
 
 		//The maxLength includes the NULL character
-		std::vector<GLchar> infoLog( maxLength );
+		vector<GLchar> infoLog( maxLength );
 		glGetProgramInfoLog( iProg, maxLength, &maxLength, &infoLog[0] );
 
 		//The program is useless now. So delete it.
@@ -470,6 +479,22 @@ HWND		hWnd = NULL;		// Holds Our Window Handle
 HINSTANCE	hInstance = 0;		// Holds The Instance Of The Application
 #include <crtdbg.h>
 
+#include <string>
+#include <windows.h>
+
+inline std::u8string wstring_to_u8string(const std::wstring& wstr) {
+	if (wstr.empty()) return std::u8string();
+
+	int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+	std::u8string utf8(size_needed, u8'\0');
+	WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1,
+						 reinterpret_cast<char*>(utf8.data()), size_needed,
+						 nullptr, nullptr);
+
+	utf8.pop_back(); // remove null terminator
+	return utf8;
+}
+
 LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
 						  UINT	uMsg,			// Message For This Window
 						  WPARAM	wParam,			// Additional Message Information
@@ -521,7 +546,7 @@ LRESULT CALLBACK WndProc( HWND	hWnd,			// Handle For This Window
  *	width			- Width Of The GL Window Or Fullscreen Mode				*
  *	height			- Height Of The GL Window Or Fullscreen Mode			*
  *	bits			- Number Of Bits To Use For Color (8/16/24/32)			*/
-BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int height, int bits )
+BOOL CreateGLWindow( wchar_t const* title, int posX, int posY, int width, int height, int bits )
 {
 
 	GLuint		PixelFormat;			// Holds The Results After Searching For A Match
@@ -536,7 +561,7 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 
 		if( !GetMonitorInfo( MonitorFromPoint( *(POINT*)&rc, MONITOR_DEFAULTTONULL ), &mi ) )
 		{
-			MessageBox( NULL, "Window Creation Error.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+			cout << "Window Creation Error.";
 			return FALSE;
 		}
 		rc = mi.rcMonitor;
@@ -552,11 +577,11 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 	wc.hCursor = LoadCursor( NULL, IDC_ARROW );			// Load The Arrow Pointer
 	wc.hbrBackground = NULL;									// No Background Required For GL
 	wc.lpszMenuName = NULL;									// We Don't Want A Menu
-	wc.lpszClassName = "OpenGL";								// Set The Class Name
+	wc.lpszClassName = L"OpenGL";								// Set The Class Name
 
 	if( !RegisterClass( &wc ) )									// Attempt To Register The Window Class
 	{
-		MessageBox( NULL, "Failed To Register The Window Class.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Failed To Register The Window Class.";
 		return FALSE;											// Return FALSE
 	}
 
@@ -567,7 +592,7 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 
 	// Create The Window
 	if( !( hWnd = CreateWindowEx( dwExStyle,							// Extended Style For The Window
-								  "OpenGL",							// Class Name
+								  L"OpenGL",							// Class Name
 								  title,								// Window Title
 								  dwStyle |							// Defined Window Style
 								  WS_CLIPSIBLINGS |					// Required Window Style
@@ -581,7 +606,7 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 								  NULL ) ) )								// Dont Pass Anything To WM_CREATE
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Window Creation Error.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Window Creation Error.";
 		return FALSE;								// Return FALSE
 	}
 
@@ -610,21 +635,21 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 	if( !( hDC = GetDC( hWnd ) ) )							// Did We Get A Device Context?
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Create A GL Device Context.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Can't Create A GL Device Context.";
 		return FALSE;								// Return FALSE
 	}
 
 	if( !( PixelFormat = ChoosePixelFormat( hDC, &pfd ) ) )	// Did Windows Find A Matching Pixel Format?
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Find A Suitable PixelFormat.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Can't Find A Suitable PixelFormat.";
 		return FALSE;								// Return FALSE
 	}
 
 	if( !SetPixelFormat( hDC, PixelFormat, &pfd ) )		// Are We Able To Set The Pixel Format?
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Set The PixelFormat.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Can't Set The PixelFormat.";
 		return FALSE;								// Return FALSE
 	}
 
@@ -632,14 +657,14 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 	if( !( hRC = wglCreateContext( hDC ) ) )				// Are We Able To Get A Rendering Context?
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Create A GL Rendering Context.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Can't Create A GL Rendering Context.";
 		return FALSE;								// Return FALSE
 	}
 
 	if( !wglMakeCurrent( hDC, hRC ) )					// Try To Activate The Rendering Context
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Can't Activate The GL Rendering Context.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Can't Activate The GL Rendering Context.";
 		return FALSE;								// Return FALSE
 	}
 
@@ -653,7 +678,7 @@ BOOL CreateGLWindow( char const* title, int posX, int posY, int width, int heigh
 	if( !InitGL() )									// Initialize Our Newly Created GL Window
 	{
 		KillGLWindow();								// Reset The Display
-		MessageBox( NULL, "Initialization Failed.", "ERROR", MB_OK | MB_ICONEXCLAMATION );
+		cout << "Initialization Failed.";
 		return FALSE;								// Return FALSE
 	}
 
@@ -674,60 +699,67 @@ GLvoid KillGLWindow( GLvoid )								// Properly Kill The Window
 	{
 		if( !wglMakeCurrent( NULL, NULL ) )					// Are We Able To Release The DC And RC Contexts?
 		{
-			MessageBox( NULL, "Release Of DC And RC Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+			cout << "Release Of DC And RC Failed.";
 		}
 
 		if( !wglDeleteContext( hRC ) )						// Are We Able To Delete The RC?
 		{
-			MessageBox( NULL, "Release Rendering Context Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+			cout << "Release Rendering Context Failed.";
 		}
 		hRC = NULL;										// Set RC To NULL
 	}
 
 	if( hDC && !ReleaseDC( hWnd, hDC ) )					// Are We Able To Release The DC
 	{
-		MessageBox( NULL, "Release Device Context Failed.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		cout << "Release Device Context Failed.";
 		hDC = NULL;										// Set DC To NULL
 	}
 
 	if( hWnd && !DestroyWindow( hWnd ) )					// Are We Able To Destroy The Window?
 	{
-		MessageBox( NULL, "Could Not Release hWnd.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		cout << "Could Not Release hWnd.";
 		hWnd = NULL;										// Set hWnd To NULL
 	}
 
-	if( !UnregisterClass( "OpenGL", hInstance ) )			// Are We Able To Unregister Class
+	if( !UnregisterClass( L"OpenGL", hInstance ) )			// Are We Able To Unregister Class
 	{
-		MessageBox( NULL, "Could Not Unregister Class.", "SHUTDOWN ERROR", MB_OK | MB_ICONINFORMATION );
+		cout << "Could Not Unregister Class.";
 		hInstance = NULL;									// Set hInstance To NULL
 	}
 }
 
-int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
-					HINSTANCE	hPrevInstance,		// Previous Instance
-					LPSTR		lpCmdLine,			// Command Line Parameters
-					int			nCmdShow )			// Window Show State
+int wmain( int argc, wchar_t* argv[] )
 {
 	MSG		msg;									// Windows Message Structure
-	BOOL	done = FALSE;								// Bool Variable To Exit Loop
+	BOOL	done = FALSE;							// Bool Variable To Exit Loop
 
 	int x = 0;
 	int y = 0;
 	int w = 0;
 	int h = 0;
-	std::string channel = "Display1";
-	std::istringstream cmd( lpCmdLine );
-	cmd >> quoted(channel) >> x >> y >> w >> h;
+	u8string channel = u8"0";
+	if( 1 < argc )
+		configFile = argv[1];
+	if( 2 < argc )
+		channel = wstring_to_u8string( argv[2] );
+	if( 3 < argc )
+		x = _wtoi( argv[3] );
+	if( 4 < argc )
+		y = _wtoi( argv[4] );
+	if( 5 < argc )
+		w = _wtoi( argv[5] );
+	if( 6 < argc )
+		h = _wtoi( argv[6] );
 
 	// Create Our OpenGL Window
-	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )
+	if( !CreateGLWindow( L"NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )
 	{
 		return 0;									// Quit If Window Was Not Created	
 	}
 
 	#ifdef USE_VIOSO_API
 	try {
-		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
+		pWarper = make_shared<VWB>( "", nullptr, configFile, channel.c_str(), 3 );
 	}
 	catch( VWB_ERROR )
 	{
@@ -854,17 +886,19 @@ int main( int argc, char* argv[] )
 	int y = 0;
 	int w = 0;
 	int h = 0;
-	std::string channel = "Display1";
+	u8string channel = u8"0";
 	if( 1 < argc )
-		channel = argv[1];
+		configFile = argv[1];
 	if( 2 < argc )
-		x = atoi( argv[2] );
+		channel = (char8_t*)argv[2];
 	if( 3 < argc )
-		y = atoi( argv[3] );
+		x = atoi( argv[3] );
 	if( 4 < argc )
-		w = atoi( argv[4] );
+		y = atoi( argv[4] );
 	if( 5 < argc )
-		h = atoi( argv[5] );
+		w = atoi( argv[5] );
+	if( 6 < argc )
+		h = atoi( argv[6] );
 
 	// Create Our OpenGL Window
 	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )
@@ -875,7 +909,7 @@ int main( int argc, char* argv[] )
 
 #ifdef USE_VIOSO_API
     try {
-        pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
+        pWarper = make_shared<VWB>( "", nullptr, configFile, channel.c_str(), 3 );
     }
     catch( VWB_ERROR )
     {

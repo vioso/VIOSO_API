@@ -4,21 +4,16 @@ project(OpenGL_4 DESCRIPTION "VIOSOWarpBlend OpenGL Example")
 
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
-include_directories(${OpenGL_INCLUDE_DIRS})
-add_definitions(${OpenGL_DEFINITIONS})
-if(NOT OPENGL_FOUND)
-  message(ERROR "OPENGL not found!")
-endif(NOT OPENGL_FOUND)
+find_package(glm REQUIRED)
 
 add_executable(OpenGL_4 gl3_2.cpp)
-set_property(TARGET OpenGL_4 PROPERTY CXX_STANDARD 20)
 
-IF(WIN32)
-target_link_libraries(OpenGL_4 opengl32 glu32)
-ELSE()
-target_link_libraries(OpenGL_4 X11 GL GLU libdl.so)
-ENDIF()
-include_directories(${CMAKE_SOURCE_DIR}/Include)
-install(TARGETS OpenGL_4
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+if(WIN32)
+target_compile_definitions(OpenGL_4 PRIVATE UNICODE _UNICODE)
+else()
+find_package(X11 REQUIRED)
+target_include_directories(OpenGL_4 PRIVATE ${X11_INCLUDE_DIR})
+target_link_libraries(OpenGL_4 PRIVATE libdl.so GL GLU ${X11_LIBRARIES})
+endif()
+add_dependencies(OpenGL_4 VIOSOWarpBlend)
+

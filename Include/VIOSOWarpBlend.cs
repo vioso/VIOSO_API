@@ -290,6 +290,17 @@ namespace VIOSOWarpBlend
 
             /// optional blackDark adjustment, like blackDarkAdjust, but for bright. Defaults to 0.5
             public float blackBrightAdjust;
+
+            /// optional output gamma adjustment, used to regamma when appying blacklevel compensation. Defaults to 2.2
+            public float outputGamma;
+
+            /// set to true to flip warpmesh texcoords vertically, defaults to false
+            [MarshalAs(UnmanagedType.I1)]
+            public bool bFlipWarpmeshTexcoords;
+
+            /// set to true to flip warpmesh vertices vertically, defaults to false
+            [MarshalAs(UnmanagedType.I1)]
+            public bool bFlipWarpmeshVertices;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -317,7 +328,7 @@ namespace VIOSOWarpBlend
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 4, CharSet = CharSet.Ansi)]
-        public struct WarpFileHeader5
+        public struct WarpFileHeader6
         {
             public UInt32 magicNumber;                            ///<   "vwf0"
             public UInt32 szHdr;                                 ///<   used to communicate the size of this header struct
@@ -370,7 +381,11 @@ namespace VIOSOWarpBlend
             ///<   [8] => optional relative content position transform scale in y direction
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
             public String primName;     ///<   optional, human readable name of the compound or super compound
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+            public VEC4 fov;                               ///<   optional, field of view angles in degree, part of a target view definition, if all values are 0.0f, the fov thus the whole view is not defined
+            public VEC3 pos;                                   ///<   optional, position offset vector of the target view, depends on fov defined
+            public VEC3 dir;                                   ///<   optional, direction euler angles, rotation order yaw (around y), pitch (around x), roll (around z) of the target view, depends on fov defined
+            public float screen;									///<   optional, the screen distance of the target view, depends on fov defined
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]
             public float[] vReserved2;                           ///<   used to define additional informations in further versions
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)]
             public UInt16[] displayID;   ///<   Windows display identifier, use EnumDisplayDevices using EDD_GET_DEVICE_INTERFACE_NAME flag to find it
@@ -452,6 +467,10 @@ namespace VIOSOWarpBlend
             DISPLAYID = 0x80,                                  ///<   the displayID of that screen is valid
             BLENDV2 = 0x100,                                   ///<   we are using VWB_BlendRecord2
             BLENDV3 = 0x200,                                   ///<   we are using VWB_BlendRecord3
+            ENCRYPTED = 0x400,                                 ///<   the data is encrypted, key is stored in header
+            UTF8 = 0x800,                                      ///<   the strings in header are UTF8 encoded, otherwise ANSI
+            BLEND2 = 0x2000,                                    ///<  the second blend is valid
+            MESH = 0x4000,                                     ///<   we have a mesh warp, not a uv-map
             ALL =                                          ///<   all available flags
                 OFFSET |
                 BORDER |
@@ -462,14 +481,18 @@ namespace VIOSOWarpBlend
                 IS3D |
                 DISPLAYID |
                 BLENDV2 |
-                BLENDV3
+                BLENDV3 |
+                ENCRYPTED |
+                UTF8 |
+                BLEND2 |
+                MESH
         };
 
         public static IntPtr DummyDevice;
         public static IntPtr cryptoKeyMem;
 
-        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_CreateA", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int VWB_Create(IntPtr dxDevice, [MarshalAs(UnmanagedType.LPStr)] String szCnfigFile, [MarshalAs(UnmanagedType.LPStr)] String szChannelName, out IntPtr warper, Int32 logLevel, [MarshalAs(UnmanagedType.LPStr)] String szLogFile);
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_CreateW", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_Create(IntPtr dxDevice, [MarshalAs(UnmanagedType.LPWStr)] String szConfigFile, [MarshalAs(UnmanagedType.LPWStr)] String szChannelName, out IntPtr warper, Int32 logLevel, [MarshalAs(UnmanagedType.LPWStr)] String szLogFile);
 
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_Init", CallingConvention = CallingConvention.Cdecl)]
         public static extern int VWB_Init(IntPtr warper);
@@ -554,8 +577,8 @@ namespace VIOSOWarpBlend
         * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAM if fname is not set or empty, VWB_ERROR_VWF_FILE_NOT_FOUND if path did not resolve, VWB_ERROR_GENERIC otherwise
         * @remarks The list is empied and all found headers are appended. */
         //VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfo, (char const* path, VWB_WarpBlendHeaderSet* set ) );  
-        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_vwfInfoC", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int VWB_vwfInfo([MarshalAs(UnmanagedType.LPStr)] String path, IntPtr set, ref uint size);
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_vwfInfoCW", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_vwfInfo([MarshalAs(UnmanagedType.LPWStr)] String path, IntPtr set, ref uint size);
 
         /** fills a float[16] with the currently set internally used matrix for render shader. Warper needs to be initialized as VWB_DUMMYDEVICE.
          * @param [IN]			pWarper	a valid warper
@@ -590,6 +613,12 @@ namespace VIOSOWarpBlend
         //VIOSOWARPBLEND_API(VWB_ERROR, VWB_destroyWarpBlendMeshC, (VWB_Warper* pWarper, VWB_WarpBlendMesh* mesh) );
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_destroyWarpBlendMeshC", CallingConvention = CallingConvention.Cdecl)]
         static extern int VWB_destroyWarpBlendMesh(IntPtr warper, ref MarshalMesh mesh);
+
+        /* clear the current log file
+        * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER otherwise */
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_logClear", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_logClear();
+
 
         /* get the version of the API
         * @param[OUT]			major	major version

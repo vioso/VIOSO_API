@@ -6,18 +6,18 @@
 // https://opensource.org/license/bsd-2-clause
 
 #if defined(VIOSOWARPBLEND_EXPORTS)
-	#ifdef WIN32
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		#define VIOSOWARPBLEND_API(ret,name,args) extern "C" __declspec(dllexport) ret name args
 	#else
-		#define VIOSOWARPBLEND_API(ret,name,args) extern "C" ret name args
+		#define VIOSOWARPBLEND_API(ret,name,args) extern "C" __attribute__((visibility("default"))) ret name args
 	#endif
 #elif defined(VIOSOWARPBLEND_DYNAMIC_DEFINE)
 
-	#ifdef WIN32
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		extern HMODULE hMVIOSOWARPBLEND_DYNAMIC;
 	#else
 		extern void *hMVIOSOWARPBLEND_DYNAMIC;
-	#endif //def WIN32
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 
 	#define VIOSOWARPBLEND_API(ret,name,args) \
 		typedef ret (*pfn_##name)args;\
@@ -26,11 +26,11 @@
 
 #elif defined(VIOSOWARPBLEND_DYNAMIC_IMPLEMENT)
 
-	#ifdef WIN32
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		HMODULE hMVIOSOWARPBLEND_DYNAMIC = 0;
 	#else
 		void *hMVIOSOWARPBLEND_DYNAMIC = NULL;
-	#endif //def WIN32
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 
 	#define VIOSOWARPBLEND_API(ret,name,args) \
 		pfn_##name name = NULL;
@@ -38,11 +38,11 @@
 
 #elif defined(VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT)
 
-	#ifdef WIN32
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		HMODULE hMVIOSOWARPBLEND_DYNAMIC = 0;
 	#else
 		void *hMVIOSOWARPBLEND_DYNAMIC = NULL;
-	#endif //def WIN32
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 
 	#define VIOSOWARPBLEND_API(ret,name,args) \
 		typedef ret (*pfn_##name)args;\
@@ -55,43 +55,39 @@
 			#if defined( _M_X64 )
 				#define VIOSOWARPBLEND_FILE "ViosoWarpBlend64"
 			#else
-				#ifdef WIN32
+				#if defined(_WIN32) || defined(__CYGWIN__)
 					#define VIOSOWARPBLEND_FILE "ViosoWarpBlend"
 				#else
 					#define VIOSOWARPBLEND_FILE "libViosoWarpBlend"
-				#endif
+				#endif //defined(_WIN32) || defined(__CYGWIN__)
 			#endif //def _M_X64
 		#endif // !defined( VIOSOWARPBLEND_FILE )
 
-	#ifdef WIN32
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		hMVIOSOWARPBLEND_DYNAMIC = ::LoadLibraryA( VIOSOWARPBLEND_FILE );
-	#define VIOSOWARPBLEND_API(ret,name,args) \
+		#define VIOSOWARPBLEND_API(ret,name,args) \
 		name = (pfn_##name)::GetProcAddress( hMVIOSOWARPBLEND_DYNAMIC, #name )
 	#else
 		hMVIOSOWARPBLEND_DYNAMIC = dlopen( VIOSOWARPBLEND_FILE, RTLD_NOW );
-	#define VIOSOWARPBLEND_API(ret,name,args) \
+		#define VIOSOWARPBLEND_API(ret,name,args) \
 		name = (pfn_##name)dlsym( hMVIOSOWARPBLEND_DYNAMIC, #name )
-	#endif //def WIN32
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 	#undef VIOSOWARPBLEND_DYNAMIC_INITIALIZE
 #elif defined(VIOSOWARPBLEND_DYNAMIC_UNINITIALIZE)
 	if( 0 != hMVIOSOWARPBLEND_DYNAMIC )
-	#ifdef WIN32
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		FreeLibrary( hMVIOSOWARPBLEND_DYNAMIC );
 	#else
 		dlclose( hMVIOSOWARPBLEND_DYNAMIC );
-	#endif //WIN32
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 	hMVIOSOWARPBLEND_DYNAMIC = 0;
 	#define VIOSOWARPBLEND_API(ret,name,args) \
 		name = NULL
 	#undef VIOSOWARPBLEND_DYNAMIC_UNINITIALIZE
 #elif !defined(VIOSOWARPBLEND_API)
-	#ifdef _MSC_VER
+	#if defined(_WIN32) || defined(__CYGWIN__)
 		#define VIOSOWARPBLEND_API(ret,name,arg) extern "C" __declspec(dllimport) ret name arg
-	#elif defined __APPLE__
-		#define VIOSOWARPBLEND_API(ret,name,arg) extern "C" ret name arg
-	#elif defined __GNUC__
-		#define VIOSOWARPBLEND_API(ret,name,arg) extern "C" __attribute__((visibility("default"))) ret name arg
 	#else
-		#error compiler not implemented
-	#endif //def WIN32
+		#define VIOSOWARPBLEND_API(ret,name,arg) extern "C" ret name arg
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 #endif

@@ -1,0 +1,33 @@
+﻿{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20
+  },
+  "configurePresets": [
+    {
+      "name": "Win-x64-Debug",
+      "displayName": "Win-x64-Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_SUPPRESS_DEVELOPER_WARNINGS": "TRUE"
+      },
+      "toolchainFile": "$env{VPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    },
+    {
+      "name": "Win-x64-Release",
+      "displayName": "Win-x64-Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_SUPPRESS_DEVELOPER_WARNINGS": "TRUE"
+      },
+      "toolchainFile": "$env{VPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    }
+  ]
+}

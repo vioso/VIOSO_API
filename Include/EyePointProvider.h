@@ -17,17 +17,17 @@ typedef struct EyePoint
 #endif //ndef VWB_EYEPOINTPROVIDER_HPP
 
 #if defined( EYEPOINTPROVIDER_EXPORTS )
-#if defined(_MSC_VER)
-#define EYEPOINTPROVIDER_DEF( ret, name, args )\
-extern "C" __declspec(dllexport) ret name args;
-#elif defined(__GNUC__)
-#define EYEPOINTPROVIDER_DEF( ret, name, args )\
-extern "C" __attribute__((visibility("default"))) ret name args;
-#endif
+	#if defined(_WIN32) || defined(__CYGWIN__)
+		#define EYEPOINTPROVIDER_DEF( ret, name, args )\
+			extern "C" __declspec(dllexport) ret name args;
+	#else
+		#define EYEPOINTPROVIDER_DEF( ret, name, args )\
+			extern "C" __attribute__((visibility("default"))) ret name args;
+	#endif //defined(_WIN32) || defined(__CYGWIN__)
 #else
-#define EYEPOINTPROVIDER_DEF( ret, name, args )\
-	typedef ret (*pfn_##name)args;\
-	extern pfn_##name name;
+	#define EYEPOINTPROVIDER_DEF( ret, name, args )\
+		typedef ret (*pfn_##name)args;\
+		extern pfn_##name name;
 #endif
 
 EYEPOINTPROVIDER_DEF( void*, CreateEyePointReceiver, ( char const* szParam ))

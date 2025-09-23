@@ -10,10 +10,12 @@
 
 #define GL_EXT_DEFINE_AND_IMPLEMENT
 #include "GLext.h"
+#include <filesystem>
+#include <fstream>
 
 GLfloat GLWarpBlend::colBlack[4] = {0,0,0,0};
-//save a texture to .tif image
-bool GLWarpBlend::savetex (char const *filename,GLint iTex)
+//save a texture to .bmp image
+bool GLWarpBlend::savetex( std::filesystem::path filename ,GLint iTex )
 {// get the image data
 	bool bRet = false;
 	GLenum err = glGetError();
@@ -40,11 +42,11 @@ bool GLWarpBlend::savetex (char const *filename,GLint iTex)
 				glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);// split x and y sizes into bytes
 				if( GL_NO_ERROR == glGetError() )
 				{
-					const LONG pitch = 4 * x;
+					const VWB_uint pitch = 4 * x;
 					BITMAPINFOHEADER hdr = { 0 };
 					hdr.biSize = sizeof( hdr );
 					hdr.biWidth = x;
-					hdr.biHeight = LONG( y );
+					hdr.biHeight = VWB_int( y );
 					hdr.biPlanes = 1;
 					hdr.biBitCount = 32;
 					hdr.biSizeImage = pitch * y;
@@ -54,13 +56,12 @@ bool GLWarpBlend::savetex (char const *filename,GLint iTex)
 					fh.bfOffBits = sizeof( fh ) + hdr.biSize;
 					fh.bfSize = fh.bfOffBits + hdr.biSizeImage;
 
-					FILE* f = NULL;
-					if( NO_ERROR == fopen_s( &f, filename, "wb" ) )
+					std::ofstream f( filename, std::ios::binary );
+					if( f.is_open() )
 					{
-						fwrite( &fh, sizeof( fh ), 1, f );
-						fwrite( &hdr, sizeof( hdr ), 1, f );
-						fwrite( data, hdr.biSizeImage, 1, f );
-						fclose( f );
+						f.write( reinterpret_cast<char*>(&fh), sizeof( fh ) );
+						f.write( reinterpret_cast<char*>(&hdr), sizeof( hdr ) );
+						f.write( reinterpret_cast<char*>(data), hdr.biSizeImage );
 						bRet = true;
 					}
 				}
@@ -455,11 +456,10 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		if( 4 <= g_logLevel )
 		{
-			char o[MAX_PATH];
-			strcpy_s( o, g_logFilePath );
-			strcat_s( o, ".tex.warp.bmp" );
-			savetex( o, m_texWarp );
-			logStr( 4, "Warp texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o );
+			std::filesystem::path o( g_logFilePath );
+			o+= ".tex.warp.bmp";
+			savetex( o.string().c_str(), m_texWarp );
+			logStr( 4, "Warp texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str() );
 		}
 
 		if( wbs[calibIndex]->pBlend2 )
@@ -473,11 +473,10 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 			}
 			if( 4 <= g_logLevel )
 			{
-				char o[MAX_PATH];
-				strcpy_s( o, g_logFilePath );
-				strcat_s( o, ".tex.blend.bmp" );
-				savetex( o, m_texBlend );
-				logStr( 4, "Blend texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o );
+				std::filesystem::path o(g_logFilePath);
+				o+= ".tex.blend.bmp";
+				savetex( o.string().c_str(), m_texBlend );
+				logStr( 4, "Blend texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str());
 			}
 		}
 		else
@@ -497,11 +496,10 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 			}
 			if( 4 <= g_logLevel )
 			{
-				char o[MAX_PATH];
-				strcpy_s( o, g_logFilePath );
-				strcat_s( o, ".tex.black.bmp" );
-				savetex( o, m_texBlack );
-				logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
+				std::filesystem::path o( g_logFilePath );
+				o+= ".tex.black.bmp";
+				savetex( o.string().c_str(), m_texBlack );
+				logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o.string().c_str());
 			}
 		}
 		else
@@ -826,11 +824,10 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( 4 <= g_logLevel )
 	{
-		char o[MAX_PATH];
-		strcpy_s( o, g_logFilePath );
-		strcat_s( o, ".tex.in.bmp" );
-		savetex( o, iSrc );
-		logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
+		std::filesystem::path o(g_logFilePath);
+		o += ".tex.in.bmp";
+		savetex(o.string().c_str(), iSrc);
+		logStr(4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o.string().c_str());
 	}
 
 	// set own params

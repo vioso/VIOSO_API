@@ -10,8 +10,6 @@
 #if !defined( VWB_common_h )
 #define VWB_common_h
 
-#include "Platform.h"
-
 // C RunTime Header Files
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
@@ -23,18 +21,15 @@
 #include <stdlib.h>
 #endif //def _DEBUG
 
-#ifdef WIN32
-#include <malloc.h>
-#endif
 #include <memory.h>
 #include <stdio.h>
 #include <map>
 #include <string>
+#include <filesystem>
 
 #include "../Include/VIOSOWarpBlend.h"
 #include "logging.h"
 #include "PathHelper.h"
-#include "VWF.h"
 #include "resource.h"
 #define STRINGIFY(s) #s
 #define STRVER( ma, mi, x ) STRINGIFY(ma.mi.x)
@@ -65,38 +60,6 @@ size_t copyCursorBitmapToMappedTexture( HBITMAP hbmMask, HBITMAP hbmColor, BITMA
 
 inline void spliceVec( VWB_double& outX, VWB_double& outY, VWB_double& outZ, VWB_double const& inX, VWB_double const& inY, VWB_double const& inZ, VWB_uint sw );
 
-inline std::string fmt( const char* format, ... )
-{
-	char buf[256];
-	va_list args;
-	va_start( args, format );
-	const auto r = std::vsnprintf( buf, sizeof buf, format, args );
-	if( r < 0 )
-	{
-		va_end( args );
-		return {};
-	}
-	else
-	{
-		const size_t len = r;
-		if( len < sizeof( buf ) )
-		{
-			va_end( args );
-			return { buf, len };
-		}
-
-		std::string s( len, '\0' );
-		#if __cplusplus >= 201703L
-		std::vsnprintf( s.data(), len + 1, format, args );
-		#else
-		std::vsnprintf( &s[0], len + 1, format, args );
-		#endif
-		va_end( args );
-		return s;
-	}
-}
-
-
 class VWB_Warper_base : public VWB_Warper 
 {
 protected:
@@ -126,6 +89,9 @@ protected:
 	pfn_CreateEyePointReceiver	 m_fnEPPCreate; /// eye point provider create function pointer
 	pfn_ReceiveEyePoint	m_fnEPPGet;			/// eye point provider getter function pointer
 	pfn_DeleteEyePointReceiver m_fnEPPRelease;	/// eye point provider release function pointer
+	bool m_bUTF8; /// threat chars as UTF-8, this is set by VWB_createW and VWB_createU
+	std::filesystem::path m_configPath;  // the base path to load mappings from
+	bool m_bDP;  // domeplrojection mode
 
 public:
 	VWB_Warper_base();						/// constructor
@@ -172,12 +138,17 @@ public:
 	virtual VWB_ERROR getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh );
 
 	/// read the .ini file
-	VWB_ERROR ReadIniFile( char const* szConfigFile, char const* szChannelName );
+	VWB_ERROR ReadIniFile( std::filesystem::path configFile, char const* szChannelName );
 	char const* GetType() const { return (char const*)&m_type4cc; };
 	VWB_size getMappingSize() { return m_sizeMap; }
+	void setUTF8(bool utf8) { m_bUTF8 = utf8; }
+	bool isUTF8() const { return m_bUTF8; }
+	bool isDP() const { return m_bDP; }
+	std::filesystem::path const& getConfigPath() const { return m_configPath; }
 protected:
 	/// set all default values to the VWB_Warper struct
-	void Defaults();
+	static void Default( VWB_Warper& w );
+	static VWB_Warper GetDefaultWarper();
 	/// update view parameters from warp bland set
 	VWB_ERROR AutoView( VWB_WarpBlend const& wb );
 	/// update view parameters from warp bland set

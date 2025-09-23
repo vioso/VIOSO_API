@@ -1,14 +1,8 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
 // Used by VIOSOWarpBlend.rc
-#define VWB_Version_MAJ 1
-#define VWB_Version_MIN 6
-#define VWB_Version_MAI 42
-#define VWB_Version_REV 112
-#define VWB_Version_CUR 2025
-#define VWB_Version_DATE "2025/09/15 14:27:51"
-// Next default values for new objects
-// 
+#include "../Include/VWBVer.h"
+
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        101

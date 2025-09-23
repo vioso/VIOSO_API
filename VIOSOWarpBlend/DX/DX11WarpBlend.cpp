@@ -339,7 +339,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			(UINT)m_sizeMap.cy,//UINT Height;
 			1,//UINT MipLevels;
 			1,//UINT ArraySize;
-			0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R16G16_UNORM,//DXGI_FORMAT Format;
+			0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : ( bFixWraparound ? DXGI_FORMAT_R32G32_FLOAT : DXGI_FORMAT_R16G16_UNORM ),//DXGI_FORMAT Format;
 			{1,0},//DXGI_SAMPLE_DESC SampleDesc;
 			D3D11_USAGE_DEFAULT,//D3D11_USAGE Usage;
 			D3D11_BIND_SHADER_RESOURCE,//UINT BindFlags;
@@ -389,16 +389,30 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
-			UINT sz = 2 * m_sizeMap.cx;
-			dataWarp.SysMemPitch = sizeof( unsigned short ) * sz;
-			sz *= m_sizeMap.cy;
-			dataWarp.SysMemSlicePitch = sizeof( unsigned short ) * sz;
-			dataWarp.pSysMem = new unsigned short[sz];
-			unsigned short* d = (unsigned short*)dataWarp.pSysMem;
-			for( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + (ptrdiff_t)m_sizeMap.cx * (ptrdiff_t)m_sizeMap.cy; s != sE; d += 2, s++ )
-			{
-				d[0] = (unsigned short)( 65535.0f * MIN( 1.0f, MAX( 0.0f, s->x ) ) );
-				d[1] = (unsigned short)( 65535.0f * MIN( 1.0f, MAX( 0.0f, s->y ) ) );
+			if ( bFixWraparound ) {
+				UINT sz = 2 * m_sizeMap.cx;
+				dataWarp.SysMemPitch = sizeof( float ) * sz;
+				sz *= m_sizeMap.cy;
+				dataWarp.SysMemSlicePitch = sizeof(unsigned short) * sz;
+				dataWarp.pSysMem = new float[sz];
+				float* d = ( float* )dataWarp.pSysMem;
+				for ( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + ( ptrdiff_t )m_sizeMap.cx * ( ptrdiff_t )m_sizeMap.cy; s != sE; d += 2, s++ )
+				{
+					d[0] = s->x;
+					d[1] = s->y;
+				}
+			} else {
+				UINT sz = 2 * m_sizeMap.cx;
+				dataWarp.SysMemPitch = sizeof(unsigned short) * sz;
+				sz *= m_sizeMap.cy;
+				dataWarp.SysMemSlicePitch = sizeof(unsigned short) * sz;
+				dataWarp.pSysMem = new unsigned short[sz];
+				unsigned short* d = ( unsigned short* )dataWarp.pSysMem;
+				for ( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + ( ptrdiff_t )m_sizeMap.cx * ( ptrdiff_t )m_sizeMap.cy; s != sE; d += 2, s++ )
+				{
+					d[0] = ( unsigned short )(65535.0f * MIN(1.0f, MAX(0.0f, s->x)));
+					d[1] = ( unsigned short )(65535.0f * MIN(1.0f, MAX(0.0f, s->y)));
+				}
 			}
 		}
 
@@ -774,15 +788,6 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			ID3D11Texture2D* pTex;
 			if( SUCCEEDED( pRes->QueryInterface( &pTex ) ) )
 			{
-				if( 3 < g_logLevel )
-				{
-					char path[MAX_PATH];
-					strcpy_s( path, g_logFilePath );
-					auto ss = strlen( path );
-					strcpy_s( path + ss, MAX_PATH - ss, ".bbc.bmp" );
-					path[ ss + 3 ] = cc;
-					SaveTex( path, m_device, m_dc, pTex );
-				}
 				D3D11_TEXTURE2D_DESC desc;
 				pTex->GetDesc( &desc );
 				pTex->Release();
@@ -983,12 +988,10 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			ID3D11Texture2D* pTex = NULL;
 			if( SUCCEEDED( pRes->QueryInterface( &pTex ) ) )
 			{
-				char path[MAX_PATH];
-				strcpy_s( path, g_logFilePath );
-				auto ss = strlen( path );
-				strcpy_s( path + ss, MAX_PATH - ss, ".texinc.bmp" );
-				path[ ss + 6 ] = cc;
-				SaveTex( path, m_device, m_dc, pTex );
+				std::filesystem::path o(g_logFilePath);
+				o += ".tex.in.bmp";
+				logStr(4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o.string().c_str());
+				SaveTex(o.string().c_str(), m_device, m_dc, pTex);
 				SAFERELEASE( pTex );
 			}
 			else

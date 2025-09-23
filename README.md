@@ -21,19 +21,79 @@ https://vioso.sharepoint.com/:u:/g/Eeev8Gzt3EBNoXb-z_g3kscBHoF57Hzk_UbxHg9g4rg3V
 or create your own by using VIOSO Integrate plus as trial, download here:
 https://vioso.com/download/vioso-integrate-plus
 
+## Dependencies
+
+We use STB and TinyXML2 in VIOSOWarpBlend.
+Additionally we need ZLIB, GLM and GLFW in the examples. On systems other than Windows, we need pkg-config, to find tinyxml2.
+Make sure, you have a c\+\+20 and a c17 compiler handy, like Visual Studio 2022 or gcc/g\+\+ 13
+
+### vcpkg
+
+```
+vcpkg install stb
+vcpkg install tinyxml2
+vcpkg install zlib
+vcpkg install GLM
+vcpkg install glfw3
+```
+
+### apt
+
+```
+sudo apt install libstb-dev 
+sudo apt install libtinyxml2-dev
+sudo apt install zlib1g-dev
+sudo apt install libglm-dev
+sudo apt install libglfw3-dev
+sudo apt install pkg-config
+```
 
 ## Usage 
 
 ### 1 Static binding
-having VIOSOWarpBlend next to your executable or in added to %path%,
-link against VIOSOWarpBlend.lib and, in your header.
+
+Put VIOSOWarpBlend next to your executable or in add to %path%,
+then link against VIOSOWarpBlend.lib and, in your header. Use the interface C-Style:
+
 ```
 #include "VIOSOWarpBlend.h"
+VWB_Warper* warper = nullptr;
+```
+initialization: (where channel is a string containing the channel name)
+```
+	if( VWB_ERROR_NONE != VWB_Create( pD3DDevice, configFile, channel, &warper, 0, NULL ) ||
+	    VWB_ERROR_NONE != VWB_Init( warper ) )
+			return -1;
+```
+
+render loop
+```
+    D3DXMATRIX proj;
+    D3DXMATRIX view;
+	VWB_getViewProj( warper, NULL, NULL, (VWB_float*)&view, (VWB_float*)&proj );
+
+    HRESULT res;
+    LPDIRECT3DDEVICE9 d3d = renderer->getDevice();
+
+    res = pD3DDevice->BeginScene();
+
+    // draw
+
+	VWB_render( warper, renderer->getOutput(), VWB_STATEMASK_ALL );
+
+    res = d3d->EndScene();
+
+	// present
+```
+
+uninitialization:100:
+```
+	if( warper )
+		VWB_Destroy( warper );
 ```
 
 ### 2 Dynamic binding  
 
-### 2a use wrapper from VIOSOWarpBlend
 declaration:
 
 ```
@@ -72,102 +132,11 @@ post-render:
 pWarper->Render( texUnwarped, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
 ```
 
+## Build
 
-### 2b via [precompiled] header:
+Open the cloned directory in your CMake compatible IDE and build + install.
+Use the build-tree in your install folder to compile and test the examples.
 
-in header declare functions and types:
-```
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE
-#include "VIOSOWarpBlend.h"
-```
-in one file on top, to implement the actual functions/objects
-```
-#define VIOSOWARPBLEND_DYNAMIC_IMPLEMENT
-#include "VIOSOWarpBlend.h"
-```
-in module initialization, this loads function pointers from library
-```
-#define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-#include "VIOSOWarpBlend.h"
-```
-### 2c Single file:
-
-in file on top, to declare and implement functions/objects,
-```
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
-#include "VIOSOWarpBlend.h"
-```
-in module initialization, this loads function pointers from library
-```
-#define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-#include "VIOSOWarpBlend.h"
-```
-Always make sure to have your platform headers loaded before!
-
-## Build on Windows
-Clone the repositiory, use MS Visual Studio(R) and include VIOSOWarpBlend/VIOSOWarpBlend.vcxproj project file to your solution. Compile along with your projects.
-
-## Build on Linux:
-There is a separate linux branch which is work in progress. Master branch is constantly converging, worth a try.
-Check it out via the command 
- ```git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git```
- ```git clone -b master https://bitbucket.org/VIOSO/VIOSO_api.git```
-(be sure to have installed git lfs or do ```sudo apt-get install git-lfs```  if you get an error related to extracting vioso2d.zip or vioso3D.zip you may have force a git lfs checkout: ```git lfs pull```)
-
-Build it (as a shared library) using cmake: in the root folder execute the follwing command (having cmake installed - sudo apt-get install cmake):
-```mkdir build && cd build && cmake .. && make```
-and
-```make install``` 
-to make it available system wide.
-
-Link it the usual way:  
-```g++  ... -L/usr/local/lib -lVIOSOWarpBlend``` 
-(adjust -L/usr/local/lib to the place you installed it to)
-
-In order to build the example project you'll need glfw + dependencies. use this command: ```sudo apt-get install libglfw3-dev libxcursor-dev libxi-dev libxinerama-dev freeglut3-dev```
-
-Use dynamic load or dynamic linked lirary like this:
-```
-#define VIOSOWARPBLEND_DYNAMIC_IMPLEMENT
-#include "../../Include/VIOSOWarpBlend.h"
-LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
-LPCTSTR s_channel = _T( "IG1" );
-VWB_Warper* g_warper = nullptr;
-
-void Init()
-{
-    #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-	#include "../../Include/VIOSOWarpBlend.h"
-
-    if(
-        nullptr == VWB_Create ||
-        nullptr == VWB_Init ||
-        VWB_ERROR_NONE != VWB_Create( device, s_configFile, s_channel, &g_warper, 0, NULL ) ||
-        VWB_ERROR_NONE != VWB_Init( g_warper )
-        )
-        throw std::runtime_error( "Failed to initialize VIOSO Warper" );
-}
-
-void Destroy()
-{
-    if( nullptr != VWB_Destroy && )
-        VWB_Destroy( g_warper );
-}
-
-void PreRender( float* trackerPos, float* trackerDir, float* mView, float* mProjection )
-{
-    // NOTE: VWB_getViewClip or VWB_getPosDirClip can also be used to request optimal frustum
-    //       This step is mandatory to update the warper's data
-    if( nullptr != VWB_getViewProj )
-       VWB_getViewProj( m_warper, trackerPos, trackerDir, mView, mProjection );
-}
-
-void PostRender( TexHandle inTex )
-{
-    if( nullptr != VWB_render )
-        VWB_render( m_warper, (VWB_param)inTex, VWB_STATEMASK_STANDARD )
-}
-```
-
+## Help
 
 For configuring and usage see https://helpdesk.vioso.com/documentation/api/

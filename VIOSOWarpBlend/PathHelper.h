@@ -10,25 +10,27 @@
 
 #include "../Include/VWBTypes.h"
 #include <string>
+#include <string_view>
+#include <filesystem>
+#include <optional>
+#include <algorithm>
+#include <cmath>
 /// @brief creates a full canonical path from a filename
 /// @description if it does not start with a / or a drive letter (no root path)
 /// it is set relative to the module currently set in g_hModule
 /// @param [IN|OUT] path the input path or file name
-/// @param [IN] nMaxPath the maximum number of chars path can hold
 /// @param [IN_OPT] ext an extension to add, set to 
+/// @param [IN_OPT] basePath the relative path to look 
 /// @return the value of path, containing the formatted and canonical path,
 /// NULL in case of an error
 /// @remarks
 /// removes leading and trailing whitespaces
 /// removes leading single and double quotes and their counterparts
-/// expands environment strings (Windows only)
+/// expands environment strings
 /// removes double directory separators
 /// removes dir/../
 /// adds .ext in case \b ext isn't null and the extension isn't already present
-char* 
-MkPath(char* path, size_t nMaxPath, char const* ext = NULL);
-std::string
-MkPath(std::string const pathIn, char const* ext = NULL);
+std::filesystem::path MkPath(std::filesystem::path const& path, char const* ext = NULL, std::filesystem::path const& basePath = "" );
 
 
 /// @brief reads a string from a Windows ini style text file
@@ -37,9 +39,7 @@ MkPath(std::string const pathIn, char const* ext = NULL);
 /// square brackets: [name]
 /// @param [IN] key a key name
 /// @param [IN] szDefault the default value
-/// @param [OUT] s the returned string
-/// @param [IN] sz the number of characters, the string can hold
-/// @param [IN] szConfigFile the path to the ini file
+/// @param [IN] configFile the path to the ini file
 /// @return true in case the key was found in given section
 /// and a value was found
 /// @remarks
@@ -49,14 +49,8 @@ MkPath(std::string const pathIn, char const* ext = NULL);
 /// case letters, names are case sensitive
 /// the equal sign must follow directly in case of a 
 /// key=value entry
-/// in case a key is not found in the section, the default value is copied,
-/// if szDefault is NULL, an empty string is returned
-bool 
-GetIniString(char const* szSection, char const* szKey, char const* szDefault, char* s, VWB_uint sz, char const* szConfigFile);
-template<size_t sz>
-bool
-GetIniString(char const* szSection, char const* szKey, char const* szDefault, char(&s)[sz], char const* szConfigFile)
-{ return GetIniString(szSection, szKey, szDefault, s, sz, szConfigFile); }
+/// in case a key is not found in the section, a optional null is returned
+std::optional<std::string> GetIniString( std::string_view section, std::string_view key, std::filesystem::path const& configFile );
 
 /// @brief reads an integer from a Windows ini style text file
 /// @param [IN] szSection the section to search for a value,
@@ -64,10 +58,10 @@ GetIniString(char const* szSection, char const* szKey, char const* szDefault, ch
 /// square brackets: [name]
 /// @param [IN] key a key name
 /// @param [IN] iDefault the default value
-/// @param [IN] szConfigFile the path to the ini file
+/// @param [IN] configFile the path to the ini file
 /// @return the read value or the value given in iDefault
 VWB_int
-GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, char const* szConfigFile);
+GetIniInt(std::string_view section, std::string_view key, VWB_int iDefault, std::filesystem::path const& configFile);
 
 /// @brief reads a float from a Windows ini style text file
 /// @param [IN] szSection the section to search for a value,
@@ -75,10 +69,10 @@ GetIniInt(char const* szSection, char const* szKey, VWB_int iDefault, char const
 /// square brackets: [name]
 /// @param [IN] key a key name
 /// @param [IN] fDefault the default value
-/// @param [IN] szConfigFile the path to the ini file
+/// @param [IN] configFile the path to the ini file
 /// @return the read value or the value given in fDefault
 VWB_float
-GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char const* szConfigFile);
+GetIniFloat(std::string_view section, std::string_view key, VWB_float fDefault, std::filesystem::path const& configFile);
 
 /// @brief reads a float vector or matrix from a Windows ini style text file
 /// @param [IN] szSection the section to search for a value,
@@ -86,16 +80,75 @@ GetIniFloat(char const* szSection, char const* szKey, VWB_float fDefault, char c
 /// square brackets: [name]
 /// @param [IN] key a key name
 /// @param [IN] iDefault the default value
-/// @param [IN] szConfigFile the path to the ini file
+/// @param [IN] configFile the path to the ini file
 /// @param [IN|OPT] transpose matrix; this will transpose while reading from file, default must also be transposed in case
 /// @return f in case of success; this includes , NULL otherwise
 /// if fDefault is NULL, an empty matrix (all 0.0f) is returned
-VWB_float*
-GetIniMat(char const* szSection, char const* szKey, int dimX, int dimY, VWB_float const* fDefault, VWB_float* f, char const* szConfigFile, bool bTranspose = false );
-template< int sz>
-VWB_float*
-GetIniMat(char const* szSection, char const* szKey, VWB_float const* fDefault, VWB_float(&f)[sz], char const* szConfigFile, bool bTranspose = false ) 
-{ return GetIniMat(szSection, szKey, sz, 1, fDefault, f, szConfigFile, bTranspose); }
+std::optional<std::vector<VWB_float>> GetIniMat( std::string_view section, std::string_view key, int dimX, int dimY, std::filesystem::path const& configFile, bool bTranspose = false );
+std::optional<std::vector<VWB_float>> GetMat( std::string const& val, int dimX, int dimY, bool bTranspose = false );
+
+/// @brief copy a vector to a POD array, it copies sz or less elements
+/// @param dst the destination array
+/// @param sz the maximum size of the array
+/// @param src the source vector
+/// @return the destination array
+template< typename T > T* copyMat( T* dst, size_t sz, std::vector<T> const& src ) {
+    if( src.size() < sz )
+        sz = src.size();
+    std::copy_n( src.begin(), sz, dst );
+    return dst;
+}
+template< typename T, size_t _S > T* copyMat( T( &dst )[_S], std::vector<T> const& src ) { return copyMat<T>( dst, _S, src ); }
+
+template< typename T1, typename T2 > T1* copyMatAs( T1* dst, size_t sz, std::vector<T2> const& src ) {
+    if( src.size() < sz )
+        sz = src.size();
+    std::transform( src.begin(), src.begin() + sz, dst, [](T2 const& val){ return static_cast<T1>( val ); } );
+    return dst;
+}
+template< typename T1, typename T2, size_t _S > T1* copyMatAs( T1( &dst )[_S], std::vector<T2> const& src ) { return copyMatAs<T1,T2>( dst, _S, src ); }
+
+template< typename T1, typename T2 > std::vector<T1> createMat( T2 const* src, size_t sz ) {
+    return std::vector<T1>( src, src + sz );
+}
+template< typename T1, typename T2, size_t _S > std::vector<T1> createMat( T2( &src )[_S] ) {
+    return createMat<T1, T2>( src, _S );
+}
+template< typename T1, size_t _S > std::vector<T1> createMat( T1( &src )[_S] ) {
+    return createMat<T1, T1>( src, _S );
+}
+
+constexpr size_t intSqrt(size_t n) {
+    size_t r = 0;
+    while ((r + 1) * (r + 1) <= n) {
+        ++r;
+    }
+    return r;
+}
+
+template< typename T2, typename T1 = T2 > std::vector<T1> createMatTrans( T2 const* src, size_t dimX, size_t dimY ) {
+	std::vector<T1> ret( dimX * dimY );
+	auto it = ret.begin();
+	ptrdiff_t step = -ptrdiff_t( dimX ) * dimY + 1;
+    // fill transposed
+	for( auto el = src, elE = src + dimX; el != elE; el += step ) {
+        for( auto elLE = el + dimX * dimY; el != elLE; el+= dimX ) {
+			*(it++) = *el;
+		}
+	}
+    return ret;
+}
+// the second parameter is optional, if not given, a square matrix is assumed
+template< typename T2, typename T1 = T2, size_t _S > std::vector<T1> createMatTrans( T2( &src )[_S] ) {
+    // If caller did not override dimX, check that _S is a perfect square
+	constexpr size_t dim = intSqrt( _S );
+    static_assert( dim * dim == _S, "Default dimX assumes a square matrix (_S must be a perfect square).");
+    return createMatTrans<T2, T1>( src, dim, dim );
+}
+template< typename T2, typename T1 = T2, size_t _S > std::vector<T1> createMatTrans( T2( &src )[_S], size_t dimX ) {
+    return createMatTrans<T2, T1>( src, dimX, _S / dimX );
+}
+
 
 #endif //ndef VWB_PATH_HELPER_HPP
 

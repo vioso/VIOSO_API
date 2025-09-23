@@ -59,44 +59,34 @@ struct SocketAddress;
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //                               SocketAddress
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 struct SocketAddress : sockaddr_in 
 {
 // construction
 
-	// use default constructor to create empty address
-
-	// copy constructor
-	SocketAddress(sockaddr const& sa)
-	{
-		memcpy(this, &sa, sizeof(sockaddr));
-	}; 
-
-	// construct object from sockaddr_in struct
-	SocketAddress(sockaddr_in const& sin)
-	{
-		memcpy(this, &sin, sizeof(sockaddr_in));
-	}; 
-
 	// construct AF_INET address using UINT-address in net-byte-order and port in host-byte-order.
-	SocketAddress(unsigned long addr=INADDR_ANY, unsigned short port=0);
+	SocketAddress( unsigned long addr = INADDR_ANY, unsigned short port = 0 ) : sockaddr_in{ AF_INET, ::htons( port ) } {
+		sin_addr.s_addr = addr;
+	}
+	SocketAddress( sockaddr const& sa ) : sockaddr_in( *( sockaddr_in const* )&sa ) {}
+	SocketAddress( sockaddr_in const& sin ) : sockaddr_in( sin ) {}
+
 
 	// construct AF_INET address using url string and port number in host byte order.
-	SocketAddress(char const* url, unsigned short port = 0); 
+	SocketAddress( char const* url, unsigned short port = 0 ) : sockaddr_in( SocketAddress::gethostbyname( url, port ) ) {}
 
 // public methods
 
 	// returns ip in dotted decimal format i.e. "10.1.1.1".
 	char const*  getDottedDecimal( char* sz, size_t nsz ) const
 	{
-		return inet_ntop(sin_family, (VWB_inet_ntop_cast)&sin_addr, sz, nsz);
+		return inet_ntop(sin_family, &sin_addr, sz, nsz);
 	}; 
 	template< size_t _sz >
 	char const*  getDottedDecimal(char(&sz)[_sz]) const { return getDottedDecimal(sz, _sz); }
 
 	// gets / sets port number in host byte order
-	unsigned short	getPort() const;
-	void			setPort(unsigned short port);
+	unsigned short	getPort() const { return ::ntohs( sin_port ); }
+	void			setPort( unsigned short port ) { sin_port = ::htons( port ); };
 
 	// resets address to zero
 	void zero() { memset(this,0,sizeof(SocketAddress)); }
@@ -130,16 +120,24 @@ struct SocketAddress : sockaddr_in
 
 // public asignement and compare operators
 
-	const SocketAddress& operator=(const sockaddr& sa);
+	const SocketAddress& operator=( const sockaddr& sa ) { *this = SocketAddress( sa ); }
 
-	const SocketAddress& operator=(const sockaddr_in& sin);
+	const SocketAddress& operator=( const sockaddr_in& sin ) { *this = SocketAddress( sin ); };
 
 	bool operator==(const SocketAddress& sa) const { return 0 == memcmp(this,&sa,sizeof(SocketAddress)); }
 
 // public static methods
 
+	static SocketAddress gethostbyname( const std::string& url, unsigned short port );
+
 	// constructs a broadcast address to a specific port in host byte order.
-	static SocketAddress broadcast(unsigned short port);
+	static SocketAddress broadcast(unsigned short port)
+	{
+		sockaddr_in sa{AF_INET,::htons( port ) };
+		sa.sin_addr.s_addr = INADDR_BROADCAST;
+		return sa;
+	}
+
 };
 
 /**************** Socket *****************/
@@ -291,7 +289,7 @@ public:
 	static int close(SOCKET& s);
 
 	// these are wrapper functions for os native operations derived from berkeley sockets
-	static SocketAddress  gethostbyname(const std::string& name, const unsigned short port=0); 
+	static SocketAddress  gethostbyname( const std::string& name, const unsigned short port = 0 ) { return SocketAddress::gethostbyname( name, port ); }
 	static std::string gethostname(); 
 	static std::vector<in_addr> getLocalIPList(); 
 	static std::string gethostbyaddr(const SocketAddress& sa); 

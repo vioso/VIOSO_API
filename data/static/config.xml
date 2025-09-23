@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dpCorrection>
+	<type>0</type>
+	<gamma>2.2</gamma>
+	<input-gamma>2.2</input-gamma>
+	<output-gamma>2.2</output-gamma>
+	<channel id="0" blending="shading_0.png" secondary-blending="secondary_shading_0.png" blacklevel="blackLevelAdjust_0.png" frustum="frustum_0.csv" warpmap="warpmap_0.csv"></channel>
+	<channel id="1" blending="shading_1.png" secondary-blending="secondary_shading_1.png" blacklevel="blackLevelAdjust_1.png" frustum="frustum_1.csv" warpmap="warpmap_1.csv"></channel>
+	<channel id="2" blending="shading_2.png" secondary-blending="secondary_shading_2.png" blacklevel="blackLevelAdjust_2.png" frustum="frustum_2.csv" warpmap="warpmap_2.csv"></channel>
+</dpCorrection>

@@ -2,7 +2,6 @@
 # Diese .gitignore-Datei wurde von Microsoft(R) Visual Studio automatisch erstellt.
 ################################################################################
 
-/.vs
 /Debug
 /EyePointProvider/x64/Debug
 /out
@@ -75,3 +74,9 @@ Release
 /bin/DirectX11Example64.pdb
 /bin/VIOSOWarpBlend.log
 /cmake-build-debug/
+/.vs/VSWorkspaceState.json
+/.vs/vioso_api
+/.vs/CMake Overview
+/.vs/ProjectSettings.json
+/.vs/slnx.sqlite
+/CMakeUserPresets.json

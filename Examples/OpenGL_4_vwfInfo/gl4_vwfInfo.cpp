@@ -40,6 +40,7 @@ struct WndBase
 #include <string>
 #include <sstream>
 #include <memory>
+#include <cuchar>
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/euler_angles.hpp"
@@ -66,6 +67,43 @@ struct MyWindow : WndBase
 	GLuint		locVATex = GLuint(-1);		// the location of the texture input
 	GLuint		locMatProj = GLuint(-1);	// the location of the projection matrix
 	GLuint		locMatView = GLuint(-1);	// the location of the view matrix
+	MyWindow() = default;
+	MyWindow(MyWindow const&) = delete;
+	MyWindow(MyWindow&& other) noexcept {
+		hDC = other.hDC;
+		hRC = other.hRC;
+		hWnd = other.hWnd;
+
+		iProg = other.iProg;
+		iVert = other.iVert;
+		iFrag = other.iFrag;
+		iVAData = other.iVAData;
+		iVAPos = other.iVAPos;
+		iVACol = other.iVACol;
+		iVATex = other.iVATex;
+		locVAPos = other.locVAPos;
+		locVACol = other.locVACol;
+		locVATex = other.locVATex;
+		locMatProj = locMatProj;
+		locMatView = locMatView;
+
+		other.hDC = 0;
+		other.hRC = 0;
+		other.hWnd = 0;
+
+		other.iVert = GLuint(-1);
+		other.iFrag = GLuint(-1);
+		other.iVAData = GLuint(-1);
+		other.iVAPos = GLuint(-1);
+		other.iVACol = GLuint(-1);
+		other.iVATex = GLuint(-1);
+		other.locVAPos = GLuint(-1);
+		other.locVACol = GLuint(-1);
+		other.locVATex = GLuint(-1);
+		other.locMatProj = GLuint(-1);
+		other.locMatView = GLuint(-1);
+	}
+	MyWindow& operator=(MyWindow&&) = default;
 };
 VWBmap< HWND, MyWindow > g_windows;
 
@@ -667,6 +705,39 @@ BOOL CreateGLWindow( MyWindow& wnd, char const* title, int posX, int posY, int w
 	return TRUE;									// Success
 }
 
+///  converts a locale single-byte character string to utf-8 string
+inline std::u8string to_u8string(std::string const& s)
+{
+	auto sz = s.size();
+	std::u8string u8s; u8s.reserve(sz);
+	// try to be quick, if all chars are simple ASCII
+	for ( auto c : s )
+	{
+		if ( !(0x80 & c) )
+		{
+			u8s.push_back(char8_t(c));
+		}
+		else
+		{
+			static std::locale loc("");
+			static auto const* fac = &std::use_facet<std::ctype<std::wstring::value_type> >(loc);
+
+			auto wc = fac->widen(c);
+			if ( wc )
+			{
+				char u8c[4];
+				std::mbstate_t state{};
+				size_t b = std::c32rtomb(u8c, wc, &state);
+				if ( 4 >= b )
+					u8s.append(u8c, u8c + b);
+			}
+		}
+	}
+
+	return u8s;
+}
+
+
 int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 					HINSTANCE	hPrevInstance,		// Previous Instance
 					LPSTR		lpCmdLine,			// Command Line Parameters
@@ -676,15 +747,17 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	BOOL	done = FALSE;								// Bool Variable To Exit Loop
 	g_hInstance = hInstance;				// Grab An Instance For Our Window
 
-	char const* calibFile = lpCmdLine;
+	char8_t const* calibFile = (char8_t const*)lpCmdLine;
 	if( 0 == calibFile[0] )
-		calibFile = "vioso.vwf";
+		calibFile = u8"vioso.vwf";
 
 	if(!LoadVertices())
 		return -1;
 
 	// NOTE: we experienced strage behaviour with a vector<> created in dll memory could not be read in main process memory,
 	// so we introduced an info function using the C interface, where you provide the memory to copy the header info to
+	// from version 1.7 onwards we use VWB_vwfInfoCU. Doing so, the VWB_WarpBlendHeader::path is UTF-8 encoded.
+	// we need to check VWB_WarpBlendHeader::header.flags & FLAG_WARPFILE_HEADER_UTF8, if name and primName are UTF-8
 	std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( calibFile );
 
 	char hostname[] = "localhost";
@@ -717,19 +790,25 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 				std::shared_ptr<VWBX<MyWindow >> win;
 				try
 				{
-					std::string channelname = set[i].header.name;
+					// channelName must be UTF-8, as we decided to use VWBX data type, thus strings must be treated as UTF-8
+					std::u8string channelName;
+					if ( set[i].header.flags & FLAG_WARPFILE_HEADER_UTF8 )
+						channelName = reinterpret_cast< char8_t const* >(set[i].header.name);
+					else
+						channelName = to_u8string(set[i].header.name);
+
 					if( cols > 1 )
-						channelname += "_" + std::to_string( col );
+						channelName += u8"_" + to_u8string( std::to_string( col ) );
 					if( rows > 1 )
-						channelname += "_" + std::to_string( row );
-					win = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(wnd, "", nullptr, s_configFile, channelname.c_str())).first->second;
+						channelName += u8"_" + to_u8string( std::to_string( row ) );
+					win = g_windows.emplace(wnd.hWnd, std::make_shared<VWBX<MyWindow>>(std::move(wnd), "", nullptr, s_configFile, channelName.c_str())).first->second;
 				}
 				catch (VWB_ERROR)
 				{
 					return FALSE;
 				}
 				auto& ww = win->w.get();
-				strcpy_s(ww.calibFile, calibFile);
+				strcpy_s(ww.calibFile, set[i].path); // note: as we used VWB::VwfInfo which uses VWB_vwfInfoCU, set[i].path is UTF-8 encoded as it should be 
 				ww.calibIndex = (int)i;
 				ww.calibSplit[0] = rows;
 				ww.calibSplit[1] = cols;
@@ -779,7 +858,7 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	for(auto& w : g_windows)
 	{
 		// we need to make a copy of the window data, as we need the context intact to release resources gracefully
-		MyWindow wnd = *w.second;
+		MyWindow& wnd = *w.second;
 		// release the warper
 		w.second.reset();
 		// Kill The Window

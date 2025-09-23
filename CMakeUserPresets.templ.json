@@ -1,0 +1,29 @@
+﻿{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "WSL-GCC-Debug",
+      "displayName": "WSL-x64-Debug",
+      "generator": "Ninja",
+      "binaryDir": "/mnt/d/Dev/GIT/vioso_api/out/build/${presetName}",
+      "installDir": "/mnt/d/Dev/GIT/vioso_api/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_SYSTEM_NAME": "Linux",
+        "CMAKE_SUPPRESS_DEVELOPER_WARNINGS": "TRUE"
+      }
+    },
+    {
+      "name": "WSL-GCC-Release",
+      "displayName": "WSL-x64-Release",
+      "generator": "Ninja",
+      "binaryDir": "/mnt/d/Dev/GIT/vioso_api/out/build/${presetName}",
+      "installDir": "/mnt/d/Dev/GIT/vioso_api/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_SYSTEM_NAME": "Linux",
+        "CMAKE_SUPPRESS_DEVELOPER_WARNINGS": "TRUE"
+      }
+    }
+  ]
+}

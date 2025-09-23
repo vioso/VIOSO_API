@@ -12,6 +12,7 @@
 #endif
 #include "VWBTypes.h"
 #include "VWBDef.h"
+#include "VWBVer.h"
 
 /**
 @file VIOSO API main include header
@@ -44,6 +45,10 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* After successful creation, call VWB_Init, to load .vwf file and initialize the warper. */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateA, ( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile ) );   
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateW, ( void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, wchar_t const* szLogFile ) );   
+#ifdef __cpp_lib_char8_t
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateU, ( void* pDxDevice, char8_t const* szConfigFile, char8_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char8_t const* szLogFile ) );
+#endif // def __cpp_lib_char8_t
+
 #ifdef UNICODE
 #define VWB_Create VWB_CreateW
 #else //def UNICODE
@@ -138,11 +143,16 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* @param [OUT|OPT]		headers	a pointer to an array of VWB_WarpBlendHeader
 	* @param [IN|OUT]		count   the number of array elements provided, if headers is NULL, it is set to the number of headers needed
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAM if fname is not set or empty or count is NULL, VWB_ERROR_FALSE if *count is less than the number of headers needed, VWB_ERROR_VWF_FILE_NOT_FOUND if path did not resolve, VWB_ERROR_GENERIC otherwise
-	* @remarks The list is emptied and all found headers are appended. You need to call VWB_vwfInfo( NULL, set ) to release memory from within the warper-dll.  */
+	* @remarks The list is emptied and all found headers are appended. You need to call VWB_vwfInfo( NULL, set ) to release memory from within the warper-dll.  
+	* using a VWB_vwfInfoU VWB_vwfInfoW VWB_vwfInfoCU or VWB_vwfInfoCW will fill VWB_WarpBlendHeader::path with an utf-8 encoded string */ 
 	#ifdef __cplusplus
-	VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfo, ( char const* path, VWB_WarpBlendHeaderSet* set ) );
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfo, (char const* path, VWB_WarpBlendHeaderSet* set));
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfoU, (char8_t const* path, VWB_WarpBlendHeaderSet* set));
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfoW, (wchar_t const* path, VWB_WarpBlendHeaderSet* set));
 	#endif
-	VIOSOWARPBLEND_API( VWB_ERROR, VWB_vwfInfoC, ( char const* path, VWB_WarpBlendHeader* headers, VWB_uint* count ) );
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfoC, (char const* path, VWB_WarpBlendHeader* headers, VWB_uint* count));
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfoCW, (wchar_t const* path, VWB_WarpBlendHeader* headers, VWB_uint* count));
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_vwfInfoCU, (char8_t const* path, VWB_WarpBlendHeader* headers, VWB_uint* count));
 
 	/** fills a VWB_WarpBlend from currently loaded data. Warper needs to be initialized as VWB_DUMMYDEVICE.
 	* @param [IN]			pWarper	a valid warper
@@ -179,11 +189,30 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	#endif
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_destroyWarpBlendMeshC, ( VWB_Warper* pWarper, VWB_WarpBlendMesh* mesh ) );
 
+	/** get texture handles from GPU warper, can be used to implement a custom shader or to update GPU resources while initialized
+	* The handles are to be reinterpret_cast to the native format.
+	* The handles are filled to nHandles. Unused resources are set to ((void*)-1), as 0 is a valid handle in OpenGL and Vulkan.
+	* index 0 warp
+	*	1 blend
+	*	2 blacklevel correction
+	*	3 directional shading
+	*	4 vertex buffer
+	*	5 index buffer
+	* @param [IN]		pWarper	a valid warper
+	* @param [OUT]		pResources	the handles array, must be minimum size nHandles
+	* @params [IN]		nHandles	the number of handles initialized
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getNativeGPUResources, ( VWB_Warper* pWarper, void** pResources, VWB_uint nResources ) );
+
 	/* log some string to the API's log file, exposed version; use VWB_logString instead.
 	* @param [IN]			level	a level indicator. The string is only written to log file, if this is lower or equal to currently set global log level
 	* @param [IN]			str		a null terminated multibyte character string
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER otherwise */
-	VIOSOWARPBLEND_API( VWB_ERROR, VWB__logString, ( VWB_int level, char const* str ) );
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB__logString, (VWB_int level, char const* str));
+
+	/* clear the current log file
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER otherwise */
+	VIOSOWARPBLEND_API(VWB_ERROR, VWB_logClear, ());
 
 	/* get the version of the API
 	* @param[OUT]			major	major version

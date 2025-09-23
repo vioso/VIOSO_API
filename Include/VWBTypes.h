@@ -8,8 +8,10 @@
 #ifndef __VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__
 #define __VWB_SMARTPROJECTOR_DEVELOPMENT_FILE_DECLARATIONS__
 #include <stdint.h>
+#
 #ifdef __cplusplus
 #include <vector>
+#include <filesystem>
 #endif
 /// Type definitions
 typedef void* VWB_param;	/// A versatile type to transfer an object pointer or integral number
@@ -216,7 +218,7 @@ struct VWB_Warper
 	/// optional blacklevel scale adjustment, will be multiplied to VWB_WarpFileHeader5.blackScale. Defaults to 1.0
 	VWB_float blackScale;
 
-	/// optional input gamma adjustment, used to degamma / regamma when appying blacklevel compensation. Defaults to 2.2
+	/// optional input gamma adjustment, used to degamma when appying blacklevel compensation. Defaults to 2.2
 	VWB_float inputGamma;
 
 	/// optional blackDark adjustment, Set to 0 to set blackDark to 0, set to 1 to set blackDark to 1, set to 0.5 to keep value from VWF header. It interpolates linearly inbetween. Defaults to 0.5
@@ -224,6 +226,16 @@ struct VWB_Warper
 
 	/// optional blackDark adjustment, like blackDarkAdjust, but for bright. Defaults to 0.5
 	VWB_float blackBrightAdjust;
+
+	/// optional output gamma adjustment, used to regamma when appying blacklevel compensation. Defaults to 2.2
+	VWB_float outputGamma;
+
+	/// set to true to flip warpmesh texcoords vertically, defaults to false
+	bool bFlipWarpmeshTexcoords;
+
+	/// set to true to flip warpmesh vertices vertically, defaults to false
+	bool bFlipWarpmeshVertices;
+
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------
@@ -243,7 +255,12 @@ typedef enum FLAG_WARPFILE_HEADER
 	FLAG_WARPFILE_HEADER_DISPLAYID=0x80,									///<   the displayID of that screen is valid
 	FLAG_WARPFILE_HEADER_BLENDV2=0x100,									///<   we are using VWB_BlendRecord2
 	FLAG_WARPFILE_HEADER_BLENDV3=0x200,									///<   we are using VWB_BlendRecord3
-	FLAG_WARPFILE_HEADER_ENCRYPTED=0x400,								///<   the geometry
+	FLAG_WARPFILE_HEADER_ENCRYPTED = 0x400,								///<   the geometry mapping is encrypted. To decrypt, provide a cryptoKey via VWB_setCryptoKey
+	FLAG_WARPFILE_HEADER_UTF8 = 0x8000,									///<   name and primName are encoded as UTF-8 strings, hostname is always simple ASCII, ident is XML and provides encoding 
+	FLAG_WARPFILE_HEADER_2NDBLEND = 0x10000,								///<   a second blend map follows the first one, to be used as overlay, e.g. for separate cut-off mask
+	FLAG_WARPFILE_HEADER_MESH = 0x20000,								///<   the mesh component is valid, the data block contains a VWB_WarpMeshEx
+	FLAG_WARPFILE_HEADER_WHITELEVEL_CORR = 0x40000,							///<   the whitelevel correction values are set
+	FLAG_WARPFILE_HEADER_DIRSHADING = 0x80000,							///<   directional shading is used, VWB_BlendRecord3::dirShading is valid
 	FLAG_WARPFILE_HEADER_ALL=											///<   all available flags
 	FLAG_WARPFILE_HEADER_OFFSET |
 	FLAG_WARPFILE_HEADER_BORDER |
@@ -255,7 +272,12 @@ typedef enum FLAG_WARPFILE_HEADER
 	FLAG_WARPFILE_HEADER_DISPLAYID |
 	FLAG_WARPFILE_HEADER_BLENDV2 |
 	FLAG_WARPFILE_HEADER_BLENDV3 |
-	FLAG_WARPFILE_HEADER_ENCRYPTED
+	FLAG_WARPFILE_HEADER_ENCRYPTED |
+	FLAG_WARPFILE_HEADER_UTF8 |
+	FLAG_WARPFILE_HEADER_2NDBLEND |
+	FLAG_WARPFILE_HEADER_MESH |
+	FLAG_WARPFILE_HEADER_WHITELEVEL_CORR |
+	FLAG_WARPFILE_HEADER_DIRSHADING
 }FLAG_WARPFILE_HEADER;
 
 
@@ -567,6 +589,83 @@ public:
 	char								keyDesc[256];							///<   human readable description of used encryption method
 } VWB_WarpFileHeader5;
 
+/** VWB_WarpFileHeader5\n
+*  ( Warp File Header version 5)\n
+*  Container to preface warping information.
+* same as VWB_WarpFileHeader4, added crypto hint
+* magicNumber[4]="vwf0"
+* @author Juergen Krahmann
+* @date Apr 22
+* @version 1.0
+* @bug No.
+* @todo Nothing. */
+typedef struct VWB_WarpFileHeader6
+{
+public:
+
+	// ----------------------------------------------------------------------------------
+	//                               public attributes
+	// ----------------------------------------------------------------------------------
+
+	char                                magicNumber[4];							///<   "vwf0"
+	VWB_uint                            szHdr;									///<   used to communicate the size of this header struct
+	VWB_uint                            flags;									///<   additional informations
+	///<  @see FLAG_WARPFILE_HEADER for details
+	VWB_uint                            hMonitor;								///<   set to the HMONITOR of the treated display
+	VWB_uint                            size;									///<   actual size of the following data block; the size of the raw data can be calculated from dimensions
+	VWB_int                             width;									///<   count of warp records per row
+	VWB_int                             height;									///<   count of rows of warp records
+	VWB_float                           white[4];								///<   white point of that projector; set to { 1.0f, 1.0f, 1.0f, 1.0f }
+	VWB_float                           black[4];								///<   black point of that projector; set to { 0.0f, 0.0f, 0.0f, 1.0f }
+	VWB_float                           splitRowIndex;							///<   [ 0] => row index
+	VWB_float                           splitColumnIndex;						///<   [ 1] => column index
+	VWB_float							splitRows;								///<   [ 2] => number of rows
+	VWB_float							splitColumns;							///<   [ 3] => number of columns
+	VWB_float							splitTotalWidth;						///<   [ 4] => original display width
+	VWB_float							splitTotalHeight;						///<   [ 5] => original display height
+	VWB_float							typeCalib;								///<   [ 6] => type to define the calibration type the information based on
+	VWB_float							offsetX;								///<   [ 7] => original desktop display offset x
+	VWB_float							offsetY;								///<   [ 8] => original desktop display offset y
+	VWB_float							blackScale;								///<   [ 9] => blacklevel correction texture scale factor
+	VWB_float							blackDark;								///<   [10] => blacklevel dark value maintain factor; 
+	VWB_float							blackBright;							///<   [11] => blacklevel bright value maintain factor
+	VWB_float							compoundID;								///<   [12] => ///<   identifier for a compound display, static cast to int, set if greater than 0, all screend/displays with same compound id should use same content space alas source rect
+	VWB_float							vReserved[3];							///<	reserved for future use
+	char                                name[256];								///<   optional, human readable name for that mapping
+	char								ident[4096];							///<   optional, xml identification for that mapping derived from pdi code from pictureall, only filled if nvapi is appliable
+	VWB_ull			                    tmIdent;								///<   used to communicate a time stamp to identify the warp information
+	VWB_float                           vCntDispPx[7];							///<   optional, used to store informations about the content position on handled display
+	///<   [0] => minimum covered display pixel column  (l)
+	///<   [1] => minimum covered display pixel row     (t)
+	///<   [2] => maximum covered display pixel column  (r)
+	///<   [3] => maximum covered display pixel row     (b)
+	///<   [4] => content to display pixel ratio in x direction
+	///<   [5] => content to display pixel ratio in y direction
+	///<   [6] => quantum of used display pixel
+	VWB_float                           vPartialCnt[9];
+	///<   [0] => minimum relative content position in x direction (l)
+	///<   [1] => minimum relative content position in y direction (t)
+	///<   [2] => maximum relative content position in x direction (r)
+	///<   [3] => maximum relative content position in y direction (b)
+	///<   [4] => optional aspect ratio of the content space
+	///<   [5] => optional relative content position transform offset in x direction
+	///<   [6] => optional relative content position transform offset in y direction
+	///<   [7] => optional relative content position transform scale in x direction
+	///<   [8] => optional relative content position transform scale in y direction
+	char                                primName[256];		///<   optional, human readable name of the compound or super compound
+	VWB_float                           fov[4];								///<   optional, field of view angles in degree, part of a target view definition, if all values are 0.0f, the fov thus the whole view is not defined
+	VWB_float                           pos[3];									///<   optional, position offset vector of the target view, depends on fov defined
+	VWB_float                           dir[3];									///<   optional, direction euler angles, rotation order yaw (around y), pitch (around x), roll (around z) of the target view, depends on fov defined
+	VWB_float                           screen;									///<   optional, the screen distance of the target view, depends on fov defined
+	VWB_float                           vReserved2[5];							///<   used to define additional informations in further versions
+	VWB_wchar							displayID[256];	///<   Windows display identifier, use EnumDisplayDevices using EDD_GET_DEVICE_INTERFACE_NAME flag to find it
+	char								hostname[256];	///<   network name or IP in dotted decimal
+	VWB_uint							szKey;									///<   the key size, 0 if not used
+	VWB_byte							key[128];								///<   some PGP encrypted key
+	char								keyIdent[16];							///<   describes the used encryption method
+	char								keyDesc[256];							///<   human readable description of used encryption method
+} VWB_WarpFileHeader6;
+
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //                                                              VWB_WarpRecord
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -672,8 +771,37 @@ typedef  enum
 #endif
 #pragma pack(pop)
 
+enum VWB_WarpBlendMeshEx_Has {
+	VWB_WARPBLENDMESHEX_HAS_NONE = 0x0,
+	VWB_WARPBLENDMESHEX_HAS_POS = 0x1,
+	VWB_WARPBLENDMESHEX_HAS_UV = 0x2,
+	VWB_WARPBLENDMESHEX_HAS_NORMALS = 0x4,
+	VWB_WARPBLENDMESHEX_HAS_TANGENTS = 0x8,
+	VWB_WARPBLENDMESHEX_HAS_BITANGENTS = 0x10, // TODO: revise if needed
+	VWB_WARPBLENDMESHEX_HAS_COLOR = 0x20
+};
+typedef struct VWB_WarpBlendVertexEx // for our shaders
+{
+	VWB_float pos[3]; // position x,y,z
+	VWB_float uv[2]; // the texture coordinate [0..1]
+	VWB_float n[3]; // the normal
+	VWB_float t[3]; // the tangent
+	VWB_float b[3]; // the bitangent
+	VWB_float rgba[4]; // color or blend factor [0..1]
+} VWB_WarpBlendVertexEx;
+typedef struct VWB_WarpBlendMeshEx // a triangle list mesh for preview or simple extern warp
+{
+	VWB_uint nVtx; // the number of vertices
+	VWB_WarpBlendVertexEx* vtx; // the vertices
+	VWB_uint nIdx; // number of indices
+	VWB_uint* idx;  // the index list
+	VWB_size dim;  // the dimension of the calibrated display in pixels
+	VWB_size gridDim; // the dimension of the calibrated display in pixels
+	VWB_word has; // bitfield @see VWB_WarpBlendVertexEx_Has
+}VWB_WarpBlendMeshEx;
+
 typedef struct VWB_WarpBlendHeader {
-	VWB_WarpFileHeader5 header;
+	VWB_WarpFileHeader6 header;
 	char path[MAX_PATH];
 } VWB_WarpBlendHeader;
 #ifdef __cplusplus
@@ -686,13 +814,17 @@ typedef struct VWB_WarpBlend : VWB_WarpBlendHeader{
 	};
 	VWB_BlendRecord* pBlack;
 	VWB_BlendRecord* pWhite;
+	VWB_WarpBlendMeshEx* pMesh;
+	VWB_BlendRecord* p2ndBlend;
+	VWB_BlendRecord* pDirectional;
+	VWB_size directionalSz;
 } VWB_WarpBlend;
 
 typedef std::vector<VWB_WarpBlend*> VWB_WarpBlendSet;
 typedef std::vector<VWB_WarpBlendHeader*> VWB_WarpBlendHeaderSet;
 #else // pure C
 typedef struct VWB_WarpBlend {
-	VWB_WarpFileHeader5 header;
+	VWB_WarpFileHeader6 header;
 	char path[MAX_PATH];
 	VWB_WarpRecord* pWarp;
 	union {
@@ -702,17 +834,21 @@ typedef struct VWB_WarpBlend {
 	};
 	VWB_BlendRecord* pBlack;
 	VWB_BlendRecord* pWhite;
+	VWB_WarpBlendMeshEx* pMesh;
+	VWB_BlendRecord* p2ndBlend;
+	VWB_BlendRecord* pDirectional;
+	VWB_size directionalSz;
 } VWB_WarpBlend;
 #endif
 
-typedef struct VWB_WarpBlendVertex
+typedef struct VWB_WarpBlendVertex // for preview or simple extern warp
 {
-	VWB_float pos[3]; // position [0..1]
+	VWB_float pos[3]; // position x,y,z
 	VWB_float uv[2]; // the texture coordinate [0..1]
 	VWB_float rgb[3]; // blend factor [0..1]
 } VWB_WarpBlendVertex;
 
-typedef struct VWB_WarpBlendMesh // a triangle list mesh
+typedef struct VWB_WarpBlendMesh // a triangle list mesh for preview or simple extern warp
 {
 	VWB_uint nVtx; // the number of vertices
 	VWB_WarpBlendVertex* vtx; // the vertices
@@ -720,8 +856,13 @@ typedef struct VWB_WarpBlendMesh // a triangle list mesh
 	VWB_uint* idx;  // the index list
 	VWB_size dim;  // the dimension of the calibrated display in pixels
 }VWB_WarpBlendMesh;
-
 #pragma pack(pop)
+
+enum dpCorrectionType
+{
+	dpStaticCorrection = 0,
+	dpDynamicCorrection = 1
+};
 
 #ifdef WIN32
 #include <Unknwn.h>

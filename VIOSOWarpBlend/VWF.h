@@ -16,18 +16,18 @@
 /// VWB_WarpSetFileHeader.reserved = 0;
 /// at absolute file position VWB_WarpSetFileHeader.off, write the first chunk which must be warp information, starting with a VWB_WarpFileHeader
 /// Mandatory header values:
-/// VWB_WarpFileHeader5.magicNumber = '0fwv';
-/// VWB_WarpFileHeader5.szHdr = sizeof( VWB_WarpFileHeader5 );
-/// VWB_WarpFileHeader5.width = w;
-/// VWB_WarpFileHeader5.height = h;
+/// VWB_WarpFileHeader6.magicNumber = '0fwv';
+/// VWB_WarpFileHeader6.szHdr = sizeof( VWB_WarpFileHeader6 );
+/// VWB_WarpFileHeader6.width = w;
+/// VWB_WarpFileHeader6.height = h;
 /// Optional values
-/// VWB_WarpFileHeader5.name = "channelName";
-/// VWB_WarpFileHeader5.primName = "screenName";
-/// VWB_WarpFileHeader5.hostName = "clientName";
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedLeft; // 0.4   for content rect
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedTop; // 0.1
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedRight; // 0.7
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedBottom; // 0.3
+/// VWB_WarpFileHeader6.name = "channelName";
+/// VWB_WarpFileHeader6.primName = "screenName";
+/// VWB_WarpFileHeader6.hostName = "clientName";
+/// VWB_WarpFileHeader6.vPartialCnt[0] = normalizedLeft; // 0.4   for content rect
+/// VWB_WarpFileHeader6.vPartialCnt[0] = normalizedTop; // 0.1
+/// VWB_WarpFileHeader6.vPartialCnt[0] = normalizedRight; // 0.7
+/// VWB_WarpFileHeader6.vPartialCnt[0] = normalizedBottom; // 0.3
 /// next is binary warp data: VWB_WarpRecord[width x height] 
 ///  midle-of-pixel aligned normalized lookup. 
 ///  2D: VWB_WarpRecord.{x = u; y = v; z = valid ? 1 : 0; w = 0}
@@ -54,6 +54,7 @@
 
 #include "../Include/VWBTypes.h"
 #include <iostream>
+#include <filesystem>
 
 /// @brief free memory used by a VWB_WarpBlend structure
 /// @param wb [INOUT] the warp blend to free
@@ -65,13 +66,14 @@ bool DeleteVWF( VWB_WarpBlendSet& set );
 bool DeleteVWF( VWB_WarpBlendHeaderSet& set );
 
 /// @brief load or scan vwf file
-/// @param set [OUT] the scanned set
-/// @param path [IN] a comma separated list of paths to load
+/// @param set [OUT] the set to add the mappings from the file
+/// @param path [IN] a path to load and add to the set
 /// @param bScanOnly [OPT|IN] scan only, if set to true, the actual loading is skipped; all data pointers are NULL. This is used to analyze the mappings and assign them to a specific channel by names and ident information in header
 /// @param [OPT|IN] a single index to load data. Do this after scanning, to save memory and loading time. The set headers are all filled, but mappings only loaded for that particular index. Set to -1 to load all.
 /// @param aesKey [OPT|IN] if set, encryption indication flag is set; must be char[16] array
 /// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if path null or empty string, VWB_ERROR_VWF_FILE_NOT_FOUND, if path can't be found or opened, VWB_ERROR_VWF_LOAD, if malformed, VWB_ERROR_GENERIC otherwise
-VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = false, int loadIndex = -1, const uint8_t* aesKey = nullptr );
+/// @param isUTF8 [OPT|IN] if set, fill path as UTF-8 string
+VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, std::filesystem::path const& path, bool bScanOnly = false, int loadIndex = -1, const uint8_t* aesKey = nullptr, bool isUTF8 = false );
 
 /// @brief split a warpblend, 
 /// @param wb [INOUT] the warpbend to be split
@@ -80,20 +82,20 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly = fal
 /// VWB_ERROR_GENERIC otherwise
 VWB_ERROR SplitVWF(VWB_WarpBlend& wb, const VWB_word (& calibSplit)[4]);
 
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os, VWB_word semantic = 0 );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord2 const* map, std::ostream& os );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_BlendRecord3 const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_BlendRecord const* map, std::ostream& os, VWB_word semantic = 0 );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_BlendRecord const* map, std::filesystem::path const& path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_BlendRecord2 const* map, std::filesystem::path const& path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_BlendRecord2 const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_BlendRecord3 const* map, std::filesystem::path const& path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_BlendRecord3 const* map, std::ostream& os );
 VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::ostream& os, const char* aesKey = nullptr );
-VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, char const* path, const char* aesKey = nullptr );
+VWB_ERROR SaveVWF( VWB_WarpBlendSet const& set, std::filesystem::path const&, const char* aesKey = nullptr );
 
 ///< @remark use SaveBMP   VWB_WarpRecord only for debug reasons, it will save 8 bit RGB only!
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, std::ostream& os );
-VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader5 const& h, VWB_BlendRecord const* map, char const* path );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, std::ostream& os );
-VWB_ERROR SaveBMP( VWB_WarpFileHeader5 const& h, VWB_WarpRecord const* map, char const* path );
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader6 const& h, VWB_BlendRecord const* map, std::ostream& os );
+VWB_ERROR SaveBMP_RGBA( VWB_WarpFileHeader6 const& h, VWB_BlendRecord const* map, std::filesystem::path const& path );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_WarpRecord const* map, std::ostream& os );
+VWB_ERROR SaveBMP( VWB_WarpFileHeader6 const& h, VWB_WarpRecord const* map, std::filesystem::path const& path );
 
 /// @brief merges warp and blend information from the set into a single VWB_WarpBlend structure, if the same monitor is addressed
 /// it also offsets and scales the warp if a split is partially used
@@ -105,7 +107,7 @@ bool VerifySet( VWB_WarpBlendSet& set, int iScanIndex = -1 );
 /// @brief scan a vwf file, to get the warp and blend information, but not loading the data
 /// @param path [IN] the path to the vwf file to scan
 /// @param set [OUT] the set to fill with the warp and blend information
-VWB_ERROR ScanVWF( char const* path, VWB_WarpBlendHeaderSet* set );
+VWB_ERROR ScanVWF(std::filesystem::path const& path, VWB_WarpBlendHeaderSet* set, bool isUTF8 = false );
 
 /// @brief upgrade set to be loaded to shader
 /// * blend gets changed into U16 format
@@ -150,7 +152,7 @@ VWB_ERROR CalculateDimensions( VWB_WarpBlend const& wb, int& dimX, int& dimY );
 /// @param [IN] splitY				the split display's row index
 /// @param [IN] hMonitor			the monitor handle, if 0, the first monitor is used
 /// @return VWB_ERROR_NONE in cas of success, VWB_ERROR_PARAMETER if some parameter is out of bound
-VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, const char* path, int xPos, int yPos, int width, int height, const char* displayName, int splitW = 1, int splitH = 1, int splitX = 0, int splitY = 0, VWB_uint hMonitor = 0 );
+VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, std::filesystem::path const& path, int xPos, int yPos, int width, int height, const char* displayName, int splitW = 1, int splitH = 1, int splitX = 0, int splitY = 0, bool isUTF8 = false );
 
 /// @brief Adds or replaces a blacklevel (beta) map.
 /// It sets FLAG_WARPFILE_HEADER_BLACKLEVEL_CORR to wb.header.flags

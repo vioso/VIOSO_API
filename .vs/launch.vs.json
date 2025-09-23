@@ -1,0 +1,14 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "DirectX12.exe",
+      "name": "DirectX12.exe",
+      "args": [ "-name", "0", "-ini", "data/dynamic/config.xml" ],
+      "env": {}
+    }
+  ]
+}

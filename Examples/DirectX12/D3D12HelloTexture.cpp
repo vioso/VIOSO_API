@@ -90,7 +90,7 @@ void D3D12HelloTexture::OnInit()
 
     if( nullptr != VWB_Create &&
         nullptr != VWB_Init ) {
-        if( VWB_ERROR_NONE == VWB_Create( m_commandQueue.Get(), m_iniPath.c_str(), m_channelName.c_str(), &m_warper, 0, NULL ) ) {
+        if( VWB_ERROR_NONE == VWB_Create( m_commandQueue.Get(), m_iniPath.c_str(), m_channelName.c_str(), &m_warper, 3, NULL ) ) {
             if( VWB_ERROR_NONE != VWB_Init( m_warper ) ) {
                 throw std::runtime_error( "Failed to initialize VIOSO Warper" );
             }

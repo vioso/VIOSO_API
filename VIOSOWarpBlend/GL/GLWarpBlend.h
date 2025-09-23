@@ -76,7 +76,7 @@ protected:
 	VWB_ERROR FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid const* data, GLint filter, GLenum wrap );
     void    SetTexture(GLuint texLoc, GLuint tex, GLuint wrapMode = GL_CLAMP_TO_BORDER, GLuint filter = GL_LINEAR ) const;
 	static GLfloat colBlack[4];
-	static bool savetex( char const* filename, GLint iTex );
+	static bool savetex( std::filesystem::path filename, GLint iTex );
 };
 
 #endif //ndef VWB_GLWARPBLEND_HPP

@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 #include "../VIOSOWarpBlend/mmath.h"
-#include "../VIOSOWarpBlend/StringConversions.h"
+#include "../Include/StringConversions.h"
 
 void eval( int l, char const* what, bool ok ) {
 	if( ok )
@@ -18,7 +18,9 @@ void eval( int l, char const* what, bool ok ) {
 
 #include "../VIOSOWarpBlend/test_mmath.cpp"
 #include "../VIOSOWarpBlend/test_threadpool.cpp"
+#include "../VIOSOWarpBlend/test_socket.cpp"
 #include <codecvt>
+
 
 // utility wrapper to adapt locale-bound facets for wstring/wbuffer convert
 template<class Facet>
@@ -35,8 +37,9 @@ int main( int argc, char* argv[] )
 
 	g_logLevel = 5;
 	logStr( 0, "-- START test --" );
-	test_mmath();
+	//test_mmath();
 	//test_threadpool();
+	test_socket();
 	{
 		using namespace VWBUtil;
 		//set_my_locale( std::locale("en_US.UTF-8") );
