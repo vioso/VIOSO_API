@@ -180,7 +180,7 @@ bool SaveTex( LPCSTR path, ID3D11Device* dev, ID3D11DeviceContext* dc, ID3D11Tex
 		{
 			logStr( 3, "Could not map dump texture." );
 		}
-		SAFERELEASE( pTexMem );
+		SAFE_RELEASE( pTexMem );
 	}
 	else
 	{
@@ -235,31 +235,31 @@ DX11WarpBlend::DX11WarpBlend( ID3D11Device* pDevice )
 
 DX11WarpBlend::~DX11WarpBlend(void)
 {
-	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_texRT );
+	SAFE_RELEASE( m_texCur );
+	SAFE_RELEASE( m_texBB );
+	SAFE_RELEASE( m_texRT );
 
-	SAFERELEASE( m_BlendState );
-	SAFERELEASE( m_DepthState );
+	SAFE_RELEASE( m_BlendState );
+	SAFE_RELEASE( m_DepthState );
 
-	SAFERELEASE( m_SSClamp );
-	SAFERELEASE( m_SSWrap );
-	SAFERELEASE( m_SSLin );
-	SAFERELEASE( m_ConstantBuffer );
-	SAFERELEASE( m_PixelShader );
+	SAFE_RELEASE( m_SSClamp );
+	SAFE_RELEASE( m_SSWrap );
+	SAFE_RELEASE( m_SSLin );
+	SAFE_RELEASE( m_ConstantBuffer );
+	SAFE_RELEASE( m_PixelShader );
 
-	SAFERELEASE( m_RasterState );
+	SAFE_RELEASE( m_RasterState );
 
-	SAFERELEASE( m_VertexBuffer );
-	SAFERELEASE( m_Layout );
-	SAFERELEASE( m_VertexShader );
+	SAFE_RELEASE( m_VertexBuffer );
+	SAFE_RELEASE( m_Layout );
+	SAFE_RELEASE( m_VertexShader );
 
-	SAFERELEASE( m_texBlack );
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texWarp );
+	SAFE_RELEASE( m_texBlack );
+	SAFE_RELEASE( m_texBlend );
+	SAFE_RELEASE( m_texWarp );
 
-	SAFERELEASE( m_dc );
-	SAFERELEASE( m_device );
+	SAFE_RELEASE( m_dc );
+	SAFE_RELEASE( m_device );
 
 	logStr( 1, "INFO: DX11-Warper destroyed.\n" );
 }
@@ -267,28 +267,28 @@ DX11WarpBlend::~DX11WarpBlend(void)
 VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 {
 	// make reinit OK
-	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_texRT );
+	SAFE_RELEASE( m_texCur );
+	SAFE_RELEASE( m_texBB );
+	SAFE_RELEASE( m_texRT );
 
-	SAFERELEASE( m_BlendState );
-	SAFERELEASE( m_DepthState );
+	SAFE_RELEASE( m_BlendState );
+	SAFE_RELEASE( m_DepthState );
 
-	SAFERELEASE( m_SSClamp );
-	SAFERELEASE( m_SSWrap );
-	SAFERELEASE( m_SSLin );
-	SAFERELEASE( m_ConstantBuffer );
-	SAFERELEASE( m_PixelShader );
+	SAFE_RELEASE( m_SSClamp );
+	SAFE_RELEASE( m_SSWrap );
+	SAFE_RELEASE( m_SSLin );
+	SAFE_RELEASE( m_ConstantBuffer );
+	SAFE_RELEASE( m_PixelShader );
 
-	SAFERELEASE( m_RasterState );
+	SAFE_RELEASE( m_RasterState );
 
-	SAFERELEASE( m_VertexBuffer );
-	SAFERELEASE( m_Layout );
-	SAFERELEASE( m_VertexShader );
+	SAFE_RELEASE( m_VertexBuffer );
+	SAFE_RELEASE( m_Layout );
+	SAFE_RELEASE( m_VertexShader );
 
-	SAFERELEASE( m_texBlack );
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texWarp );
+	SAFE_RELEASE( m_texBlack );
+	SAFE_RELEASE( m_texBlend );
+	SAFE_RELEASE( m_texWarp );
 
 	m_focusWnd = ::GetActiveWindow();
 	VWB_ERROR err = __super::Init( wbs );
@@ -450,9 +450,9 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			)
 		{
 			logStr( 0, "ERROR: Failed to create lookup textures.\n" );
-			SAFERELEASE( pTexWarp );
-			SAFERELEASE( pTexBlend );
-			SAFERELEASE( pTexBlack );
+			SAFE_RELEASE( pTexWarp );
+			SAFE_RELEASE( pTexBlend );
+			SAFE_RELEASE( pTexBlack );
 			if( dataWarp.pSysMem )
 			{
 				if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
@@ -462,9 +462,9 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			}
 			return VWB_ERROR_SHADER;
 		}
-		SAFERELEASE( pTexWarp );
-		SAFERELEASE( pTexBlend );
-		SAFERELEASE( pTexBlack );
+		SAFE_RELEASE( pTexWarp );
+		SAFE_RELEASE( pTexBlend );
+		SAFE_RELEASE( pTexBlack );
 		if( dataWarp.pSysMem )
 		{
 			if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
@@ -486,7 +486,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		if( FAILED( hr ) )
 		{
 			logStr( 0, "ERROR: The vertex shader code cannot be compiled: %s\n", pErrBlob->GetBufferPointer() );
-			SAFERELEASE( pErrBlob );
+			SAFE_RELEASE( pErrBlob );
 			return VWB_ERROR_SHADER;
 		}
 
@@ -573,7 +573,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			pixelShader.append( "BC" );
 #endif
 		ID3DBlob* pPSBlob = NULL;
-		SAFERELEASE( pErrBlob );
+		SAFE_RELEASE( pErrBlob );
 		if( bFlipDXVs )
 		{
 			hr = D3DCompile( s_pixelShaderDX4_vFlip, sizeof( s_pixelShaderDX4_vFlip ), NULL, NULL, NULL, pixelShader.c_str(), "ps_4_0", 0, 0, &pPSBlob, &pErrBlob );
@@ -585,7 +585,7 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		if( FAILED( hr ) )
 		{
 			logStr( 0, "ERROR: The pixel shader code cannot be compiled (%08X): %s\n", hr, pErrBlob->GetBufferPointer() );
-			SAFERELEASE( pErrBlob );
+			SAFE_RELEASE( pErrBlob );
 			return VWB_ERROR_SHADER;
 		}
 
@@ -697,10 +697,10 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( ctx != m_dc )
 	{
 		logStr( 3, "DX got other immediate context. Stop.\n" );
-		SAFERELEASE( ctx );
+		SAFE_RELEASE( ctx );
 		return VWB_ERROR_PARAMETER;
 	}
-	SAFERELEASE( ctx );
+	SAFE_RELEASE( ctx );
 
 	ID3D11DepthStencilView* pDSV = NULL;
 	ID3D11RenderTargetView* pRTV = NULL;
@@ -712,7 +712,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		m_dc->OMGetRenderTargets( 1, &pRTV, &pDSV );
 		if( NULL == pRTV )
 		{
-			SAFERELEASE( pDSV );
+			SAFE_RELEASE( pDSV );
 			logStr( 3, "Render target not available.\n" );
 			return VWB_ERROR_GENERIC;
 		}
@@ -852,7 +852,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 						else
 						{
 							logStr( 2, "Failed to create clone texture view (%0x08x).\n", res );
-							SAFERELEASE( m_texBB );
+							SAFE_RELEASE( m_texBB );
 							return VWB_ERROR_GENERIC;
 						}
 					}
@@ -879,7 +879,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				ID3D11Resource* pResDst = NULL;
 				m_texBB->GetResource( &pResDst );
 				m_dc->CopyResource( pResDst, pRes );
-				SAFERELEASE( pResDst );
+				SAFE_RELEASE( pResDst );
 				logStr( 4, " Done.\n" );
 			}
 			else
@@ -909,9 +909,9 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_texBB->GetResource( &pRes );
 			if( pRes != pTexIn )
 			{
-				SAFERELEASE( m_texBB );
+				SAFE_RELEASE( m_texBB );
 			}
-			SAFERELEASE( pRes );
+			SAFE_RELEASE( pRes );
 		}
 
 		if( NULL == m_texBB )
@@ -975,7 +975,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			);
 		}
 
-		SAFERELEASE( pTexIn );
+		SAFE_RELEASE( pTexIn );
 	}
 
 	if( 3 < g_logLevel )
@@ -992,13 +992,13 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				o += ".tex.in.bmp";
 				logStr(4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o.string().c_str());
 				SaveTex(o.string().c_str(), m_device, m_dc, pTex);
-				SAFERELEASE( pTex );
+				SAFE_RELEASE( pTex );
 			}
 			else
 			{
 				logStr( 3, "Could not query input texture." );
 			}
-			SAFERELEASE( pRes );
+			SAFE_RELEASE( pRes );
 		}
 		else
 		{
@@ -1128,7 +1128,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 				if( nullptr != m_texCur && g_dimCur.cx != static_cast<UINT>( bmMask.bmWidth ) )
 				{
-					SAFERELEASE( m_texCur );
+					SAFE_RELEASE( m_texCur );
 				}
 
 				if( nullptr == m_texCur && bmMask.bmWidth )
@@ -1161,7 +1161,7 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 						logStr( 0, "WARNING: Failed to create mouse cursor textures. Mouse rendering disabled.\n" );
 						mouseMode &= ~1;
 					}
-					SAFERELEASE( pTexCur );
+					SAFE_RELEASE( pTexCur );
 				}
 
 				BYTE* pData = new BYTE[4 * (ptrdiff_t)g_dimCur.cx  * (ptrdiff_t)g_dimCur.cy];
@@ -1176,11 +1176,11 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				{
 					logStr( 0, "WARNING: Failed to fill mouse texture. Mouse rendering disabled.\n" );
 					mouseMode &= ~1;
-					SAFERELEASE( m_texCur );
+					SAFE_RELEASE( m_texCur );
 				}
 				::DeleteObject( ii.hbmColor );
 				::DeleteObject( ii.hbmMask );
-				SAFERELEASE( res );
+				SAFE_RELEASE( res );
 				delete[] pData;
 
 			}
@@ -1264,8 +1264,8 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			m_dc->ClearRenderTargetView( pRTV, _black );
 		}
 	}
-	SAFERELEASE( pDSV );
-	SAFERELEASE( pRTV );
+	SAFE_RELEASE( pDSV );
+	SAFE_RELEASE( pRTV );
 	m_dc->Draw( 6, 0 );
 	res = S_OK;
 /////////// restore state
@@ -1278,21 +1278,21 @@ VWB_ERROR DX11WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( VWB_STATEMASK_SAMPLER & stateMask )
 	{
 		m_dc->PSSetSamplers( 0, 5, ppOldSS );
-		SAFERELEASE( ppOldSS[0] );
-		SAFERELEASE( ppOldSS[1] );
-		SAFERELEASE( ppOldSS[2] );
-		SAFERELEASE( ppOldSS[3] );
-		SAFERELEASE( ppOldSS[4] );
+		SAFE_RELEASE( ppOldSS[0] );
+		SAFE_RELEASE( ppOldSS[1] );
+		SAFE_RELEASE( ppOldSS[2] );
+		SAFE_RELEASE( ppOldSS[3] );
+		SAFE_RELEASE( ppOldSS[4] );
 	}
 
 	if( VWB_STATEMASK_SHADER_RESOURCE & stateMask )
 	{
 		m_dc->PSSetShaderResources( 0, 5, ppOldSRV );
-		SAFERELEASE( ppOldSRV[0] );
-		SAFERELEASE( ppOldSRV[1] );
-		SAFERELEASE( ppOldSRV[2] );
-		SAFERELEASE( ppOldSRV[3] );
-		SAFERELEASE( ppOldSRV[4] );
+		SAFE_RELEASE( ppOldSRV[0] );
+		SAFE_RELEASE( ppOldSRV[1] );
+		SAFE_RELEASE( ppOldSRV[2] );
+		SAFE_RELEASE( ppOldSRV[3] );
+		SAFE_RELEASE( ppOldSRV[4] );
 	}
 	else if( inputTexture )
 	{ // at least unbind input texture

@@ -14,6 +14,7 @@
 #include <sstream>
 #include <map>
 #include <limits>
+#include <span>
 
 #define STB_IMAGE_IMPLEMENTATION
 #ifdef WIN32
@@ -193,9 +194,9 @@ VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asT
 	}
 
 	// orientation euler
+	wb.header.dir[1] = std::stof( std::string( value_views[3] ) ); // heading is around Z axis
 	wb.header.dir[0] = std::stof( std::string( value_views[4] ) ); // pitch is around X axis
-	wb.header.dir[1] = -std::stof( std::string( value_views[3] ) ); // heading is around Y axis
-	wb.header.dir[2] = std::stof( std::string( value_views[5] ) ); // bank is around Z axis
+	wb.header.dir[2] = std::stof( std::string( value_views[5] ) ); // bank is around Y axis
 
 	if( asTarget ) {
 		// target, we have (0)x;y;z;(3)heading;pitch;bank;(6)left;right;bottom;top;(10)width;height;(12)normalx;normaly;normalz;(15)c0x;c0y;c0z;c1x;c1y;c1z;c2x;c2y;c2z;c3x;c3y;c3z
@@ -204,51 +205,77 @@ VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asT
 			logStr( 1, "ERROR: LoadDPFrustum malformed target file: too few values." );
 			return VWB_ERROR_VWF_LOAD;
 		} else {
-			// position .pos is (0,0,0) initial and meant to move, so we don't set it here
+			// trans matrix: it scales Meter to Millimeter, swaps y and z and moves to pos
+			auto Bi = VWB_MAT44f(
+				0.001f,     0.f,    0.f, 0.f,
+				0.f,     0.f, 0.001f, 0.f,
+				0.f, -0.001f,    0.f, 0.f,
+				0.f,     0.f,    0.f, 1.f );
 
+			// position .pos is (0,0,0) initial and meant to move, so we don't set it here
+			// the first 3 values are the perpendicular from origin to the screen plane
+			auto ref = Bi * VWB_VEC3f( std::stof( std::string( value_views[0] ) ),
+									   std::stof( std::string( value_views[1] ) ),
+									   std::stof( std::string( value_views[2] ) ) );
+			
 			// screen normal
-			VWB_VEC3f normal;
-			// z is up and y is forward in domeprojection, but we need that just once here, as it will be corrected by the base transformation matrix later
-			normal.x = std::stof( std::string( value_views[12] ) );
-			normal.y = -std::stof( std::string( value_views[14] ) );
-			normal.z = std::stof( std::string( value_views[13] ) );
+			// z is up and y is forward in domeprojection, but we need that just once here, 
+			// as it will be corrected by the base transformation matrix later
+			// nothing except the calculated FoVs and the screen distance
+			auto normal = VWB_VEC3f( std::stof( std::string( value_views[12] ) ),
+									 std::stof( std::string( value_views[14] ) ),
+									-std::stof( std::string( value_views[13] ) ) );
+
+			wb.header.screen = normal.dot( ref );
 
 			// screen corners
 			VWB_VEC3f corners[4]; // top-left, top-right, bottom-right, bottom-left
 			for( int i = 0; i < 4; i++ ) {
-				corners[i].x = std::stof( std::string( value_views[15 + i * 3] ) );
-				corners[i].y = -std::stof( std::string( value_views[17 + i * 3] ) );
-				corners[i].z = std::stof( std::string( value_views[16 + i * 3] ) );
+				corners[i] = Bi * VWB_VEC3f( std::stof( std::string( value_views[15 + i * 3] ) ),
+											 std::stof( std::string( value_views[16 + i * 3] ) ),
+											 std::stof( std::string( value_views[17 + i * 3] ) ) );
 			}
 
-			// each corner should be same distance from origin along the normal
-			auto v0 = corners[0].dot( normal );
-			auto v1 = corners[0].dot( normal );
-			auto v2 = corners[0].dot( normal );
-			auto v3 = corners[0].dot( normal );
+			auto dx = corners[1] + corners[2] - corners[0] - corners[3]; // left -> right
+			auto dy = corners[0] + corners[1] - corners[2] - corners[3]; // down -> up
+			//auto R = VWB_MAT33f::Base( dx, dy ); // right, up
+			auto R = VWB_MAT33f::R( DEG2RADf( wb.header.dir[0] ), DEG2RADf( wb.header.dir[1] ), DEG2RADf( wb.header.dir[2] ) );
 
-			// v0, v1, v2, v3 should be almost identical and > 0
-			if( !close( v0, v1 ) || !close( v0, v2 ) || !close( v0, v3 ) || 0 >= v0 ) {
-				logStr( 1, "ERROR: LoadDPFrustum malformed target file: screen corners not coplanar.\n" );
+			float maxL = FLT_MAX, maxT = -FLT_MAX, maxR = -FLT_MAX, maxB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom
+
+			for( auto const& v : std::span( corners, 4 ) ) {
+				auto vTT = R * v;
+				float vx = -vTT.x / vTT.z;
+				float vy = -vTT.y / vTT.z;
+
+				if( maxL > vx ) // left, minimal x (x points right)
+					maxL = vx;
+				if( maxT < vy ) // top, maximal y (y points up)
+					maxT = vy;
+				if( maxR < vx ) // right, maximal x
+					maxR = vx;
+				if( maxB > vy ) // bottom, minimal y
+					maxB = vy;
+			}
+			if( FLT_MAX == maxL || FLT_MAX == maxT || -FLT_MAX == maxR || -FLT_MAX == maxB ) {
+				logStr( 1, "WARNING: AutoView cannot calculate FoVs.\n" );
 				return VWB_ERROR_VWF_LOAD;
 			}
-			// distance of screen plane from origin
-			wb.header.screen = ( v0 + v1 + v2 + v3 ) / 4;
 
 			// calculate angles in degrees
-			wb.header.fov[0] = RAD2DEG( atan2f( wb.header.screen, -std::stof( std::string( value_views[6] ) ) ) );   // left
-			wb.header.fov[1] = RAD2DEG( atan2f( wb.header.screen, std::stof( std::string( value_views[9] ) ) ) );	 // top
-			wb.header.fov[2] = RAD2DEG( atan2f( wb.header.screen, std::stof( std::string( value_views[7] ) ) ) );	 // right
-			wb.header.fov[3] = RAD2DEG( atan2f( wb.header.screen, -std::stof( std::string( value_views[8] ) ) ) );	 // bottom
+			wb.header.fov[0] = VWB_float( RAD2DEG( atan( -maxL ) ) );   // left
+			wb.header.fov[1] = VWB_float( RAD2DEG( atan( maxT ) ) );	 // top
+			wb.header.fov[2] = VWB_float( RAD2DEG( atan( maxR ) ) );	 // right
+			wb.header.fov[3] = VWB_float( RAD2DEG( atan( -maxB ) ) );	 // bottom
 		}
 	} else {
 		// frustum
 		// we have (0)x;y;z;(3)heading;pitch;bank;(6)left;right;bottom;top;(10)tanLeft;tanRight;tanBottom;tanTop;(14)width;height
 
-		// position, this is the eye point, in case of target, this is the perpendicular 
+		// position, this is the eye point in case of frustum, in case of target, this is the perpendicular 
 		wb.header.pos[0] = std::stof( std::string( value_views[0] ) );
 		wb.header.pos[1] = std::stof( std::string( value_views[1] ) );
-		wb.header.pos[2] = -std::stof( std::string( value_views[2] ) );
+		wb.header.pos[2] = std::stof( std::string( value_views[2] ) ); // TODO: check if we need axis swap
 
 		// -left, right, -bottom, top -> left, top, right, bottom, these are angles in case of frustum, sizes of the projection plane if target
 		wb.header.fov[0] = -std::stof( std::string( value_views[6] ) );
@@ -309,7 +336,7 @@ VWB_ERROR LoadDPShape(std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 		v.pos[0] = std::stof( std::string( value_views[0] ) );
 		auto f = std::stof( std::string( value_views[1] ) );
 		v.pos[1] = flipVertices ? 1.f - f : f;
-		v.pos[2] = -std::stof( std::string( value_views[2] ) );
+		v.pos[2] = std::stof( std::string( value_views[2] ) );
 		// texture coordinate
 		v.uv[0] = std::stof( std::string( value_views[3] ) );
 		f = std::stof( std::string( value_views[4] ) );
@@ -319,7 +346,7 @@ VWB_ERROR LoadDPShape(std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 			// normal
 			v.n[0] = std::stof( std::string( value_views[5] ) );
 			v.n[1] = std::stof( std::string( value_views[6] ) );
-			v.n[2] = -std::stof( std::string( value_views[7] ) );
+			v.n[2] = std::stof( std::string( value_views[7] ) );
 			hasNormals = true;
 		}
 
@@ -327,7 +354,7 @@ VWB_ERROR LoadDPShape(std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 			// tangent
 			v.t[0] = std::stof( std::string( value_views[8] ) );
 			v.t[1] = std::stof( std::string( value_views[9] ) );
-			v.t[2] = -std::stof( std::string( value_views[10] ) );
+			v.t[2] = std::stof( std::string( value_views[10] ) );
 			hasTangents = true;
 		}
 
@@ -335,7 +362,7 @@ VWB_ERROR LoadDPShape(std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 			// bitangent
 			v.b[0] = std::stof( std::string( value_views[11] ) );
 			v.b[1] = std::stof( std::string( value_views[12] ) );
-			v.b[2] = -std::stof( std::string( value_views[13] ) );
+			v.b[2] = std::stof( std::string( value_views[13] ) );
 			hasBitangents = true;
 		}
 
@@ -510,23 +537,23 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 
 	if( !paths[1].empty() ) { // blend
 		int w = 0, h = 0;
-		if( stbi_is_16_bit( (char const*)paths[1].u8string().c_str() ) ) {
-			auto blendData = stbi_load_16( (char const*)paths[1].u8string().c_str(), &w, &h, NULL, 4 );
-			if( blendData ) {
-				wb.header.width = w;
-				wb.header.height = h;
-				wb.pBlend2 = new VWB_BlendRecord2[w * h];
-				wb.header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
-				wb.header.flags &= ~FLAG_WARPFILE_HEADER_BLENDV2;
-				memcpy( wb.pBlend, blendData, w * h * 4 );
-				stbi_image_free( blendData );
-				logStr( 2, "INFO: LoadDP: 16-bit Blend file \"%s\" loaded.\n", paths[1].string().c_str() );
-			} else {
-				logStr( 1, "ERROR: LoadDP: Error loading 16-bit blend from \"%s\"\n", paths[1].string().c_str() );
-				DeleteVWF( wb );
-				return VWB_ERROR_VWF_LOAD;
-			}
-		} else {
+		//if( stbi_is_16_bit( (char const*)paths[1].u8string().c_str() ) ) {
+		//	auto blendData = stbi_load_16( (char const*)paths[1].u8string().c_str(), &w, &h, NULL, 4 );
+		//	if( blendData ) {
+		//		wb.header.width = w;
+		//		wb.header.height = h;
+		//		wb.pBlend2 = new VWB_BlendRecord2[w * h];
+		//		wb.header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
+		//		wb.header.flags &= ~FLAG_WARPFILE_HEADER_BLENDV2;
+		//		memcpy( wb.pBlend, blendData, w * h * 4 );
+		//		stbi_image_free( blendData );
+		//		logStr( 2, "INFO: LoadDP: 16-bit Blend file \"%s\" loaded.\n", paths[1].string().c_str() );
+		//	} else {
+		//		logStr( 1, "ERROR: LoadDP: Error loading 16-bit blend from \"%s\"\n", paths[1].string().c_str() );
+		//		DeleteVWF( wb );
+		//		return VWB_ERROR_VWF_LOAD;
+		//	}
+		//} else {
 			auto blendData = stbi_load( (char const*)paths[1].u8string().c_str(), &w, &h, NULL, 4 );
 			if( blendData ) {
 				wb.header.width = w;
@@ -541,7 +568,7 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 				DeleteVWF( wb );
 				return VWB_ERROR_VWF_LOAD;
 			}
-		}
+		//}
 	} 
 
 	if( !paths[2].empty() ) { // blacklevel
@@ -672,6 +699,12 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 	}
 	if( wb.header.hMonitor == 0 )
 		wb.header.hMonitor = 1;
+
+	if( !wb.pMesh ) {
+		logStr( 1, "ERROR: LoadDP: No valid warp or shape loaded.\n" );
+		DeleteVWF( wb );
+		return VWB_ERROR_VWF_LOAD;
+	}
 
 	set.push_back( new VWB_WarpBlend( wb ) );
 	return VWB_ERROR_NONE;

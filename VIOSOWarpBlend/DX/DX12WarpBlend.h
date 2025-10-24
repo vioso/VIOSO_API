@@ -25,14 +25,21 @@ protected:
 	ID3D12PipelineState*		m_pipelineState;	// the pipeline
 	ID3D12Resource*				m_vertexBuffer;		// the vertex buffer
 	D3D12_VERTEX_BUFFER_VIEW    m_vertexBufferView;    // the vertex buffer view
+	ID3D12Resource*				m_indexBuffer;		// the index buffer
+	D3D12_INDEX_BUFFER_VIEW		m_indexBufferView;    // the index buffer view
 	ID3D12Resource*				m_texWarp;
 	ID3D12Resource*				m_texBlend;
 	ID3D12Resource*				m_texBlack;
 	ID3D12Resource*				m_texCur;
+	ID3D12Resource*				m_texBlend2; // the second blend texture
+	ID3D12Resource*				m_texDirectionalShading; // the directional shading texture
+	ID3D12Resource*				m_texDUMMY; // the directional shading texture
 	ID3D12Resource*				m_texBB;
 	ID3D12Resource*				m_cb; // the constant buffer
 	void*						m_cbMap; // the constant buffer map address
 	D3D12_VIEWPORT				m_vp;				// the viewport, if width and height is set, use it on begin of rendering
+	VWB_uint					m_nIndices;			// number of indices in the index buffer
+
 
 public:
 	///< the constructor

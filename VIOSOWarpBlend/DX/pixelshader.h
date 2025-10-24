@@ -730,3 +730,348 @@ float4 PSWB3DBC( VS_OUT vIn ) : SV_Target
 	return vOut;                                
 }
 )END";
+
+static const char* s_dpShaderDX4_A = R"XX(\
+cbuffer cbConstData : register(b0)
+{
+	float4 cb[4];
+	matrix camera_mvp;
+	float4 camera_position;
+};
+// the params are used to avoid branching in the shader, so whenever use as if( param[0] ) or param[0] ? a : b, so the GPU can shortcut
+// otherwise it will execute both, if and else parts, and blend the result
+// 0: gamma, // gamma linearization for mapping textures
+// 1: warping, // 0: no warping, 1: warping
+// 2: blending, // 0: no blending, 1: blending
+// 3: bla, // 0: no black level adjustment, otherwise it is multiplied to the sampled value
+// 4: secondary blending, // 0: no secondary blending, 1: secondary blending
+// 5: input gamma, // input gamma for content
+// 6: output gamma, // output gamma for content
+// 7: color correction, // 0: no color correction, otherwise it is multiplied to the sampled value
+// 8: flip_v, // 0 : no flip, 1: flip vertically
+// 9: true: use LINEAR + UV ADDRESS WRAP sampling in content, LINEAR + BORDER otherwise
+// 10-15: reserved
+static float params[16] = (float[16])cb;
+
+static const float HALF_PI = 1.57079632679489661923f;
+
+// Define quad vertices as constants
+static const float4 vertices[4] = {
+    float4(-1.0f,  1.0f, 0.0f, 1.0f),   // Top-left
+    float4( 1.0f,  1.0f, 0.0f, 1.0f),    // Top-right
+    float4(-1.0f, -1.0f, 0.0f, 1.0f),  // Bottom-left
+    float4( 1.0f, -1.0f, 0.0f, 1.0f)    // Bottom-right
+};
+static const float2 uvs[4] = {
+    float2( 0.0f, 0.0f ),   // Top-left
+    float2( 1.0f, 0.0f ),    // Top-right
+    float2( 0.0f, 1.0f ),  // Bottom-left
+    float2( 1.0f, 1.0f )    // Bottom-right
+};
+
+// Vertex shader input structure
+struct VSInput
+{
+    uint vertexID : SV_VertexID;
+};
+
+struct VS_INPUT
+{
+	float3 Pos : POSITION0; // the 3D position of the mesh, the actual screen
+	float2 Tex      : TEXCOORD0; // the pixel uv of the display
+	float3 Normal    : NORMAL; // the screen normal
+	float3 Tangent   : TANGENT; // the screen tangent
+};
+
+struct VS_OUTPUT
+{
+	float4 Position : SV_POSITION; // the vertex position in screen space, z is 0..1 depth, normally this is same like tex0
+	float2 Tex0     : TEXCOORD0; // the lookup coordinate in screen-sized mapping texture
+	float2 Tex1		: TEXCOORD1; // the lookup coordinate for the content
+	float2 Tex2     : TEXCOORD2; // lookup in directional shading map
+};
+
+Texture2D txDirectionalShading : register(t0); // the directional shading texture
+Texture2D txBlending : register(t1); // the blending texture
+Texture2D txBlackLevel : register(t2); // the black level uplift alias beta texture
+Texture2D txSecondaryBlending : register(t3); // the secondary blending texture
+Texture2D texContent : register(t4); // the content texture
+SamplerState samLinear : register(s0); // UV LINEAR + BORDER
+SamplerState samPoint : register(s1); // UV POINT + BORDER
+SamplerState samLinWrap : register(s2); // UV LINEAR + WRAP
+
+struct PS_OUTPUT
+{
+	float4 Color : SV_Target;
+};
+
+VS_OUTPUT VSMESH(in VS_INPUT In)
+{
+	VS_OUTPUT Out;
+	Out.Position = mul( float4( In.Pos, 1 ), camera_mvp );
+
+	// pass through texture coordinate, to sample from mappings
+	Out.Tex0 = float2( In.Tex.x, params[8] > 0.0 ? 1.0 - In.Tex.y : In.Tex.y );
+
+	// get content uv from normalized device coordinates
+	Out.Tex1 = Out.Position.xy;
+	Out.Tex1 /= Out.Position.w;
+	Out.Tex1.x += 1.0;
+	Out.Tex1.x *= 0.5;
+	if( params[8] > 0.0 ) {
+		Out.Tex1.y += 1.0;
+		Out.Tex1.y *= 0.5;
+	} else {
+		Out.Tex1.y -= 1.0;
+		Out.Tex1.y *= -0.5;
+	}
+		
+	// calculate the color correction look up
+	float3 dir = camera_position.xyz - In.Pos;
+	// if direction is too flat, or no normals given, use a default direction
+	if( !params[7] || length(dir) > 0.0001 && ( In.Normal.x != 0 || In.Normal.y != 0 && In.Normal.z != 0 ) )  {
+		dir = normalize( dir );
+		float3 bitan = normalize( cross( In.Normal, In.Tangent ) );
+		// projecting eye by tangent and bitangent effectively gives a perspective mapping
+		float2 dvec = float2( dot( dir, In.Tangent ), dot( dir, bitan ) );
+		// go from perspective to spherical mapping
+		dvec *= acos( clamp( dot( dir, In.Normal ), -1.0, 1.0 ) ) / HALF_PI;
+		Out.Tex2 = float2( ( dvec.x + 1.0 ) / 2.0, 1.0 - ( dvec.y + 1.0 ) / 2.0 );
+	} else {
+		Out.Tex2 = float2( 0.5, 0.5 ); // neutral direction
+	}
+	return Out;
+}
+
+PS_OUTPUT PSDP(in VS_OUTPUT In)
+{
+	float3 gamma = float3(params[0], params[0], params[0]);
+	float3 inputGamma = float3(params[5], params[5], params[5]);
+	float3 outputGamma = float3(params[6], params[6], params[6]);
+
+	// sample content
+	float3 output;
+	if( params[9] > 0.0 )
+		output = texContent.Sample( samLinWrap, lerp( In.Tex0, In.Tex1, params[1] ) ).rgb;
+	else
+		output = texContent.Sample( samLinear, lerp( In.Tex0, In.Tex1, params[1] ) ).rgb;
+	output = pow( output, inputGamma ); // linearize content
+
+	// apply directional shading, TODO: move linearization to texture loader
+	if( params[7] > 0.0 ) {
+		float3 clcrt = txDirectionalShading.Sample( samLinWrap, In.Tex2 ).rgb * params[7];
+		clcrt = pow( clcrt, gamma );
+		output *= clcrt;
+	}
+
+	// apply blending, TODO: move linearization to texture loader
+	if( params[2] > 0.0 ) {
+		float3 blend1 = txBlending.Sample( samLinear, In.Tex1 ).rgb;
+		blend1 = pow( blend1, gamma );  // linearize
+		output *= blend1;
+	}
+
+	// apply secondary blending, TODO: move linearization to texture loader
+	if( params[4] > 0.0 ) {
+		float3 blend2 = txSecondaryBlending.Sample( samLinear, In.Tex1 ).rgb;
+		blend2 = pow( blend2, gamma );  // linearize
+		output *= blend2;
+	}
+
+	// apply black level uplift, TODO: move linearization to texture loader
+	if( params[3] > 0.0 ) {
+		float3 bla = txBlackLevel.Sample(samLinear, In.Tex1).rgb * params[3];
+	    bla = pow( bla, gamma ); // linearize
+		output = output * ( 1.0 - bla ) + bla;
+	}
+	output = pow( output, 1.0 / outputGamma); // TODO: use reciprocal of outputGamma in params[6] to save a division
+
+	PS_OUTPUT Out;
+	Out.Color = float4(output.rgb, 1.0);
+	return Out;
+}
+
+PS_OUTPUT PS(in VS_OUTPUT In)
+{
+	 PS_OUTPUT Out;
+	 Out.Color = texContent.Sample(samLinear, In.Tex0);
+	 return Out;
+}
+
+)XX";
+
+static const char* s_dpShaderDX4 = R"XX(\
+cbuffer cbConstData : register(b0)
+{
+	float4 cb[4];
+	matrix camera_mvp;
+	float4 camera_position;
+};
+// the params are used to avoid branching in the shader, so whenever use as if( param[0] ) or param[0] ? a : b, so the GPU can shortcut
+// otherwise it will execute both, if and else parts, and blend the result
+// 0: gamma, // gamma linearization for mapping textures
+// 1: warping, // 0: no warping, 1: warping
+// 2: blending, // 0: no blending, 1: blending
+// 3: bla, // 0: no black level adjustment, otherwise it is multiplied to the sampled value
+// 4: secondary blending, // 0: no secondary blending, 1: secondary blending
+// 5: input gamma, // input gamma for content
+// 6: output gamma, // output gamma for content
+// 7: color correction, // 0: no color correction, otherwise it is multiplied to the sampled value
+// 8: flip_v, // 0 : no flip, 1: flip vertically
+// 9: true: use LINEAR + UV ADDRESS WRAP sampling in content, LINEAR + BORDER otherwise
+// 10-15: reserved
+static float params[16] = (float[16])cb;
+
+static const float HALF_PI = 1.57079632679489661923f;
+
+// Define quad vertices as constants
+static const float4 vertices[4] = {
+    float4(-1.0f,  1.0f, 0.0f, 1.0f),   // Top-left
+    float4( 1.0f,  1.0f, 0.0f, 1.0f),    // Top-right
+    float4(-1.0f, -1.0f, 0.0f, 1.0f),  // Bottom-left
+    float4( 1.0f, -1.0f, 0.0f, 1.0f)    // Bottom-right
+};
+static const float2 uvs[4] = {
+    float2( 0.0f, 0.0f ),   // Top-left
+    float2( 1.0f, 0.0f ),    // Top-right
+    float2( 0.0f, 1.0f ),  // Bottom-left
+    float2( 1.0f, 1.0f )    // Bottom-right
+};
+
+// Vertex shader input structure
+struct VSInput
+{
+    uint vertexID : SV_VertexID;
+};
+
+struct VS_INPUT
+{
+	float3 Pos : POSITION0; // the 3D position of the mesh, the actual screen
+	float2 Tex      : TEXCOORD0; // the pixel uv of the display
+	float3 Normal    : NORMAL; // the screen normal
+	float3 Tangent   : TANGENT; // the screen tangent
+};
+
+struct VS_OUTPUT
+{
+	float4 Position : SV_POSITION; // the vertex position in screen space, z is 0..1 depth, normally this is same like tex0
+	float2 Tex0     : TEXCOORD0; // the lookup coordinate in screen-sized mapping texture
+	float2 Tex1		: TEXCOORD1; // the lookup coordinate for the content
+	float2 Tex2     : TEXCOORD2; // lookup in directional shading map
+};
+
+Texture2D txDirectionalShading : register(t0); // the directional shading texture
+Texture2D txBlending : register(t1); // the blending texture
+Texture2D txBlackLevel : register(t2); // the black level uplift alias beta texture
+Texture2D txSecondaryBlending : register(t3); // the secondary blending texture
+Texture2D texContent : register(t4); // the content texture
+SamplerState samLinear : register(s0); // UV LINEAR + BORDER
+SamplerState samPoint : register(s1); // UV POINT + BORDER
+SamplerState samLinWrap : register(s2); // UV LINEAR + WRAP
+
+struct PS_OUTPUT
+{
+	float4 Color : SV_Target;
+};
+
+VS_OUTPUT VSMESHX(in VS_INPUT In)
+{
+	VS_OUTPUT Out;
+	Out.Position = float4( Out.Tex0.x * 2 - 1.0, 1.0 - Out.Tex0.y * 2, 0, 1.0 );
+	return Out;
+}
+
+VS_OUTPUT VSMESH(in VS_INPUT In)
+{
+	VS_OUTPUT Out;
+	float4 pos = mul( float4( In.Pos, 1 ), camera_mvp );
+	// pass through texture coordinate, to sample from mappings
+	Out.Tex0 = float2( In.Tex.x, params[8] > 0.0 ? 1.0 - In.Tex.y : In.Tex.y );
+	Out.Position = float4( Out.Tex0.x * 2 - 1.0, 1.0 - Out.Tex0.y * 2, 0, 1.0 );
+
+	// get content uv from normalized device coordinates
+	Out.Tex1 = pos.xy;
+	Out.Tex1 /= pos.w;
+	Out.Tex1.x += 1.0;
+	Out.Tex1.x *= 0.5;
+	if( params[8] > 0.0 ) {
+		Out.Tex1.y += 1.0;
+		Out.Tex1.y *= 0.5;
+	} else {
+		Out.Tex1.y -= 1.0;
+		Out.Tex1.y *= -0.5;
+	}
+		
+	// calculate the color correction look up
+	float3 dir = camera_position.xyz - In.Pos;
+	// if direction is too flat, or no normals given, use a default direction
+	if( params[7] && length(dir) > 0.0001 && ( In.Normal.x != 0 || In.Normal.y != 0 && In.Normal.z != 0 ) )  {
+		dir = normalize( dir );
+		float3 bitan = normalize( cross( In.Normal, In.Tangent ) );
+		// projecting eye by tangent and bitangent effectively gives a perspective mapping
+		float2 dvec = float2( dot( dir, In.Tangent ), dot( dir, bitan ) );
+		// go from perspective to spherical mapping
+		//dvec *= acos( clamp( dot( dir, In.Normal ), -1.0, 1.0 ) ) / HALF_PI;
+		Out.Tex2 = dvec; //float2( ( dvec.x + 1.0 ) / 2.0, 1.0 - ( dvec.y + 1.0 ) / 2.0 );
+	} else {
+		Out.Tex2 = float2( 0.5, 0.5 ); // neutral direction
+	}
+	return Out;
+}
+
+PS_OUTPUT PSDP(in VS_OUTPUT In)
+{
+	float3 gamma = float3(params[0], params[0], params[0]);
+	float3 inputGamma = float3(params[5], params[5], params[5]);
+	float3 outputGamma = float3(params[6], params[6], params[6]);
+
+	// sample content
+	float3 output;
+	if( params[9] > 0.0 )
+		output = texContent.Sample( samLinWrap, lerp( In.Tex0, In.Tex1, params[1] ) ).rgb;
+	else
+		output = texContent.Sample( samLinear, lerp( In.Tex0, In.Tex1, params[1] ) ).rgb;
+	output = pow( output, inputGamma ); // linearize content
+
+	// apply directional shading, TODO: move linearization to texture loader
+	if( params[7] > 0.0 ) {
+		float3 clcrt = txDirectionalShading.Sample( samLinWrap, In.Tex2 ).rgb * params[7];
+		clcrt = pow( clcrt, gamma );
+		output *= clcrt;
+	}
+
+	// apply blending, TODO: move linearization to texture loader
+	if( params[2] > 0.0 ) {
+		float3 blend1 = txBlending.Sample( samLinear, In.Tex1 ).rgb;
+		blend1 = pow( blend1, gamma );  // linearize
+		output *= blend1;
+	}
+
+	// apply secondary blending, TODO: move linearization to texture loader
+	if( params[4] > 0.0 ) {
+		float3 blend2 = txSecondaryBlending.Sample( samLinear, In.Tex1 ).rgb;
+		blend2 = pow( blend2, gamma );  // linearize
+		output *= blend2;
+	}
+
+	// apply black level uplift, TODO: move linearization to texture loader
+	if( params[3] > 0.0 ) {
+		float3 bla = txBlackLevel.Sample(samLinear, In.Tex1).rgb * params[3];
+	    bla = pow( bla, gamma ); // linearize
+		output = output * ( 1.0 - bla ) + bla;
+	}
+	output = pow( output, 1.0 / outputGamma); // TODO: use reciprocal of outputGamma in params[6] to save a division
+
+	PS_OUTPUT Out;
+	Out.Color = float4(output.rgb, 1.0);
+	return Out;
+}
+
+PS_OUTPUT PS(in VS_OUTPUT In)
+{
+	PS_OUTPUT Out;
+	Out.Color = float4( texContent.Sample( samLinear, In.Tex0 ).rgb, 1 );
+	return Out;
+}
+
+)XX";

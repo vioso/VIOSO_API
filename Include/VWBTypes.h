@@ -236,6 +236,9 @@ struct VWB_Warper
 	/// set to true to flip warpmesh vertices vertically, defaults to false
 	bool bFlipWarpmeshVertices;
 
+	/// the plugin id to request from license management
+	VWB_int pluginId;
+
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------
@@ -797,7 +800,7 @@ typedef struct VWB_WarpBlendMeshEx // a triangle list mesh for preview or simple
 	VWB_uint* idx;  // the index list
 	VWB_size dim;  // the dimension of the calibrated display in pixels
 	VWB_size gridDim; // the dimension of the calibrated display in pixels
-	VWB_word has; // bitfield @see VWB_WarpBlendVertexEx_Has
+	VWB_word has; // bitfield @see VWB_WarpBlendMeshEx_Has
 }VWB_WarpBlendMeshEx;
 
 typedef struct VWB_WarpBlendHeader {

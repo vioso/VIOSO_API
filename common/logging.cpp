@@ -50,6 +50,18 @@ int logStr( VWB_int level, char const* format, ... )
 		{
 			pOs = &std::cerr;
 		}
+		else if (
+			's' == g_logFilePath.c_str()[0] &&
+			't' == g_logFilePath.c_str()[1] &&
+			'd' == g_logFilePath.c_str()[2] &&
+			'l' == g_logFilePath.c_str()[3] &&
+			'o' == g_logFilePath.c_str()[4] &&
+			'g' == g_logFilePath.c_str()[5] &&
+			'\0' == g_logFilePath.c_str()[6]
+			)
+		{
+			pOs = &std::clog;
+		}
 		else
 		{
 			int c = 0;

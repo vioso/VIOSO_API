@@ -301,6 +301,10 @@ namespace VIOSOWarpBlend
             /// set to true to flip warpmesh vertices vertically, defaults to false
             [MarshalAs(UnmanagedType.I1)]
             public bool bFlipWarpmeshVertices;
+
+            /// the plugin id to request from license management
+            public Int32 pluginId;
+
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]

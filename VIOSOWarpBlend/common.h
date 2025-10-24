@@ -5,7 +5,7 @@
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
 
-#define SAFERELEASE( x ) if( x ){ x->Release(); x = NULL; }
+#define SAFE_RELEASE( x ) if( x ){ x->Release(); x = NULL; }
 
 #if !defined( VWB_common_h )
 #define VWB_common_h

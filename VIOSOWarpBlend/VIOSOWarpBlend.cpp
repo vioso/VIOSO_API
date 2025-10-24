@@ -104,6 +104,8 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 
 			using namespace tinyxml2;
 
+			calibFile[0] = 0; // no calib file, we fill with maps later
+
 			auto p = MkPath( configFile, ".xml" );
 			if( m_bUTF8 )
 				VWBUtil::copy( reinterpret_cast<char8_t*>(path), sizeof(path), p.u8string() );
@@ -330,6 +332,10 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 					calibIndex = 0;
 					break;
 				}
+			}
+			if( calibFile[0] == 0 ) {
+				logStr( 1, "WARN: this configuration file does not contain a channel named \"%s\"\n", szChannelName );
+				return VWB_ERROR_FALSE;
 			}
 			return VWB_ERROR_NONE;
 		} else {
@@ -685,7 +691,7 @@ void report( VWB_Warper** ppWarper, bool withHeader = true ) {
 		if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
 			logStr( 1, "string mode: UTF-8.\n" );
 		else
-			logStr( 1, "string mode. ASCII.\n" );
+			logStr( 1, "string mode: ASCII.\n" );
 		logStr( 1, "LogLevel=%d.\n", g_logLevel );
 	}
 	logStr( 2,
@@ -725,6 +731,9 @@ void report( VWB_Warper** ppWarper, bool withHeader = true ) {
 			"inputGamma=%f\n"
 			"blackDarkAdjust=%f\n"
 			"blackBrightAdjust=%f\n"
+			"outputGamma=%f\n"
+			"bFlipWarpmeshTexcoords=%d\n"
+			"bFlipWarpmeshVertices=%d\n"
 			"\n",
 			( (VWB_Warper_base*)*ppWarper )->GetType(), ( *ppWarper )->channel,
 			( *ppWarper )->path[0] ? " from\n" : ", no .ini file set, using defaults",
@@ -766,12 +775,15 @@ void report( VWB_Warper** ppWarper, bool withHeader = true ) {
 			( *ppWarper )->blackScale,
 			( *ppWarper )->inputGamma,
 			( *ppWarper )->blackDarkAdjust,
-			( *ppWarper )->blackBrightAdjust
+			( *ppWarper )->blackBrightAdjust,
+			( *ppWarper )->outputGamma,
+			( *ppWarper )->bFlipWarpmeshTexcoords ? 1 : 0,
+			( *ppWarper )->bFlipWarpmeshVertices ? 1 : 0
 	);
 };
 
 VWB_ERROR VWB_CreateU( void* pDxDevice, char8_t const* szConfigFile, char8_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char8_t const* szLogFile ) {
-	if( NULL == ppWarper )
+	if( NULL == ppWarper || !szChannelName || !szChannelName[0] )
 		return VWB_ERROR_PARAMETER;
 
 	*ppWarper = NULL;
@@ -809,7 +821,7 @@ VWB_ERROR VWB_CreateU( void* pDxDevice, char8_t const* szConfigFile, char8_t con
 }
 
 VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile ) {
-	if( NULL == ppWarper )
+	if( NULL == ppWarper || !szChannelName || !szChannelName[0] )
 		return VWB_ERROR_PARAMETER;
 
 	*ppWarper = NULL;
@@ -819,6 +831,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 	else
 		g_logFilePath = "VIOSOWarpBlend";
 
+	if( g_logFilePath != "CON" && g_logFilePath != "NUL" && g_logFilePath != "PRN" && g_logFilePath != "stdout" && g_logFilePath != "stderr")
 	g_logFilePath = MkPath( g_logFilePath, ".log" );
 
 	auto res = create( pDxDevice, (char const*)szChannelName, ppWarper );
@@ -845,7 +858,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 }
 
 VWB_ERROR VWB_CreateW( void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, wchar_t const* szLogFile ) {
-	return VWB_CreateU( pDxDevice, std::filesystem::path( szConfigFile ? szConfigFile : L"" ).u8string().c_str(), std::filesystem::path( szChannelName ? szChannelName : L"" ).u8string().c_str(), ppWarper, logLevel, std::filesystem::path( szLogFile ? szLogFile : L"" ).u8string().c_str() );
+	return VWB_CreateU( pDxDevice, std::filesystem::path( szConfigFile ? szConfigFile : L"" ).u8string().c_str(), VWBUtil::to_u8string( szChannelName ).c_str(), ppWarper, logLevel, std::filesystem::path( szLogFile ? szLogFile : L"" ).u8string().c_str() );
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -880,21 +893,39 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 		else
 			path = ( (VWB_Warper_base*)pWarper )->calibFile;
 		if( ( (VWB_Warper_base*)pWarper )->isDP() ) {
-
+			if( path.empty() ) {
+				logStr( 0, "ERROR: No mapping files in calibFile.\n" );
+				return VWB_ERROR_PARAMETER;
+			}
 			// convert to absolute path
 			auto path_views = split( path.native(), fs::path::string_type::value_type( ',' ) );
 			std::vector<fs::path> paths( path_views.begin(), path_views.end() );
-			err = LoadDPXML( set, paths, ( (VWB_Warper*)pWarper )->bFlipWarpmeshVertices, ( (VWB_Warper*)pWarper )->bFlipWarpmeshTexcoords );
-			// update trans matrix, it swaps y and z and moves to pos
-			VWB_MAT44f(
-				 1000.f,    0.f,    0.f, -set.back()->header.pos[0],
-					0.f,    0.f, 1000.f, -set.back()->header.pos[1],
-					0.f, 1000.f,    0.f, -set.back()->header.pos[2],
-					0.f,    0.f,    0.f,                       1.f
-				).SetPtr( ( (VWB_Warper*)pWarper )->trans );
+			err = LoadDPXML( set, paths, pWarper->bFlipWarpmeshVertices, pWarper->bFlipWarpmeshTexcoords );
+			if( VWB_ERROR_NONE != err ) {
+				logStr( 0, "ERROR: LoadDPXML: Failed to load mapping files.\n" );
+				return err;
+			}
+			// update trans matrix, it scales Meter to Millimeter, swaps y and z and moves to pos
+			// todo: add a handedness hint to config.xml
+			if( ( (VWB_Warper_base*)pWarper )->GetType()[0] == 'D' &&
+				( (VWB_Warper_base*)pWarper )->GetType()[1] == 'X' ) { // go left handed for Direct 3D
+				VWB_MAT44f(
+					 1000.f,    0.f,    0.f, -set.back()->header.pos[0],
+						0.f,    0.f, 1000.f, -set.back()->header.pos[1],
+						0.f, 1000.f,    0.f, set.back()->header.pos[2],
+						0.f,    0.f,    0.f,                        1.f
+					).SetPtr( pWarper->trans );
+			} else { // go right handed otherwise
+				VWB_MAT44f(
+					 1000.f,    0.f,     0.f, -set.back()->header.pos[0],
+						0.f,    0.f, -1000.f, -set.back()->header.pos[1],
+						0.f, 1000.f,     0.f, -set.back()->header.pos[2],
+						0.f,    0.f,     0.f,                        1.f
+					).SetPtr( pWarper->trans );
+			}
 			// update fov and dir
-			VWB_VEC3f( set.back()->header.dir ).SetPtr( ( (VWB_Warper*)pWarper )->dir );
-			VWB_VEC4f( set.back()->header.fov ).SetPtr( ( (VWB_Warper*)pWarper )->fov );
+			VWB_VEC3f( set.back()->header.dir ).SetPtr( pWarper->dir );
+			VWB_VEC4f( set.back()->header.fov ).SetPtr( pWarper->fov );
 			( (VWB_Warper*)pWarper )->screenDist = set.back()->header.screen;
 		} else do {
 			auto sEnd = path.native().find( ',', sBegin );
@@ -923,6 +954,10 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 		DeleteVWF( set );
 	}
 
+	if( VWB_ERROR_NONE != err ) {
+		logStr( 0, "ERROR: Warper Init failed.\n" );
+		return err;
+	}
 	( (VWB_Warper_base*)pWarper )->GetViewProjection( NULL, NULL, NULL, NULL );
 
 	logStr( 2, "%.4s-Warper \"%s\" initialized.\n", ( (VWB_Warper_base*)pWarper )->GetType(), pWarper->channel );
@@ -1285,6 +1320,12 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 	}
 
 	VWB_WarpBlend& wb = *wbs[calibIndex];
+
+	if( !wb.pWarp && !wb.pMesh ) {
+		logStr( 0, "ERROR: no warp in mapping." );
+		return VWB_ERROR_GENERIC;
+	}
+
 	int oRes[2] = {
 		int( 1.0f / wb.header.vCntDispPx[4] ),
 		int( 1.0f / wb.header.vCntDispPx[5] )
@@ -1300,7 +1341,14 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 		0 >= oRect[3] - oRect[1] ||
 		0 >= oRes[0] || 0 >= oRes[1] ) {
 		logStr( 1, "Warning: Invalid content bounds. Recalculating..." );
-		CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
+		if( !wb.pWarp || VWB_ERROR_NONE != CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] ) ) {
+			oRect[0] = 0;
+			oRect[1] = 0;
+			oRect[2] = wb.header.width;
+			oRect[3] = wb.header.height;
+			oRes[0] = wb.header.width;
+			oRes[1] = wb.header.height;
+		}
 	}
 
 	logStr( 2, "Mapping Info:\n"
@@ -1320,13 +1368,15 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 			oRect[0], oRect[1], oRect[2], oRect[3]
 	);
 
-	CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
-	logStr( 2, "Recalculated Bounds:\n"
-			"  optimalRes: [%d,%d]\n"
-			" optimalRect: [%d,%d,%d,%d]\n",
-			oRes[0], oRes[1],
-			oRect[0], oRect[1], oRect[2], oRect[3]
-	);
+	if( wb.pWarp ) {
+		CalculateBounds( wb, oRes[0], oRes[1], oRect[0], oRect[1], oRect[2], oRect[3] );
+		logStr( 2, "Recalculated Bounds:\n"
+				"  optimalRes: [%d,%d]\n"
+				" optimalRect: [%d,%d,%d,%d]\n",
+				oRes[0], oRes[1],
+				oRect[0], oRect[1], oRect[2], oRect[3]
+		);
+	}
 
 	if( calibSplit[0] ) {
 		ret = SplitVWF( wb, calibSplit );
@@ -1352,8 +1402,8 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 	m_sizeMap.cy = wbs[calibIndex]->header.height;
 	m_blackBias.x = wbs[calibIndex]->header.blackScale;
 	m_blackBias.y = wbs[calibIndex]->header.blackDark;
-	m_blackBias.w = 1.0f;
 	m_blackBias.z = wbs[calibIndex]->header.blackBright;
+	m_blackBias.w = 1.0f; // the gamma value
 
 	VWB_MAT44f B( trans );
 	m_mBaseI = B.Inverted();
@@ -1361,7 +1411,8 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 	m_bRH = 0 < VWB_VEC3f( B.Z() ).dot( VWB_VEC3f( B.X() ) * VWB_VEC3f( B.Y() ) );
 	logStr( 2, "%s-handedness detected.\n", m_bRH ? "right" : "left" );
 
-	ret = PrepareForUse( wb, gamma );
+	if( !m_bDP ) 
+		ret = PrepareForUse( wb, gamma );
 	if( VWB_ERROR_NONE != ret ) {
 		return ret;
 	}
@@ -1431,7 +1482,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 
 	// do auto calculations
 	if( m_bDynamicEye ) {
-		if( bAutoView ) {
+		if( !m_bDP && bAutoView ) { // TODO: add autoview for grids as well
 			VWB_ERROR res = AutoView( *wbs[calibIndex] );		// viewport calculation
 			if( VWB_ERROR_NONE != res ) {
 				logStr( 0, "ERROR: Autoview returns error %d.\n", res );
@@ -1451,7 +1502,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 			optimalRect.bottom = wb.header.height;
 		}
 	} else {
-		if( bAutoView ) {
+		if( m_bDP && bAutoView ) { // TODO: add autoview for grids as well
 			if( bFixWraparound ) {
 				VWB_ERROR res = FixWraparound( *wbs[calibIndex] );
 				if( VWB_ERROR_NONE != res )
@@ -1670,7 +1721,7 @@ void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float* pClip ) {
 
 VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 	// test if blend2
-	if( !( FLAG_WARPFILE_HEADER_BLENDV2 & wb.header.flags ) )
+	if( wb.pWarp && !( FLAG_WARPFILE_HEADER_BLENDV2 & wb.header.flags ) )
 		return VWB_ERROR_PARAMETER;
 
 	if( !wb.pWarp )

@@ -255,13 +255,10 @@ struct VWB_VECTOR3
 	}
 	inline VWB_VECTOR3& Normalize()
 	{
-		T l = T(1) / len();
-		if( FLT_MIN < l || -FLT_MIN > l )
-		{
-			x*= l;
-			y*= l;
-			z*= l;
-		}
+		T l = T( 1 ) / len();
+		x*= l;
+		y*= l;
+		z*= l;
 		return *this;
 	}
 	inline VWB_VECTOR3 normalized() const
@@ -1039,6 +1036,12 @@ struct VWB_MATRIX33
 		return VWB_MATRIX33( cz, -sz, 0,   sz, cz, 0,   0, 0, 1 );
 	}
 
+	/// @brief set a 3x3 rotation matrix from euler angles (right-handed coordinate system, z backward, y up and x right)
+	/// assumptions:
+	/// positive rotation around x turns (pitch) up
+	/// positive rotation around y turns (yaw) right
+	/// positive rotation around z turns (roll) clockwise
+	/// rotation order is y-x-z, this corresponds to GetR()
 	inline static VWB_MATRIX33 R( _T x, _T y, _T z )  // this is Rz(z) * Rx(x) * Ry(y)
 	{ 
 		const _T sx = std::sin( x );
@@ -1268,12 +1271,9 @@ struct VWB_MATRIX33
 		_T l = _11 * _11;
 		for( int i = 1; i != 9; i++ )
 			l+= p[i] * p[i];
-		l = sqrt(l/3);
-		if( FLT_MIN < l || -FLT_MIN > l )
-		{
-			for( int i = 0; i != 9; i++ )
-				p[i]/= l;
-		}
+		l = _T(1) / sqrt(l/3);
+		for( int i = 0; i != 9; i++ )
+			p[i] *= l;
 		return *this;
 	}
 	inline VWB_VECTOR3<_T>& X() { return *(VWB_VECTOR3<_T>*)&_11; }
@@ -1394,7 +1394,7 @@ struct VWB_BOX
 		return r;
 	};
 	inline bool IsEmpty() { return vMin.x < vMax.x && vMin.y < vMax.y && vMin.z < vMax.z; }
-	inline static VWB_BOX M() { return VWB_BOX( VWB_VECTOR3<T>( FLT_MAX,FLT_MAX,FLT_MAX ), VWB_VECTOR3<T>( -FLT_MAX,-FLT_MAX,-FLT_MAX ) ); }
+	inline static VWB_BOX M() { return VWB_BOX( VWB_VECTOR3<T>( std::numeric_limits<T>::max,std::numeric_limits<T>::max,std::numeric_limits<T>::max ), VWB_VECTOR3<T>( -std::numeric_limits<T>::max,-std::numeric_limits<T>::max,-std::numeric_limits<T>::max ) ); }
 	inline static VWB_BOX O() { return VWB_BOX( VWB_VECTOR3<T>( 0,0,0 ), VWB_VECTOR3<T>( 0,0,0 ) ); }
 };
 

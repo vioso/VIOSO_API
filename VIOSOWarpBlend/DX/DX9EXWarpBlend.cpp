@@ -35,17 +35,17 @@ DX9EXWarpBlend::DX9EXWarpBlend( LPDIRECT3DDEVICE9EX pDevice )
 
 DX9EXWarpBlend::~DX9EXWarpBlend(void)
 {
-	SAFERELEASE( m_texWarpCalc );
-	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texCurSysMem );
-	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_srfBB );
-	SAFERELEASE( m_texWarp ); 
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texBlack );
-	SAFERELEASE( m_PixelShader );
-	SAFERELEASE( m_VertexBuffer );
-	SAFERELEASE( m_device );
+	SAFE_RELEASE( m_texWarpCalc );
+	SAFE_RELEASE( m_texCur );
+	SAFE_RELEASE( m_texCurSysMem );
+	SAFE_RELEASE( m_texBB );
+	SAFE_RELEASE( m_srfBB );
+	SAFE_RELEASE( m_texWarp ); 
+	SAFE_RELEASE( m_texBlend );
+	SAFE_RELEASE( m_texBlack );
+	SAFE_RELEASE( m_PixelShader );
+	SAFE_RELEASE( m_VertexBuffer );
+	SAFE_RELEASE( m_device );
 	logStr( 1, "INFO: DX9X-Warper destroyed.\n" );
 }
 
@@ -88,9 +88,9 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 			 FAILED( m_device->CreateTexture( m_sizeMap.cx, m_sizeMap.cy, 1, 0, D3DFMT_A8B8G8R8, D3DPOOL_DEFAULT, &m_texBlack, NULL ) )
 			 )
 		{
-			SAFERELEASE( texTmpW );
-			SAFERELEASE( texTmpB );
-			SAFERELEASE( texTmpBl );
+			SAFE_RELEASE( texTmpW );
+			SAFE_RELEASE( texTmpB );
+			SAFE_RELEASE( texTmpBl );
 			logStr( 0, "ERROR: Failed to create lookup textures.\n" );
 			return VWB_ERROR_SHADER;
 		}
@@ -100,7 +100,7 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 
         if( FAILED(texTmpW->LockRect( 0, &r, NULL, 0 ) ) )
 		{
-			SAFERELEASE(texTmpW);
+			SAFE_RELEASE(texTmpW);
 			logStr( 0, "ERROR: Failed to fill temp texture for blend.\n" );
 			return VWB_ERROR_WARP;
 		}
@@ -120,14 +120,14 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		texTmpW->UnlockRect(0);
 		if(FAILED(m_device->UpdateTexture(texTmpW, m_texWarp)))
 		{
-			SAFERELEASE(texTmpB);
+			SAFE_RELEASE(texTmpB);
 			logStr(0, "ERROR: Failed to update warp texture.\n");
 			return VWB_ERROR_WARP;
 		}
 
         if( FAILED(texTmpB->LockRect( 0, &r, NULL, 0 ) ) )
 		{
-			SAFERELEASE(texTmpB);
+			SAFE_RELEASE(texTmpB);
 			logStr( 0, "ERROR: Failed to fill temp texture for blend.\n" );
 			return VWB_ERROR_BLEND;
 		}
@@ -135,7 +135,7 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		texTmpB->UnlockRect(0);
 		if(FAILED(m_device->UpdateTexture(texTmpB, m_texBlend)))
 		{
-			SAFERELEASE(texTmpB);
+			SAFE_RELEASE(texTmpB);
 				logStr(0, "ERROR: Failed to update warp texture.\n");
 				return VWB_ERROR_WARP;
 		}
@@ -144,7 +144,7 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		{
 			if( FAILED( texTmpBl->LockRect( 0, &r, NULL, 0 ) ) )
 			{
-				SAFERELEASE( texTmpBl );
+				SAFE_RELEASE( texTmpBl );
 				logStr( 0, "ERROR: Failed to fill temp texture for black level correction.\n" );
 				return VWB_ERROR_BLEND;
 			}
@@ -152,14 +152,14 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 			texTmpBl->UnlockRect( 0 );
 			if( FAILED( m_device->UpdateTexture( texTmpBl, m_texBlack ) ) )
 			{
-				SAFERELEASE( texTmpBl );
+				SAFE_RELEASE( texTmpBl );
 				logStr( 0, "ERROR: Failed to update warp texture.\n" );
 				return VWB_ERROR_WARP;
 			}
 		}
-		SAFERELEASE( texTmpW );
-		SAFERELEASE( texTmpB );
-		SAFERELEASE( texTmpBl );
+		SAFE_RELEASE( texTmpW );
+		SAFE_RELEASE( texTmpB );
+		SAFE_RELEASE( texTmpBl );
 		logStr(2, "INFO: Warp, blend and black level lookup maps created.\n");
 
 
@@ -180,8 +180,8 @@ VWB_ERROR DX9EXWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		if( SUCCEEDED( D3DCompile( s_pixelShaderDX2a, sizeof( s_pixelShaderDX2a ), NULL, NULL, NULL, pixelShader.c_str(), "ps_2_a", 0, 0, &pCode, &pErr ) ) )
 		{
 			HRESULT hr = m_device->CreatePixelShader( (DWORD*)pCode->GetBufferPointer(), &m_PixelShader );
-			SAFERELEASE( pCode );
-			SAFERELEASE( pErr );
+			SAFE_RELEASE( pCode );
+			SAFE_RELEASE( pErr );
 			if( FAILED( hr ) )
 			{
 				logStr( 0, "ERROR: Failed to create shader!\n" );
@@ -236,17 +236,17 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			D3DSURFACE_DESC desc;
 			srfBB->GetDesc( &desc );
 			if( m_sizeIn.cx != desc.Width || m_sizeIn.cy != desc.Height )
-				SAFERELEASE( m_texBB );
+				SAFE_RELEASE( m_texBB );
 
 			if( NULL == m_texBB )
 			{
-				SAFERELEASE( m_srfBB );
+				SAFE_RELEASE( m_srfBB );
 				if( FAILED( m_device->CreateTexture( desc.Width, desc.Height, 1, D3DUSAGE_RENDERTARGET, desc.Format, desc.Pool, &m_texBB, NULL ) ) ||
 					FAILED( m_texBB->GetSurfaceLevel(0, &m_srfBB ) ) )
 					return VWB_ERROR_GENERIC;
 			}
 			res = m_device->StretchRect( srfBB, NULL, m_srfBB, NULL, D3DTEXF_NONE );
-			SAFERELEASE( srfBB );
+			SAFE_RELEASE( srfBB );
 			if( FAILED( res ) )
 				return VWB_ERROR_GENERIC;
 			logStr( 4, "Backbuffer copied." );
@@ -391,8 +391,8 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 				if( nullptr != m_texCur && g_dimCur.cx != static_cast<UINT>( bmMask.bmWidth ) )
 				{
-					SAFERELEASE( m_texCur );
-					SAFERELEASE( m_texCurSysMem );
+					SAFE_RELEASE( m_texCur );
+					SAFE_RELEASE( m_texCurSysMem );
 				}
 
 				if( nullptr == m_texCur && bmMask.bmWidth )
@@ -419,8 +419,8 @@ VWB_ERROR DX9EXWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				{
 					logStr( 0, "WARNING: Failed to fill mouse texture. Mouse rendering disabled.\n" );
 					mouseMode &= ~1;
-					SAFERELEASE( m_texCur );
-					SAFERELEASE( m_texCurSysMem );
+					SAFE_RELEASE( m_texCur );
+					SAFE_RELEASE( m_texCurSysMem );
 				}
 				else
 				{
@@ -622,7 +622,7 @@ LPDIRECT3DVERTEXBUFFER9 DX9EXWarpBlend::CreateVertexBuffer(float width, float he
 		}
 		else
 		{
-			SAFERELEASE(buf);
+			SAFE_RELEASE(buf);
 		}
 	}
 	return NULL;

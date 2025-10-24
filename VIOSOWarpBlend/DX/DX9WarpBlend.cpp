@@ -79,16 +79,16 @@ DX9WarpBlend::DX9WarpBlend( LPDIRECT3DDEVICE9 pDevice )
 
 DX9WarpBlend::~DX9WarpBlend( void )
 {
-	SAFERELEASE( m_texWarpCalc );
-	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_srfBB );
-	SAFERELEASE( m_texWarp );
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texBlack );
-	SAFERELEASE( m_PixelShader );
-	SAFERELEASE( m_VertexBuffer );
-	SAFERELEASE( m_device );
+	SAFE_RELEASE( m_texWarpCalc );
+	SAFE_RELEASE( m_texCur );
+	SAFE_RELEASE( m_texBB );
+	SAFE_RELEASE( m_srfBB );
+	SAFE_RELEASE( m_texWarp );
+	SAFE_RELEASE( m_texBlend );
+	SAFE_RELEASE( m_texBlack );
+	SAFE_RELEASE( m_PixelShader );
+	SAFE_RELEASE( m_VertexBuffer );
+	SAFE_RELEASE( m_device );
 	logStr( 1, "INFO: DX9-Warper destroyed.\n" );
 }
 
@@ -205,8 +205,8 @@ VWB_ERROR DX9WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		if( SUCCEEDED( D3DCompile( s_pixelShaderDX2a, sizeof( s_pixelShaderDX2a ), NULL, NULL, NULL, pixelShader.c_str(), "ps_2_a", 0, 0, &pCode, &pErr ) ) )
 		{
 			HRESULT hr = m_device->CreatePixelShader( (DWORD*)pCode->GetBufferPointer(), &m_PixelShader );
-			SAFERELEASE( pCode );
-			SAFERELEASE( pErr );
+			SAFE_RELEASE( pCode );
+			SAFE_RELEASE( pErr );
 			if( FAILED( hr ) )
 			{
 				logStr( 0, "ERROR: Failed to create shader!\n" );
@@ -262,17 +262,17 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			D3DSURFACE_DESC desc;
 			srfBB->GetDesc( &desc );
 			if( m_sizeIn.cx != desc.Width || m_sizeIn.cy != desc.Height )
-				SAFERELEASE( m_texBB );
+				SAFE_RELEASE( m_texBB );
 
 			if( NULL == m_texBB )
 			{
-				SAFERELEASE( m_srfBB );
+				SAFE_RELEASE( m_srfBB );
 				if( FAILED( m_device->CreateTexture( desc.Width, desc.Height, 1, D3DUSAGE_RENDERTARGET, desc.Format, desc.Pool, &m_texBB, NULL ) ) ||
 					FAILED( m_texBB->GetSurfaceLevel( 0, &m_srfBB ) ) )
 					return VWB_ERROR_GENERIC;
 			}
 			res = m_device->StretchRect( srfBB, NULL, m_srfBB, NULL, D3DTEXF_NONE );
-			SAFERELEASE( srfBB );
+			SAFE_RELEASE( srfBB );
 			if( FAILED( res ) )
 				return VWB_ERROR_GENERIC;
 		}
@@ -415,7 +415,7 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 				if( nullptr != m_texCur && g_dimCur.cx != static_cast<UINT>( bmMask.bmWidth ) )
 				{
-					SAFERELEASE( m_texCur );
+					SAFE_RELEASE( m_texCur );
 				}
 
 				if( nullptr == m_texCur && bmMask.bmWidth )
@@ -443,7 +443,7 @@ VWB_ERROR DX9WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				{
 					logStr( 0, "WARNING: Failed to fill mouse texture. Mouse rendering disabled.\n" );
 					mouseMode &= ~1;
-					SAFERELEASE( m_texCur );
+					SAFE_RELEASE( m_texCur );
 				}
 				::DeleteObject( ii.hbmColor );
 				::DeleteObject( ii.hbmMask );

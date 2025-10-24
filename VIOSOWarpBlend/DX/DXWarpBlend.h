@@ -33,6 +33,14 @@ public:
 		TexT Tex;
 	} SimpleVertex;
 
+	typedef __declspec( align(4) ) struct DirVertex
+	{
+		PosT Pos;
+		TexT Tex;
+		PosT Nor;
+		PosT Tan;
+	} DirVertex;
+
 	typedef  __declspec( align( 4 ) ) struct ConstantBuffer
 	{
 		FLOAT matView[16];
@@ -42,6 +50,22 @@ public:
 		FLOAT offsScaleCur[4];
 		FLOAT blackBias[4];
 	} ConstantBuffer;
+
+	typedef  __declspec( align( 4 ) ) struct DPConstantBuffer
+	{
+		FLOAT gamma;
+		FLOAT doWarp;
+		FLOAT doBlend;
+		FLOAT doBlack;
+		FLOAT do2ndBlend;
+		FLOAT inputGamma;
+		FLOAT outputGamma;
+		FLOAT colorCorr;
+		FLOAT flip_v;
+		FLOAT reserved[7]; // in total 16 until here
+		FLOAT mvp[16];
+		FLOAT pos[4];
+	} DPConstantBuffer;
 
 	const FLOAT _black[4] = { 0,0,0,1 };
 

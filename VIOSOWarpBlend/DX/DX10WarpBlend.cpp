@@ -180,7 +180,7 @@ bool SaveTex( LPCSTR path, ID3D10Device* dev, ID3D10Texture2D* tex )
 		{
 			logStr( 3, "Could not map dump texture." );
 		}
-		SAFERELEASE( pTexMem );
+		SAFE_RELEASE( pTexMem );
 	}
 	else
 	{
@@ -221,22 +221,22 @@ DX10WarpBlend::DX10WarpBlend( ID3D10Device* pDevice )
 
 DX10WarpBlend::~DX10WarpBlend(void)
 {
-	SAFERELEASE( m_Layout );
-	SAFERELEASE( m_RasterState );
-	SAFERELEASE( m_texWarpCalc );
-	SAFERELEASE( m_texBB );
-	SAFERELEASE( m_texWarp ); 
-	SAFERELEASE( m_texBlend );
-	SAFERELEASE( m_texBlack );
-	SAFERELEASE( m_PixelShader );
-	SAFERELEASE( m_VertexShader );
-	SAFERELEASE( m_VertexBuffer );
-	//SAFERELEASE( m_VertexBufferModel );
-	//SAFERELEASE( m_IndexBufferModel );
-	SAFERELEASE( m_SSLin );
-	SAFERELEASE( m_SSClamp );
-	SAFERELEASE( m_ConstantBuffer );
-	SAFERELEASE( m_device );
+	SAFE_RELEASE( m_Layout );
+	SAFE_RELEASE( m_RasterState );
+	SAFE_RELEASE( m_texWarpCalc );
+	SAFE_RELEASE( m_texBB );
+	SAFE_RELEASE( m_texWarp ); 
+	SAFE_RELEASE( m_texBlend );
+	SAFE_RELEASE( m_texBlack );
+	SAFE_RELEASE( m_PixelShader );
+	SAFE_RELEASE( m_VertexShader );
+	SAFE_RELEASE( m_VertexBuffer );
+	//SAFE_RELEASE( m_VertexBufferModel );
+	//SAFE_RELEASE( m_IndexBufferModel );
+	SAFE_RELEASE( m_SSLin );
+	SAFE_RELEASE( m_SSClamp );
+	SAFE_RELEASE( m_ConstantBuffer );
+	SAFE_RELEASE( m_device );
 	logStr( 1, "INFO: DX10-Warper destroyed.\n" );
 }
 
@@ -385,9 +385,9 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			)
 		{
 			logStr( 0, "ERROR: Failed to create lookup textures.\n" );
-			SAFERELEASE( pTexWarp );
-			SAFERELEASE( pTexBlend );
-			SAFERELEASE( pTexBlack );
+			SAFE_RELEASE( pTexWarp );
+			SAFE_RELEASE( pTexBlend );
+			SAFE_RELEASE( pTexBlack );
 			if( dataWarp.pSysMem )
 			{
 				if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
@@ -397,9 +397,9 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			}
 			return VWB_ERROR_SHADER;
 		}
-		SAFERELEASE( pTexWarp );
-		SAFERELEASE( pTexBlend );
-		SAFERELEASE( pTexBlack );
+		SAFE_RELEASE( pTexWarp );
+		SAFE_RELEASE( pTexBlend );
+		SAFE_RELEASE( pTexBlack );
 		if( dataWarp.pSysMem )
 		{
 			if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
@@ -414,7 +414,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		if( FAILED( hr ) )
 		{
 			logStr( 0, "ERROR: The vertex shader code cannot be compiled: %s\n", pErrBlob->GetBufferPointer() );
-			SAFERELEASE( pErrBlob );
+			SAFE_RELEASE( pErrBlob );
 			return VWB_ERROR_SHADER;
 		}
 
@@ -501,13 +501,13 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			pixelShader.append( "BC" );
 #endif
 		ID3DBlob* pPSBlob = NULL;
-		SAFERELEASE( pErrBlob );
+		SAFE_RELEASE( pErrBlob );
 		hr = D3DCompile( s_pixelShaderDX4, sizeof( s_pixelShaderDX4 ), NULL, NULL, NULL, pixelShader.c_str(), "ps_4_0", 0, 0, &pPSBlob, &pErrBlob );
 //		hr = D3DCompile( s_pixelShaderDX4_vFlip, sizeof( s_pixelShaderDX4 ), NULL, NULL, NULL, pixelShader.c_str(), "ps_4_0", 0, 0, &pPSBlob, &pErrBlob );
 		if( FAILED( hr ) )
 		{
 			logStr( 0, "ERROR: The pixel shader code cannot be compiled (%08X): %s\n", hr, pErrBlob->GetBufferPointer() );
-			SAFERELEASE( pErrBlob );
+			SAFE_RELEASE( pErrBlob );
 			return VWB_ERROR_SHADER;
 		}
 
@@ -622,7 +622,7 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 					ID3D10Resource* pResDst = NULL;
 					m_texBB->GetResource( &pResDst );
 					m_device->CopyResource( pResDst, pRes );
-					SAFERELEASE( pResDst );
+					SAFE_RELEASE( pResDst );
 				}
 				pRes->Release();
 			}
@@ -645,7 +645,7 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				m_texBB->Release();
 				m_texBB = NULL;
 			}
-			SAFERELEASE( pRes );
+			SAFE_RELEASE( pRes );
 		}
 		if( NULL == m_texBB )
 		{
@@ -795,21 +795,21 @@ VWB_ERROR DX10WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( VWB_STATEMASK_SAMPLER & stateMask )
 	{
 		m_device->PSSetSamplers( 0, 5, ppOldSS );
-		SAFERELEASE( ppOldSS[0] );
-		SAFERELEASE( ppOldSS[1] );
-		SAFERELEASE( ppOldSS[2] );
-		SAFERELEASE( ppOldSS[3] );
-		SAFERELEASE( ppOldSS[4] );
+		SAFE_RELEASE( ppOldSS[0] );
+		SAFE_RELEASE( ppOldSS[1] );
+		SAFE_RELEASE( ppOldSS[2] );
+		SAFE_RELEASE( ppOldSS[3] );
+		SAFE_RELEASE( ppOldSS[4] );
 	}
 
 	if( VWB_STATEMASK_SHADER_RESOURCE & stateMask )
 	{
 		m_device->PSSetShaderResources( 0, 5, ppOldSRV );
-		SAFERELEASE( ppOldSRV[0] );
-		SAFERELEASE( ppOldSRV[1] );
-		SAFERELEASE( ppOldSRV[2] );
-		SAFERELEASE( ppOldSRV[3] );
-		SAFERELEASE( ppOldSRV[4] );
+		SAFE_RELEASE( ppOldSRV[0] );
+		SAFE_RELEASE( ppOldSRV[1] );
+		SAFE_RELEASE( ppOldSRV[2] );
+		SAFE_RELEASE( ppOldSRV[3] );
+		SAFE_RELEASE( ppOldSRV[4] );
 	}
 
 	if( VWB_STATEMASK_PIXEL_SHADER & stateMask )

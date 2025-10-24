@@ -165,7 +165,7 @@ public:
 		: m_warper( NULL ) {
 		if( 1 == ++instanceCounter )
 			_loadLib( libPath );
-		VWB_ERROR err = VWB_CreateU( pDxDevice, szConfigFile.u8string().c_str(), VWBUtil::to_u8string( szChannelName ).c_str(), &m_warper, logLevel, szLogFile.u8string().c_str() );
+		VWB_ERROR err = VWB_CreateA( pDxDevice, szConfigFile.string().c_str(), szChannelName, &m_warper, logLevel, szLogFile.string().c_str() );
 		if( VWB_ERROR_NONE != err ) {
 			_unloadLib();
 			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
@@ -210,7 +210,7 @@ public:
 
 	/// @brief Create a frustum on current target.
 	/// @param pEye [IN] VWB_float[3] the current eye position
-	/// @param pRot [IN] VWB_float[3] the current euler rotation
+	/// @param pRot [IN] VWB_float[3] the current euler rotation in radians
 	/// @param pView [OUT] the view matrix
 	/// @param pProj [OUT] the projection matrix
 	/// @return VWB_ERROR_NONE if successful, otherwise @see VWB_ERROR

@@ -46,5 +46,6 @@ add_subdirectory(Examples/OpenGL_4)
 if(WIN32)
 # 	add_subdirectory(TrackerSim)
     add_subdirectory(Examples/DirectX12)
+    add_subdirectory(Examples/DirectX12_cube)
 endif(WIN32)
 
