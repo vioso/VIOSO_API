@@ -246,12 +246,13 @@ public:
 	/// @brief render, this will render an input to the current render target
 	/// @param src the source texture, a IDirect3DTexture9*, ID3D10Texture2D*, ID3D11Texture2D*, VWB_D3D12_RENDERINPUT* or a GLint texture index; 
 	///		if current backbuffer must be read, set to NULL in any DX mode except 12 or to -1 in OpenGL mode
-	///		in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter.
+	///		in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter or a @see VWB_D3D12_RENDERINPUT2 and use VWB_render2.
 	/// @param stateMask @see VWB_STATEMASK enumeration, default is 0 to restore usual stuff
 	///		In D3D12 all flags except VWB_STATEMASK_CLEARBACKBUFFER are ignored.
 	//		The application is required to set inputs and shader in each term anyway.
 	/// @return VWB_ERROR_NONE if successful, otherwise VWB_ERROR_GENERIC
 	VWB_ERROR Render( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render( m_warper, src, stateMask ); }
+	VWB_ERROR Render2( VWB_param src = VWB_UNDEFINED_GL_TEXTURE, VWB_uint stateMask = 0 ) { return VWB_render2( m_warper, src, stateMask ); }
 
 	/// @brief set a frustum
 	/// @param pView the view matrix

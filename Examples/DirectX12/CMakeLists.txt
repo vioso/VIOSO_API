@@ -7,7 +7,7 @@ find_package(stb REQUIRED)
 set(SOURCES	"stdafx.cpp" "D3D12HelloTexture.cpp" "DXSample.cpp" "Main.cpp" "Win32Application.cpp" "shaders.hlsl" "${COMMON_DIR}/logging.cpp" )
 set(HEADERS	"d3dx12.h" "stdafx.h" "D3D12HelloTexture.h" "DXSample.h" "DXSampleHelper.h" "Win32Application.h" "${COMMON_DIR}/logging.h" )
 
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
+add_executable(DirectX12 WIN32 ${SOURCES} ${HEADERS})
 
 add_custom_command(
     TARGET DirectX12 POST_BUILD
@@ -17,5 +17,6 @@ add_custom_command(
 )
 
 include_directories(${THIRD_PARTY_DIR}/d3dX/include/)
-target_link_libraries(${PROJECT_NAME} VIOSOWarpBlend d3d12 dxgi d3dcompiler	)
-target_compile_definitions(${PROJECT_NAME} PRIVATE UNICODE _UNICODE)
+target_link_libraries(DirectX12 d3d12 dxgi d3dcompiler	)
+target_compile_definitions(DirectX12 PRIVATE UNICODE _UNICODE)
+add_dependencies(DirectX12 VIOSOWarpBlend)

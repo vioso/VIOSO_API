@@ -57,6 +57,7 @@ typedef enum VWB_ERROR
 	VWB_ERROR_NOT_IMPLEMENTED = -9,		/// not implemented, this function is yet to come
 	VWB_ERROR_NETWORK = -10,		/// network could not be initialized
 	VWB_ERROR_NDI = -11,		/// NDI could not be initialized
+	VWB_ERROR_LICENSE = -12,	/// license error, no valid license found
 	VWB_ERROR_FALSE = -16,		/// no error, but nothing has been done
 } VWB_ERROR;
 
@@ -239,6 +240,8 @@ struct VWB_Warper
 	/// the plugin id to request from license management
 	VWB_int pluginId;
 
+	/// the monitor handle set by ini, will be used if handle is not set in channel
+	VWB_int hMonitor;
 };
 #pragma pack(pop)
 // ----------------------------------------------------------------------------------
@@ -875,8 +878,15 @@ typedef struct VWB_D3D12_RENDERINPUT
 	IUnknown* renderTarget; // ID3D12Resource* must be set to add a barrier to command list or to use as copy source, must be in D3D12_RESOURCE_STATE_RENDER_TARGET state
 	UINT64    rtvHandlePtr; // ptr value from D3D12_CPU_DESCRIPTOR_HANDLE of render target descriptor heap
 	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftX, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
-	IUnknown* commandList;  // optional ID3D12GraphicsCommandList* to use, instead of the created one by VIOSO API
 } VWB_D3D12_RENDERINPUT;
+typedef struct VWB_D3D12_RENDERINPUT2
+{
+	IUnknown* textureResource; // ID3D12Resource*, if NULL we use rendertarget as source and issue a copy, must be in D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE state
+	IUnknown* renderTarget; // ID3D12Resource* must be set to add a barrier to command list or to use as copy source, must be in D3D12_RESOURCE_STATE_RENDER_TARGET state
+	UINT64    rtvHandlePtr; // ptr value from D3D12_CPU_DESCRIPTOR_HANDLE of render target descriptor heap
+	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftX, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
+	IUnknown* commandList;  // optional ID3D12GraphicsCommandList* to use, instead of the created one by VIOSO API
+} VWB_D3D12_RENDERINPUT2;
 
 typedef void (*VWB_pfnXPLMSetGraphicsState)( int inEnableFog, int inNumberTexUnits, int inEnableLighting, int inEnableAlphaTesting, int inEnableAlphaBlending, int inEnableDepthTesting, int inEnableDepthWriting );
 typedef void (*VWB_pfnXPLMBindTexture2d)( int inTextureNum, int inTextureUnit );

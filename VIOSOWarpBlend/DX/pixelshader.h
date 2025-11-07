@@ -955,7 +955,7 @@ struct VS_INPUT
 struct VS_OUTPUT
 {
 	float4 Position : SV_POSITION; // the vertex position in screen space, z is 0..1 depth, normally this is same like tex0
-	float2 Tex0     : TEXCOORD0; // the lookup coordinate in screen-sized mapping texture
+	float2 Tex0     : TEXCOORD0; // the lookup coordinate in screen-sized mapping texture, for blend and black level correction
 	float2 Tex1		: TEXCOORD1; // the lookup coordinate for the content
 	float2 Tex2     : TEXCOORD2; // lookup in directional shading map
 };
@@ -1042,21 +1042,21 @@ PS_OUTPUT PSDP(in VS_OUTPUT In)
 
 	// apply blending, TODO: move linearization to texture loader
 	if( params[2] > 0.0 ) {
-		float3 blend1 = txBlending.Sample( samLinear, In.Tex1 ).rgb;
+		float3 blend1 = txBlending.Sample( samLinear, In.Tex0 ).rgb;
 		blend1 = pow( blend1, gamma );  // linearize
 		output *= blend1;
 	}
 
 	// apply secondary blending, TODO: move linearization to texture loader
 	if( params[4] > 0.0 ) {
-		float3 blend2 = txSecondaryBlending.Sample( samLinear, In.Tex1 ).rgb;
+		float3 blend2 = txSecondaryBlending.Sample( samLinear, In.Tex0 ).rgb;
 		blend2 = pow( blend2, gamma );  // linearize
 		output *= blend2;
 	}
 
 	// apply black level uplift, TODO: move linearization to texture loader
 	if( params[3] > 0.0 ) {
-		float3 bla = txBlackLevel.Sample(samLinear, In.Tex1).rgb * params[3];
+		float3 bla = txBlackLevel.Sample(samLinear, In.Tex0).rgb * params[3];
 	    bla = pow( bla, gamma ); // linearize
 		output = output * ( 1.0 - bla ) + bla;
 	}

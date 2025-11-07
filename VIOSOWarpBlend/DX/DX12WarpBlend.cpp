@@ -723,11 +723,6 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 						RPT_HR_FATAL( CreateAndFillResource( m_device, m_cl, textureDesc, td.pData, *td.ppTex, stagingTexs, td.name, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE ), (std::string( "Could not create texture \"" ) + VWBUtil::to_string( td.name ) + "\"" ).c_str(), VWB_ERROR_GENERIC );
 					}
 
-				if( m_texDirectionalShading && ( VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS ) == ( ( VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS ) & warpmap.has ) ) {
-					SAFE_RELEASE( m_texDirectionalShading );
-					logStr( 1, "WARNING: No normals or tangents in shape. Directional shading disabled." );
-				}
-
 				// create dummy texture
 				textureDesc.Width = 1;
 				textureDesc.Height = 1;
@@ -1316,15 +1311,29 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 	return err;
 }
 
-VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
-{
+VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask ) {
 	__super::Render( inputTexture, stateMask );
-	logStr( 4, "RenderDX12..." );
+	logStr( 4, "DX12::Render..." );
+	auto in = (VWB_D3D12_RENDERINPUT2*)inputTexture;
+	VWB_D3D12_RENDERINPUT2 ex = {};
+	memcpy( &ex, in, sizeof( VWB_D3D12_RENDERINPUT ) );
+	return Render2( (VWB_param)&ex, stateMask );
+}
+
+VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
+{
+	__super::Render2( inputTexture, stateMask );
+	logStr( 4, "DX12::Render2..." );
+
+	if( !m_licenseInfo->isValid )
+	{
+		logStr( 1, "WARNING: Invalid license for DX12 warper. Output may be watermarked." );
+	}
 
 	if( VWB_STATEMASK_STANDARD == stateMask )
 		stateMask = VWB_STATEMASK_DEFAULT_D3D12;
 
-	auto in = (VWB_D3D12_RENDERINPUT*)inputTexture;
+	auto in = (VWB_D3D12_RENDERINPUT2*)inputTexture;
 	if( nullptr == in || nullptr == in->renderTarget || 0 == in->rtvHandlePtr )
 		return VWB_ERROR_PARAMETER;
 	HRESULT hr = S_OK;
@@ -1332,7 +1341,7 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	ID3D12GraphicsCommandList* cl = nullptr;
 	if( in->commandList )
 	{
-		cl = ( ID3D12GraphicsCommandList* )in->commandList;
+		cl = (ID3D12GraphicsCommandList*)in->commandList;
 		cl->SetPipelineState( m_pipelineState );
 	}
 	else

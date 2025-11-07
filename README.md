@@ -31,7 +31,6 @@ Make sure, you have a c\+\+20 and a c17 compiler handy, like Visual Studio 2022 
 
 ``` cmd
 vcpkg install stb
-vcpkg install tinyxml2
 vcpkg install zlib
 vcpkg install GLM
 vcpkg install glfw3
@@ -41,7 +40,6 @@ vcpkg install glfw3
 
 ``` bash
 sudo apt install libstb-dev 
-sudo apt install libtinyxml2-dev
 sudo apt install zlib1g-dev
 sudo apt install libglm-dev
 sudo apt install libglfw3-dev

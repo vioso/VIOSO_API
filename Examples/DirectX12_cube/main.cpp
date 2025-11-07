@@ -803,7 +803,7 @@ public:
     }
 };
 
-class MyDPCorrection : public D3D12Renderer {
+class MyVIOSOWarper : public D3D12Renderer {
 protected:
     D3D12RT& m_source;
     D3D12RT& m_target;
@@ -815,7 +815,7 @@ protected:
 
 public:
     // initlalize
-    MyDPCorrection( D3D12RT& parent, D3D12RT& source, fs::path inifile, string channel, bool turnWithView = true ) 
+    MyVIOSOWarper( D3D12RT& parent, D3D12RT& source, fs::path inifile, string channel, bool turnWithView = true ) 
         : D3D12Renderer( parent )
         , m_target( parent )
         , m_source( source )
@@ -842,7 +842,35 @@ public:
 #endif //dev _DEBUG
         // initialize VIOSO_API
         auto descRT = parent.getDescRT();
-        m_ctx = std::make_unique<VWB>( "", m_queue, inifile, channel.c_str(), 3, "stdout" );
+		if( inifile.extension() == ".vwf" ) {
+			cout << "Using VWF file: " << inifile << endl;
+            m_ctx = std::make_unique<VWB>( "", m_queue, "", channel.c_str(), 3, "stdout" );
+			strcpy_s( m_ctx->get().calibFile, inifile.string().c_str() );
+			m_ctx->get().calibIndex = atoi( channel.c_str() );
+            m_ctx->get().trans[0] = 1000;
+            m_ctx->get().trans[1] = 0;
+            m_ctx->get().trans[2] = 0;
+            m_ctx->get().trans[3] = 0;
+
+            m_ctx->get().trans[4] = 0;
+            m_ctx->get().trans[5] = 1000;
+            m_ctx->get().trans[6] = 0;
+            m_ctx->get().trans[7] = 0;
+
+            m_ctx->get().trans[8] = 0;
+            m_ctx->get().trans[9] = 0;
+            m_ctx->get().trans[10] = -1000;
+            m_ctx->get().trans[11] = 0;
+
+            m_ctx->get().trans[12] = 0;
+            m_ctx->get().trans[13] = 0;
+            m_ctx->get().trans[14] = 0;
+            m_ctx->get().trans[15] = 1;
+            m_ctx->get().bAutoView = true;
+        } else {
+            cout << "Using config file: " << inifile << endl;
+            m_ctx = std::make_unique<VWB>( "", m_queue, inifile, channel.c_str(), 3, "stdout" );
+        }
         cout << "VIOSO Warper context created." << endl;
 		m_ctx->get().bTurnWithView = m_turnWithView;
         auto res = m_ctx->Init();
@@ -854,7 +882,7 @@ public:
             cout << "Channel " << channel << " with " << descRT.Width << "x" << descRT.Height << " initialized." << endl;
     }
 
-    virtual ~MyDPCorrection() {
+    virtual ~MyVIOSOWarper() {
         if( m_ctx )
             m_ctx.reset();
 #ifdef _DEBUG
@@ -876,7 +904,7 @@ public:
 
     virtual bool preRender( Alloc& alloc, DirectX::XMMATRIX& world, DirectX::XMMATRIX& projection ) override {
         //XMFLOAT3 eye( 0,1.5,0 );
-		XMFLOAT3 eye( g_fPositionX, g_fPositionY + 1.5f, g_fPositionZ );
+		XMFLOAT3 eye( g_fPositionX, g_fPositionY /*+ 1.5f*/, g_fPositionZ );
         XMFLOAT3 rot( DirectX::XMConvertToRadians( g_fPitch ), DirectX::XMConvertToRadians( g_fHeading ), DirectX::XMConvertToRadians( g_fRoll ) );
         XMMATRIX p, v;
         // we ask dpLib for the current eye position, direction and projection matrix   
@@ -942,14 +970,14 @@ public:
 		auto& rtHeap = m_target.getCurrentRTHeap();
 
         // This draws into it's own command list and executes it, no wait, but the postDraw will signal after execution
-        VWB_D3D12_RENDERINPUT ri{
+        VWB_D3D12_RENDERINPUT2 ri{
             texIn, 
             texOut,
             rtHeap.getCPUHandle().ptr,
             {},
             alloc.cl
         };
-        auto res = m_ctx->Render( &ri );
+        auto res = m_ctx->Render2( &ri );
 
         // we wait, until the queue is done on GPU, because we need to reset the list
        
@@ -1038,9 +1066,9 @@ int main( int argc, char** argv ) {
             cout << "Creating SkyBox renderer...";
             fbo.addRenderer( make_unique<SkyBox>( fbo ) );
             cout << "OK" << endl;
-            cout << "Creating Correction renderer...";
-            wnd.addRenderer( make_unique <MyDPCorrection>( wnd, fbo, g_configfile, g_channel ));
-            cout << "OK" << endl;
+            cout << "Creating Correction renderer:\n";
+            wnd.addRenderer( make_unique <MyVIOSOWarper>( wnd, fbo, g_configfile, g_channel ));
+            cout << "\n--> OK" << endl;
             #endif
             ret = wnd.loop();
         }

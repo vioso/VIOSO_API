@@ -117,9 +117,19 @@ struct VWB_VECTOR3
 		l[0] = T( 1 ) - l[2] - l[1];
 		return true;
 	}
-	inline VWB_VECTOR3 Cart2Bary( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& p )
+	// calculate weights using myself as point
+	inline VWB_VECTOR3 Cart2Bary( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3 )
 	{
-		VWB_VECTOR3& l;
+		VWB_VECTOR3 l;
+		if( Cart2Bary( p1, p2, p3, *this, l ) )
+			return l;
+		else
+			return VWB_VECTOR3::O();
+	}
+
+	inline static VWB_VECTOR3 Cart2Bary( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& p )
+	{
+		VWB_VECTOR3 l;
 		if( Cart2Bary( p1, p2, p3, p, l ) )
 			return l;
 		else
@@ -133,10 +143,17 @@ struct VWB_VECTOR3
 		p[1] = l[0] * p1[1] + l[1] * p2[1] + l[2] * p3[1];
 		p[2] = l[0] * p1[2] + l[1] * p2[2] + l[2] * p3[2];
 	}
-	inline VWB_VECTOR3 Bary2Cart( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& l ) 
+	inline static VWB_VECTOR3 Bary2Cart( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3, VWB_VECTOR3 const& l ) 
 	{
 		VWB_VECTOR3 p;
 		Bary2Cart( p1, p2, p3, l, p );
+		return p;
+	}
+	// use myself as weights
+	inline VWB_VECTOR3 Bary2Cart( VWB_VECTOR3 const& p1, VWB_VECTOR3 const& p2, VWB_VECTOR3 const& p3 ) 
+	{
+		VWB_VECTOR3 p;
+		Bary2Cart( p1, p2, p3, *this, p );
 		return p;
 	}
 

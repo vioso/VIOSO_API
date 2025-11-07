@@ -551,14 +551,14 @@ void D3D12HelloTexture::OnRender()
     DrawSomething();
 
     #ifdef USE_VIOSO_API
-    VWB_D3D12_RENDERINPUT vri = {
+    VWB_D3D12_RENDERINPUT2 vri = {
         nullptr,
         m_renderTargets[m_frameIndex].Get(),
         CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize ).ptr,
         {0.0f,0.0f,0.0f,0.0f,0.0f,0.0f},
         m_commandList.Get() // we use own command list
     };
-    VWB_render( m_warper, &vri, VWB_STATEMASK_DEFAULT_D3D12/* | VWB_STATEMASK_CLEARBACKBUFFER*/ );
+    VWB_render2( m_warper, &vri, VWB_STATEMASK_DEFAULT_D3D12/* | VWB_STATEMASK_CLEARBACKBUFFER*/ );
     #endif // def USE_VIOSO_API
     // Execute the command list.
 

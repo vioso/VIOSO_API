@@ -130,12 +130,13 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* @param [IN]			pWarper	a valid warper
     * @param [IN,OPT]		pSrc    the source texture, a IDirect3DTexture9*, ID3D10Texture2D*, ID3D11Texture2D*, VWB_D3D12_RENDERINPUT* or a GLint texture index; 
 	* if current backbuffer must be read, set to NULL in any DX mode except 12 or to -1 in OpenGL mode
-	* in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter.
+	* in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter or a @see VWB_D3D12_RENDERINPUT2 and use VWB_render2.
 	* @param [IN,OPT]		stateMask @see VWB_STATEMASK enumeration, default is 0 to restore usual stuff
 	* In D3D12 all flags except VWB_STATEMASK_CLEARBACKBUFFER are ignored.
 	* The application is required to set inputs and shader in each term anyway.
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise */
-    VIOSOWARPBLEND_API( VWB_ERROR, VWB_render, ( VWB_Warper* pWarper, VWB_param src, VWB_uint stateMask ) );  
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_render, ( VWB_Warper* pWarper, VWB_param src, VWB_uint stateMask ) );  
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_render2, ( VWB_Warper* pWarper, VWB_param src, VWB_uint stateMask ) );  
 
 	/** get info about .vwf, reads all warp headers
 	* @param [IN]			path	the file name or a comma separated list of filenames, set to NULL to release data from a previous set

@@ -24,146 +24,6 @@
 #include "stb/stb_image.h"
 #endif // def WIN32
 
-#if 0
-DPLIB_API dpResult dpLoadTargetRectFromFile(const char* filename, dpTargetRect* pRect)
-{
-	if (!pRect)
-	{
-		return dpInvalidPointer;
-	}
-	std::ifstream ifs;
-	std::string tmp;
-
-	// open file
-	ifs.open(std::filesystem::path(filename));
-	if (!ifs.is_open())
-	{
-		return dpFileNotFound;
-	}
-
-	std::getline(ifs, tmp); // skip first (comment) line
-	std::getline(ifs, tmp);
-	ifs.close();
-
-	// parse data
-	std::vector<std::string> codes;
-	std::string::size_type lastPos = tmp.find_first_not_of(";", 0);
-	std::string::size_type pos = tmp.find_first_of(";", lastPos);
-	while (std::string::npos != pos || std::string::npos != lastPos)
-	{
-		codes.push_back(tmp.substr(lastPos, pos - lastPos));
-		lastPos = tmp.find_first_not_of(";", pos);
-		pos = tmp.find_first_of(";", lastPos);
-	}
-
-	if (codes.size() < 27)
-	{
-		return dpInvalidData;
-	}
-
-	//Real32 posX = atof(codes[0].c_str());
-	//Real32 posY = atof(codes[1].c_str());
-	//Real32 posZ = atof(codes[2].c_str());
-	float heading = atof(codes[3].c_str());
-	float pitch = -atof(codes[4].c_str());
-	float bank = atof(codes[5].c_str());
-	//Real32 left = atof(codes[6].c_str());
-	//Real32 right = atof(codes[7].c_str());
-	//Real32 bottom = atof(codes[8].c_str());
-	//Real32 top = atof(codes[9].c_str());
-	//Real32 width = atof(codes[10].c_str());
-	//Real32 height = atof(codes[11].c_str());
-
-	dpGetDirAndUp(dpVec3f(heading, pitch, bank), &pRect->dir, &pRect->up);
-
-	pRect->topLeft = dpVec3f(atof(codes[15].c_str()), atof(codes[17].c_str()), -atof(codes[16].c_str()));
-	pRect->topRight = dpVec3f(atof(codes[18].c_str()), atof(codes[20].c_str()), -atof(codes[19].c_str()));
-	pRect->bottomRight = dpVec3f(atof(codes[21].c_str()), atof(codes[23].c_str()), -atof(codes[22].c_str()));
-	pRect->bottomLeft = dpVec3f(atof(codes[24].c_str()), atof(codes[26].c_str()), -atof(codes[25].c_str()));
-
-	return dpNoError;
-}
-DPLIB_API dpResult dpLoadCameraFromFile(const char* filename, dpCamera* pCamera)
-{
-	if (!pCamera)
-	{
-		return dpInvalidPointer;
-	}
-	std::ifstream ifs;
-	std::string tmp;
-
-	// open file
-	ifs.open(std::filesystem::path(filename));
-	if (!ifs.is_open())
-	{
-		return dpFileNotFound;
-	}
-
-	std::getline(ifs, tmp); // skip first (comment) line
-	std::getline(ifs, tmp);
-	ifs.close();
-
-	// parse data
-	std::vector<std::string> codes;
-	std::string::size_type lastPos = tmp.find_first_not_of(";", 0);
-	std::string::size_type pos = tmp.find_first_of(";", lastPos);
-	while (std::string::npos != pos || std::string::npos != lastPos)
-	{
-		codes.push_back(tmp.substr(lastPos, pos - lastPos));
-		lastPos = tmp.find_first_not_of(";", pos);
-		pos = tmp.find_first_of(";", lastPos);
-	}
-
-	if (codes.size() < 16)
-	{
-		return dpInvalidData;
-	}
-
-	float posX = atof(codes[0].c_str());
-	float posY = atof(codes[2].c_str());
-	float posZ = -atof(codes[1].c_str());
-	float heading = atof(codes[3].c_str());
-	float pitch = -atof(codes[4].c_str());
-	float bank = atof(codes[5].c_str());
-	float left = atof(codes[6].c_str());
-	float right = atof(codes[7].c_str());
-	float bottom = atof(codes[8].c_str());
-	float top = atof(codes[9].c_str());
-	float tanLeft = atof(codes[10].c_str());
-	float tanRight = atof(codes[11].c_str());
-	float tanBottom = atof(codes[12].c_str());
-	float tanTop = atof(codes[13].c_str());
-	//float width = atof(codes[14].c_str());
-	//float height = atof(codes[15].c_str());
-
-
-	float width = tanRight - tanLeft;
-	float height = tanTop - tanBottom;
-	float aspect = width / height;
-	float fov = atan(height / 2.0f) * 2.0; // radians
-	float offX = (tanLeft + tanRight) / 2.0f / (width * 0.5f);
-	float offY = (tanBottom + tanTop) / 2.0f / (height * 0.5f);
-
-	dpGetDirAndUp(dpVec3f(heading, pitch, bank), &pCamera->dir, &pCamera->up);
-	pCamera->position = dpVec3f(posX, posY, posZ);
-	pCamera->tanLeft = tanLeft;
-	pCamera->tanRight = tanRight;
-	pCamera->tanBottom = tanBottom;
-	pCamera->tanTop = tanTop;
-	pCamera->fov = fov;
-	pCamera->aspect = aspect;
-	pCamera->offset = dpVec2f(offX, offY);
-
-	// setting the clipping planes to some default value
-	// will be overridden by the calling function
-	pCamera->cNear = 0.5;
-	pCamera->cFar = 5000.0;
-
-	return dpNoError;
-}
-
-#endif
-
 VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asTarget = false ) {
 	std::ifstream ifs;
 	std::string tmp;
@@ -650,45 +510,50 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 		if( VWB_ERROR_NONE == LoadDPShape( paths[5], wb.pMesh, flipVertices, flipUvs ) ) { // shape
 			wb.header.flags |= FLAG_WARPFILE_HEADER_MESH;
 			wb.header.flags |= FLAG_WARPFILE_HEADER_3D;
-			logStr( 2, "INFO: LoadDP: Loaded shape from \"%s\"\n", paths[0].string().c_str() );
+			logStr( 2, "INFO: LoadDP: Shape file \"%s\" loaded.\n", paths[5].string().c_str() );
 		} else {
-			logStr( 1, "ERROR: LoadDP: Error loading warp from \"%s\"\n", paths[0].string().c_str() );
+			logStr( 1, "ERROR: LoadDP: Error loading warp from \"%s\"\n", paths[5].string().c_str() );
 			return VWB_ERROR_VWF_LOAD;
 		}
 	}
 
 	if( !paths[6].empty() ) {
 		if( VWB_ERROR_NONE == LoadDPFrustum( paths[6], wb ) ) { // frustum
-			logStr( 2, "INFO: LoadDP: Loaded frustum from \"%s\"\n", paths[0].string().c_str() );
+			logStr( 2, "INFO: LoadDP: Frustum file \"%s\" loaded.\n", paths[6].string().c_str() );
 		} else {
-			logStr( 1, "ERROR: LoadDP: Error loading warp from \"%s\"\n", paths[0].string().c_str() );
+			logStr( 1, "ERROR: LoadDP: Error loading warp from \"%s\"\n", paths[6].string().c_str() );
 			return VWB_ERROR_VWF_LOAD;
 		}
 	}
 
 	if( !paths[7].empty() ) {
 		if( VWB_ERROR_NONE == LoadDPFrustum( paths[7], wb, true ) ) { // target
-			logStr( 2, "INFO: LoadDP: Loaded target from \"%s\"\n", paths[0].string().c_str() );
+			logStr( 2, "INFO: LoadDP: Target file \"%s\" loaded.\n", paths[7].string().c_str() );
 		} else {
-			logStr( 1, "ERROR: LoadDP: Error loading warp from \"%s\"\n", paths[0].string().c_str() );
+			logStr( 1, "ERROR: LoadDP: Error loading warp from \"%s\"\n", paths[7].string().c_str() );
 			return VWB_ERROR_VWF_LOAD;
 		}
 	}
 
 	if( !paths[8].empty() ) { // directional-shading
-		int w = 0, h = 0;
-		auto dirShadeData = stbi_load( (char const*)paths[8].u8string().c_str(), &w, &h, NULL, 4 );
-		if( dirShadeData ) {
-			wb.pDirectional = new VWB_BlendRecord[w * h];
-			memcpy( wb.pDirectional, dirShadeData, w * h * 4 );
-			wb.header.flags |= FLAG_WARPFILE_HEADER_DIRSHADING;
-			wb.directionalSz.cx = w;
-			wb.directionalSz.cy = h;
-			stbi_image_free( dirShadeData );
+		if( wb.pMesh && ( VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS ) != ( ( VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS ) & wb.pMesh->has ) ) {
+			logStr( 1, "WARNING: No normals and tangents in shape. Directional shading disabled." );
 		} else {
-			logStr( 1, "ERROR: LoadDP: Error loading Directional-Shading from \"%s\"\n", paths[8].string().c_str() );
-			DeleteVWF( wb );
-			return VWB_ERROR_VWF_LOAD;
+			int w = 0, h = 0;
+			auto dirShadeData = stbi_load( (char const*)paths[8].u8string().c_str(), &w, &h, NULL, 4 );
+			if( dirShadeData ) {
+				wb.pDirectional = new VWB_BlendRecord[w * h];
+				memcpy( wb.pDirectional, dirShadeData, w * h * 4 );
+				wb.header.flags |= FLAG_WARPFILE_HEADER_DIRSHADING;
+				wb.directionalSz.cx = w;
+				wb.directionalSz.cy = h;
+				stbi_image_free( dirShadeData );
+				logStr( 2, "INFO: LoadDP: Directional-Shading file \"%s\" loaded.\n", paths[3].string().c_str() );
+			} else {
+				logStr( 1, "ERROR: LoadDP: Error loading Directional-Shading from \"%s\"\n", paths[8].string().c_str() );
+				DeleteVWF( wb );
+				return VWB_ERROR_VWF_LOAD;
+			}
 		}
 	}
 
@@ -697,8 +562,6 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 		DeleteVWF( wb );
 		return VWB_ERROR_VWF_LOAD;
 	}
-	if( wb.header.hMonitor == 0 )
-		wb.header.hMonitor = 1;
 
 	if( !wb.pMesh ) {
 		logStr( 1, "ERROR: LoadDP: No valid warp or shape loaded.\n" );

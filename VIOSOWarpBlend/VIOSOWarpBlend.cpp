@@ -52,12 +52,13 @@
 #include "../Include/StringConversions.h"
 #include "VWF.h"
 #include "dpXML.h"
-#include "tinyxml2.h"
+#include "tinyxml2/tinyxml2.h"
 
 
 using namespace std;
 using namespace VWBUtil;
 namespace fs = std::filesystem;
+using namespace std::chrono_literals;
 
 VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
@@ -102,6 +103,16 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 
 			m_bDP = true; // switch to domeprojection mode
 
+			// in domeprojection exports, the channel is an integer, so we try to parse it here
+			std::istringstream ss( channel );
+			// skip everything, that is not a number, this includes whitespaces and all non-digit characters, so a "Display 01" becomes 1
+			while( ss.good() && !isdigit( ss.peek() ) )
+				ss.get();
+			int iChannel = 0;
+			ss >> iChannel;
+			// stringify it again
+			std::string strChannel = std::to_string( iChannel );
+			hMonitor = 0x10000 + (VWB_int)iChannel;
 			using namespace tinyxml2;
 
 			calibFile[0] = 0; // no calib file, we fill with maps later
@@ -129,18 +140,19 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 				logStr( 0, "Error open \"%s\"", path );
 				return VWB_ERROR_INI_LOAD;
 			}
-			auto res = doc.LoadFile( f );
-			fclose( f );
-			if( XML_SUCCESS != res ) {
-				logStr( 0, "Error parsing \"%s\"", path );
-				return VWB_ERROR_INI_LOAD;
-			}
-
 			// strip BOM
 			if( fgetc( f ) != 0xEF ||
 				fgetc( f ) != 0xBB ||
 				fgetc( f ) != 0xBF )
 				fseek( f, 0, 0 );
+
+			auto res = doc.LoadFile( f );
+			fclose( f );
+
+			if( XML_SUCCESS != res ) {
+				logStr( 0, "Error parsing \"%s\"", path );
+				return VWB_ERROR_INI_LOAD;
+			}
 
 			XMLElement* root = doc.FirstChildElement("dpCorrection");
 			if (!root)
@@ -168,6 +180,10 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 			if( element = root->FirstChildElement( "logLevel" ) ) {
 				g_logLevel = atoi( element->FirstChild()->Value() );
 			}
+		#ifdef _DEBUG
+			else
+				g_logLevel = 3;
+		#endif
 			if( g_bFirstInstance ) {
 				if( ( element = root->FirstChildElement( "bLogClear" ) ) && atoi( element->FirstChild()->Value() ) ) {
 					logClear();
@@ -275,6 +291,13 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 			if( element = root->FirstChildElement( "bFlipWarpmeshVertices" ) ) {
 				bFlipWarpmeshVertices = atoi( element->GetText() ) != 0;
 			}
+			if( element = root->FirstChildElement( "pluginId" ) ) {
+				pluginId = atoi( element->GetText() ) != 0;
+			}
+			if( element = root->FirstChildElement( "hMonitor" ) ) {
+				hMonitor = atoi( element->GetText() );
+			}
+
 			if( element = root->FirstChildElement( "debugBreak" ) ) {
 			#ifdef WIN32
 				MessageBoxA( NULL, "BREAK", "DEBUG", MB_OK );
@@ -283,7 +306,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 			}
 			for( element = root->FirstChildElement( "channel" ); element; element = element->NextSiblingElement() ) {
 				auto attr = element->Attribute( "id");
-				if( attr && szChannelName && 0 == strcmp( attr, szChannelName ) ) {
+				if( attr && attr[0] && !strChannel.empty() && strChannel == attr ) {
 					const array names{
 						"warpmap",
 						"blending",
@@ -295,7 +318,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 						"target",
 						"directional-shading"
 					};
-					vector<char8_t const*> files; files.reserve( 8 );
+					vector<char8_t const*> files; files.reserve( names.size() );
 
 					for( auto name : names ) {
 						if( attr = element->Attribute( name ) )
@@ -309,7 +332,26 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 					if( attr = element->Attribute( "output-gamma" ) ) {
 						outputGamma = (float)atof( attr );
 					}
-						
+					if( attr = element->Attribute( "monitor" ) ) {
+						hMonitor = (float)atof( attr );
+					}
+					if( attr = element->Attribute( "pluginId" ) ) {
+						pluginId = (float)atof( attr );
+					}
+
+					if( attr = element->Attribute( "screen" ) ) {
+						screenDist = (float)atof( attr );
+					}
+					if( attr = element->Attribute( "eye" ) ) {
+						copyMat( eye, GetMat( attr, 3, 1 ).value_or( createMat( eye ) ) );
+					}
+					if( attr = element->Attribute( "dir" ) ) {
+						copyMat( dir, GetMat( attr, 3, 1 ).value_or( createMat( dir ) ) );
+					}
+					if( attr = element->Attribute( "fov" ) ) {
+						copyMat( fov, GetMat( attr, 4, 1 ).value_or( createMat( fov ) ) );
+					}
+
 					ostringstream oss;
 					if( files[0] ) {
 						auto fp = MkPath( files[0], "", m_configPath );
@@ -409,13 +451,14 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 			sDef = GetIniString( "default", "calibFile", p ).value_or( calibFile );
 			VWBUtil::copy( calibFile, GetIniString( channel, "calibFile", p ).value_or( sDef ) );
 
-			iDef = GetIniInt( "default", "calibIndex", calibIndex, p );
-			calibIndex = GetIniInt( channel, "calibIndex", iDef, p );
-			if( -1 == calibIndex ) {
-				iDef = GetIniInt( channel, "calibAdapterOrdinal", 0, p );
-				calibIndex = -1 * ( GetIniInt( channel, "calibAdapterOrdinal", iDef, p ) );
+			iDef = GetIniInt( channel, "calibAdapterOrdinal", -1, p );
+			iDef = -1 * ( GetIniInt( channel, "calibAdapterOrdinal", iDef, p ) );
+			if( iDef < 0 ) {
+				calibIndex = iDef;
+			} else {
+				iDef = GetIniInt( "default", "calibIndex", calibIndex, p );
+				calibIndex = GetIniInt( channel, "calibIndex", iDef, p );
 			}
-
 			fDef = GetIniFloat( "default", "near", nearDist, p );
 			nearDist = GetIniFloat( channel, "near", fDef, p );
 
@@ -545,6 +588,12 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 			iDef = GetIniInt( "default", "bFlipWarpmeshVertices", bFlipWarpmeshVertices, p );
 			bFlipWarpmeshTexcoords = 0 != GetIniInt( channel, "bFlipWarpmeshVertices", iDef, p );
 
+			iDef = GetIniInt( "default", "pluginId", bFlipWarpmeshVertices, p );
+			pluginId = 0 != GetIniInt( channel, "pluginId", iDef, p );
+
+			iDef = GetIniInt( "default", "hMonitor", bFlipWarpmeshVertices, p );
+			hMonitor = 0 != GetIniInt( channel, "hMonitor", iDef, p );
+
 			iDef = GetIniInt( "default", "debugBreak", 0, p );
 			if( GetIniInt( channel, "debugBreak", iDef, p ) ) {
 			#ifdef WIN32
@@ -561,6 +610,10 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( std::filesystem::path configFile, char c
 /////////////////////////////////////////////////////////////////////////////////////
 // internal create function
 VWB_ERROR create( void* pDxDevice, char const* szChannelName, VWB_Warper** ppWarper ) {
+//#ifdef WIN32
+//	MessageBoxA( NULL, "BREAK", "DEBUG", MB_OK );
+//#else
+//#endif
 	try {
 		if( VWB_DUMMYDEVICE == pDxDevice ) {
 			*ppWarper = new Dummywarper();
@@ -644,58 +697,63 @@ VWB_ERROR create( void* pDxDevice, char const* szChannelName, VWB_Warper** ppWar
 	return VWB_ERROR_NONE;
 }
 
-void report( VWB_Warper** ppWarper, bool withHeader = true ) {
-	{
-		if( withHeader ) {
-			auto t = std::chrono::year_month_day{ std::chrono::floor<std::chrono::days>( std::chrono::system_clock::now() ) };
-			logStr( 1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", int( t.year() ), unsigned( t.month() ), unsigned( t.day() ), VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV );
-		#ifdef _DEBUG
-			logStr( 1, "DEBUG" );
-		#endif
+void report( VWB_Warper** ppWarper, bool withHeader = true, char const* message = "Parameters" ) {
+	if( withHeader ) {
+		auto t = std::chrono::year_month_day{ std::chrono::floor<std::chrono::days>( std::chrono::system_clock::now() ) };
+		logStr( 1, "%04d/%02d/%02d VIOSOWarpBlend API %d.%d.%d.%d.\n", int( t.year() ), unsigned( t.month() ), unsigned( t.day() ), VWB_Version_MAJ, VWB_Version_MIN, VWB_Version_MAI, VWB_Version_REV );
+	#ifdef _DEBUG
+		logStr( 1, "DEBUG" );
+	#endif
 
-			filesystem::path modPath;
-			filesystem::path procPath;
-		#ifdef WIN32
-			wchar_t wszProcPath[MAX_PATH]{ 0 };
-			if( ::GetModuleFileNameW( 0, wszProcPath, MAX_PATH ) )
-				procPath = wszProcPath;
-			wchar_t wszModPath[MAX_PATH]{ 0 };
-			if( ::GetModuleFileNameW( g_hModDll, wszModPath, MAX_PATH ) )
-				modPath = wszModPath;
-		#else
-			Dl_info dl_info{};
-			auto res = dladdr( (void*)VWB_CreateA, &dl_info );
-			if( res )
-				modPath = dl_info.dli_fname;
-			char path[PATH_MAX];
-			ssize_t len = readlink( "/proc/self/exe", path, sizeof( path ) - 1 );
-			if( len != -1 ) {
-				path[len] = '\0';
-				procPath = path;
-			}
-
-		#endif //def WIN32
-			if( !modPath.empty() ) {
-				if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
-					logStr( 1, "lib path: \"%s\".", modPath.u8string().c_str() );
-				else
-					logStr( 1, "lib path: \"%s\".", modPath.string().c_str() );
-			}
-			if( !procPath.empty() ) {
-				if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
-					logStr( 1, "process path: \"%s\".", procPath.u8string().c_str() );
-				else
-					logStr( 1, "process path: \"%s\".", procPath.string().c_str() );
-			}
+		filesystem::path modPath;
+		filesystem::path procPath;
+	#ifdef WIN32
+		wchar_t wszProcPath[MAX_PATH]{ 0 };
+		if( ::GetModuleFileNameW( 0, wszProcPath, MAX_PATH ) )
+			procPath = wszProcPath;
+		wchar_t wszModPath[MAX_PATH]{ 0 };
+		if( ::GetModuleFileNameW( g_hModDll, wszModPath, MAX_PATH ) )
+			modPath = wszModPath;
+	#else
+		Dl_info dl_info{};
+		auto res = dladdr( (void*)VWB_CreateA, &dl_info );
+		if( res )
+			modPath = dl_info.dli_fname;
+		char path[PATH_MAX];
+		ssize_t len = readlink( "/proc/self/exe", path, sizeof( path ) - 1 );
+		if( len != -1 ) {
+			path[len] = '\0';
+			procPath = path;
 		}
-		if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
-			logStr( 1, "string mode: UTF-8.\n" );
+
+	#endif //def WIN32
+		if( !modPath.empty() ) {
+			if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
+				logStr( 1, "lib path: \"%s\".", modPath.u8string().c_str() );
+			else
+				logStr( 1, "lib path: \"%s\".", modPath.string().c_str() );
+		}
+		if( !procPath.empty() ) {
+			if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
+				logStr( 1, "process path: \"%s\".", procPath.u8string().c_str() );
+			else
+				logStr( 1, "process path: \"%s\".", procPath.string().c_str() );
+		}
+
+		if( ( (VWB_Warper_base*)( *ppWarper ) )->isDP() )
+			logStr( 1, "Config mode XML." );
 		else
-			logStr( 1, "string mode: ASCII.\n" );
-		logStr( 1, "LogLevel=%d.\n", g_logLevel );
+			logStr( 1, "Config mode VWF." );
+
+		if( ( (VWB_Warper_base*)( *ppWarper ) )->isUTF8() )
+			logStr( 1, "string mode: UTF-8." );
+		else
+			logStr( 1, "string mode: ASCII." );
+
+		logStr( 1, "LogLevel=%d.", g_logLevel );
 	}
 	logStr( 2,
-			"%.4s-Warper \"%s\" created.\nEvaluated parameters%s%s:\n"
+			"%.4s-Warper \"%s\":\n%s:\n"
 			"calibFile=%s\n"
 			"calibIndex=%d\n"
 			"calibSplit=[%d,%d,%d,%d]\n"
@@ -734,10 +792,11 @@ void report( VWB_Warper** ppWarper, bool withHeader = true ) {
 			"outputGamma=%f\n"
 			"bFlipWarpmeshTexcoords=%d\n"
 			"bFlipWarpmeshVertices=%d\n"
+			"pluginId=%d\n"
+			"hMonitor=%d\n"
 			"\n",
 			( (VWB_Warper_base*)*ppWarper )->GetType(), ( *ppWarper )->channel,
-			( *ppWarper )->path[0] ? " from\n" : ", no .ini file set, using defaults",
-			( *ppWarper )->path,
+			message,
 			( *ppWarper )->calibFile,
 			( *ppWarper )->calibIndex,
 			( *ppWarper )->calibSplit[0], ( *ppWarper )->calibSplit[1], ( *ppWarper )->calibSplit[2], ( *ppWarper )->calibSplit[3],
@@ -778,7 +837,9 @@ void report( VWB_Warper** ppWarper, bool withHeader = true ) {
 			( *ppWarper )->blackBrightAdjust,
 			( *ppWarper )->outputGamma,
 			( *ppWarper )->bFlipWarpmeshTexcoords ? 1 : 0,
-			( *ppWarper )->bFlipWarpmeshVertices ? 1 : 0
+			( *ppWarper )->bFlipWarpmeshVertices ? 1 : 0,
+			( *ppWarper )->pluginId,
+			( *ppWarper )->hMonitor
 	);
 };
 
@@ -801,6 +862,7 @@ VWB_ERROR VWB_CreateU( void* pDxDevice, char8_t const* szConfigFile, char8_t con
 
 	( (VWB_Warper_base*)( *ppWarper ) )->setUTF8( true );
 
+	std::string reportMsg;
 	if( NULL != szConfigFile && 0 != szConfigFile[0] ) {
 		if( VWB_ERROR_NONE != ( (VWB_Warper_base*)*ppWarper )->ReadIniFile( szConfigFile, (char const*)szChannelName ) ) {
 			logStr( 0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile );
@@ -808,14 +870,16 @@ VWB_ERROR VWB_CreateU( void* pDxDevice, char8_t const* szConfigFile, char8_t con
 			*ppWarper = NULL;
 			return VWB_ERROR_INI_LOAD;
 		}
+		reportMsg = "Parameters from \"" + std::string( (char const*)szConfigFile ) + "\"";
 	} else {
 		if( NULL != szChannelName && 0 != szChannelName[0] )
 			VWBUtil::copy( ( (VWB_Warper_base*)*ppWarper )->channel, (char const*)szChannelName );
 		else
 			VWBUtil::copy( ( (VWB_Warper_base*)*ppWarper )->channel, "default" );
+		reportMsg = "Parameters (no .ini file set, using defaults)";
 	}
 
-	report( ppWarper );
+	report( ppWarper, true, reportMsg.c_str() );
 
 	return VWB_ERROR_NONE;
 }
@@ -838,6 +902,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 	if( VWB_ERROR_NONE != res )
 		return res;
 
+	std::string reportMsg;
 	if( NULL != szConfigFile && 0 != szConfigFile[0] ) {
 		if( VWB_ERROR_NONE != ( (VWB_Warper_base*)*ppWarper )->ReadIniFile( szConfigFile, szChannelName ) ) {
 			logStr( 0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile );
@@ -845,14 +910,16 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 			*ppWarper = NULL;
 			return VWB_ERROR_INI_LOAD;
 		}
+		reportMsg = "Parameters from \"" + std::string( szConfigFile ) + "\"";
 	} else {
 		if( NULL != szChannelName && 0 != szChannelName[0] )
 			VWBUtil::copy( ( (VWB_Warper_base*)*ppWarper )->channel, szChannelName );
 		else
 			VWBUtil::copy( ( (VWB_Warper_base*)*ppWarper )->channel, "default" );
+		reportMsg = "Parameters (no .ini file set, using defaults)";
 	}
 
-	report( ppWarper );
+	report( ppWarper, true, reportMsg.c_str() );
 
 	return VWB_ERROR_NONE;
 }
@@ -926,13 +993,15 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 			// update fov and dir
 			VWB_VEC3f( set.back()->header.dir ).SetPtr( pWarper->dir );
 			VWB_VEC4f( set.back()->header.fov ).SetPtr( pWarper->fov );
-			( (VWB_Warper*)pWarper )->screenDist = set.back()->header.screen;
+			set.back()->header.screen = ( (VWB_Warper*)pWarper )->screenDist;
+			set.back()->header.hMonitor = ( (VWB_Warper*)pWarper )->hMonitor;
 		} else do {
 			auto sEnd = path.native().find( ',', sBegin );
 			std::filesystem::path pp;
 			pp = MkPath( path.native().substr( sBegin, sEnd ), ".vwf", ((VWB_Warper_base*)pWarper)->getConfigPath() );
 
 			err = LoadVWF( set, pp, false, pWarper->calibIndex, g_cryptoKey, ((VWB_Warper_base*)pWarper)->isUTF8() );
+			set.back()->header.hMonitor = ( (VWB_Warper*)pWarper )->hMonitor;
 
 			if( sEnd == std::filesystem::path::string_type::npos )
 				break;
@@ -1078,6 +1147,14 @@ VWB_ERROR VWB_render( VWB_Warper* pWarper, VWB_param inputTexture, VWB_uint rest
 	if( NULL == pWarper )
 		return VWB_ERROR_PARAMETER;
 	VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->Render( inputTexture, restoreMask );
+	return err;
+}
+
+VWB_ERROR VWB_render2( VWB_Warper* pWarper, VWB_param inputTexture, VWB_uint restoreMask ) {
+	logStr( 4, "VWB_Render" );
+	if( NULL == pWarper )
+		return VWB_ERROR_PARAMETER;
+	VWB_ERROR err = ( (VWB_Warper_base*)pWarper )->Render2( inputTexture, restoreMask );
 	return err;
 }
 
@@ -1571,6 +1648,15 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 	m_viewSizes.z = tan( DEG2RAD( fov[2] ) ) * screenDist; // right
 	m_viewSizes.w = tan( DEG2RAD( fov[3] ) ) * screenDist; // bottom
 
+	if( !VWBLic::init<VWBLicCM>( 5s, 107 ) ) { // 107 is the product code for API/SDK
+		logStr( 0, "ERROR: License initialization failed.\n" );
+		return VWB_ERROR_LICENSE;
+	}
+	m_licenseInfo = VWBLic::acquireChannel( 12, 10s );
+	if( !m_licenseInfo ) {
+		logStr( 0, "ERROR: License acquisition failed.\n" );
+		return VWB_ERROR_LICENSE;
+	}
 	return ret;
 }
 
@@ -1679,7 +1765,6 @@ void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float* pClip ) {
 	w.trans[15] = 1;
 	w.screenDist = 1;
 	w.autoViewC = 1;
-	w.calibIndex = -1;
 	w.bAutoView = true;
 	w.gamma = 1;
 	w.D3D12RTVF = 28;
@@ -1707,7 +1792,6 @@ void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float* pClip ) {
 	w.trans[15] = 1;
 	w.screenDist = 1;
 	w.autoViewC = 1;
-	w.calibIndex = -1;
 	w.bAutoView = true;
 	w.gamma = 1;
 	w.D3D12RTVF = 28;
@@ -2254,6 +2338,10 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask ) 
 	return VWB_ERROR_NONE;
 }
 
+VWB_ERROR VWB_Warper_base::Render2( VWB_param inputTexture, VWB_uint stateMask ) {
+	return VWB_ERROR_NONE;
+}
+
 VWB_ERROR VWB_Warper_base::getWarpBlend( VWB_WarpBlend const*& wb ) {
 	return VWB_ERROR_NOT_IMPLEMENTED;
 }
@@ -2291,9 +2379,18 @@ VWB_ERROR Dummywarper::Init( VWB_WarpBlendSet& wbs ) {
 			m_wb.pWarp = new VWB_WarpRecord[nRecords];
 			memcpy( m_wb.pWarp, wbs[calibIndex]->pWarp, nRecords * sizeof( VWB_WarpRecord ) );
 		}
-		if( m_wb.pBlend2 ) {
-			m_wb.pBlend2 = new VWB_BlendRecord2[nRecords];
-			memcpy( m_wb.pBlend2, wbs[calibIndex]->pBlend2, nRecords * sizeof( VWB_BlendRecord2 ) );
+
+		if( m_wb.pBlend ) {
+			if( m_wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV2 ) {
+				m_wb.pBlend2 = new VWB_BlendRecord2[nRecords];
+				memcpy( m_wb.pBlend2, wbs[calibIndex]->pBlend2, nRecords * sizeof( VWB_BlendRecord2 ) );
+			} else if( m_wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV3 ) {
+				m_wb.pBlend3 = new VWB_BlendRecord3[nRecords];
+				memcpy( m_wb.pBlend3, wbs[calibIndex]->pBlend3, nRecords * sizeof( VWB_BlendRecord3 ) );
+			} else {
+				m_wb.pBlend = new VWB_BlendRecord[nRecords];
+				memcpy( m_wb.pBlend, wbs[calibIndex]->pBlend, nRecords * sizeof( VWB_BlendRecord ) );
+			}
 		}
 		if( m_wb.pBlack ) {
 			m_wb.pBlack = new VWB_BlendRecord[nRecords];
@@ -2303,10 +2400,29 @@ VWB_ERROR Dummywarper::Init( VWB_WarpBlendSet& wbs ) {
 			m_wb.pWhite = new VWB_BlendRecord[nRecords];
 			memcpy( m_wb.pWhite, wbs[calibIndex]->pWhite, nRecords * sizeof( VWB_BlendRecord ) );
 		}
+
+		if( m_wb.pMesh ) {
+			m_wb.pMesh = new VWB_WarpBlendMeshEx;
+
+			memcpy( m_wb.pMesh, wbs[calibIndex]->pMesh, sizeof( VWB_WarpBlendMeshEx ) );
+			m_wb.pMesh->vtx = new VWB_WarpBlendVertexEx[m_wb.pMesh->nVtx];
+			memcpy( m_wb.pMesh->vtx, wbs[calibIndex]->pMesh->vtx, m_wb.pMesh->nVtx * sizeof( VWB_WarpBlendVertexEx ) );
+			m_wb.pMesh->idx = new VWB_uint[m_wb.pMesh->nIdx];
+			memcpy( m_wb.pMesh->idx, wbs[calibIndex]->pMesh->idx, m_wb.pMesh->nIdx * sizeof( VWB_uint ) );
+		}	
+
+		if( m_wb.p2ndBlend ) {
+			m_wb.p2ndBlend = new VWB_BlendRecord[nRecords];
+			memcpy( m_wb.p2ndBlend, wbs[calibIndex]->p2ndBlend, nRecords * sizeof( VWB_BlendRecord ) );
+		}
+
+		if( m_wb.pDirectional ) {
+			m_wb.pDirectional = new VWB_BlendRecord[m_wb.directionalSz.cx * m_wb.directionalSz.cy];
+			memcpy( m_wb.p2ndBlend, wbs[calibIndex]->pDirectional, m_wb.directionalSz.cx * m_wb.directionalSz.cy * sizeof( VWB_BlendRecord ) );
+		}
 	}
 	return err;
 }
-
 
 inline VWB_MAT44f Dummywarper::UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e ) {
 	VWB_MAT44f V; // return value
@@ -3597,102 +3713,240 @@ VWB_ERROR Dummywarper::getWarpMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMes
 		return VWB_ERROR_PARAMETER;
 	}
 
-	VWB_int& w = m_wb.header.width;
-	VWB_int& h = m_wb.header.height;
-	int nRecords = w * h;
-
-	if( 1024 > nRecords || NULL == m_wb.pWarp || NULL == m_wb.pBlend ) {
-		logStr( 0, "ERROR: getWarpMesh: warp map too small.\n" );
-		return VWB_ERROR_GENERIC;
-	}
-	logStr( 2, "INFO: getWarpMesh( %i, %i, * ): params OK.\n", cols, rows );
-
-	DynSPPointPairList3f vertices;
-	DynLongList	indices;
-	if( m_bDynamicEye ) {
-		if( pseudoGridFromMapping < testW, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
-			expandPseudoGrid< testW, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
-			triangulateGrid< SPPair3fWrangler >( vertices, cols, rows, indices ) ) {
-			logStr( 2, "INFO: getWarpMesh: triangulation.\n" );
-			mesh.nVtx = (VWB_uint)vertices.size();
-			mesh.vtx = new VWB_WarpBlendVertex[vertices.size()];
-			for( VWB_uint i = 0; i != vertices.size(); i++ ) {
-				VWB_VEC3f pos = m_mBaseI * VWB_VEC3f::ptr( vertices[i].lPt1 );
-				mesh.vtx[i] = VWB_WarpBlendVertex{
-					{ pos.x, pos.y, pos.z },
-					{ vertices[i].lPt2[0] / w, vertices[i].lPt2[1] / h },
-					{ vertices[i].lTangDescX[0] * vertices[i].lTangDescY[1],
-					  vertices[i].lTangDescX[1] * vertices[i].lTangDescY[1],
-					  vertices[i].lTangDescY[0] * vertices[i].lTangDescY[1]}
-				};
-			}
-
-			mesh.nIdx = (VWB_uint)indices.size();
-			mesh.idx = new VWB_uint[mesh.nIdx];
-			for( VWB_uint i = 0; i != indices.size(); i++ ) {
-				mesh.idx[i] = indices[i];
-			}
-
-			mesh.dim.cx = w;
-			mesh.dim.cy = h;
-
-			logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
-			return VWB_ERROR_NONE;
-		} else {
-			logStr( 0, "ERROR: getWarpMesh: Triangulation (3D) failed.\n" );
+	if( m_bDP ) {
+		if( nullptr == m_wb.pMesh || nullptr == m_wb.pMesh->vtx || nullptr == m_wb.pMesh->idx ) {
+			logStr( 0, "ERROR: getWarpMesh: no warp mesh available.\n" );
 			return VWB_ERROR_GENERIC;
 		}
-	} else {
-		if( pseudoGridFromMapping< testZ, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
-			expandPseudoGrid< testZ, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
-			triangulateGrid< SPPair3fWrangler >( vertices, cols, rows, indices ) &&
-			fixSeam< SPPair3fWrangler, SPPair3fWrangler::x >( vertices, indices, w ) &&
-			fixSeam< SPPair3fWrangler, SPPair3fWrangler::y >( vertices, indices, h )
-			) {
 
-			logStr( 2, "INFO: getWarpMesh: triangulation of grid (%ix%i) with %lu indices (%5.1f%%)\n", cols, rows, indices.size(), float( indices.size() ) / ( rows - 1 ) / ( cols - 1 ) / 6 * 100 );
+	// tranalate from VWB_WarpBlendMeshEx to VWB_WarpBlendMesh
 
-			mesh.nVtx = (VWB_uint)vertices.size();
-			mesh.vtx = new VWB_WarpBlendVertex[vertices.size()];
-			VWB_MAT44f mVI = m_mViewIG.Inverted();
+		// create/check vertex buffer
+		if( !mesh.vtx || mesh.nVtx != m_wb.pMesh->nVtx ) {
+			if( mesh.vtx )
+				delete[] mesh.vtx;
+			mesh.nVtx = m_wb.pMesh->nVtx;
+			mesh.vtx = new VWB_WarpBlendVertex[mesh.nVtx];
+		}
+		// copy positions and UVs
+		auto dst = mesh.vtx;
+		for( auto src = m_wb.pMesh->vtx, srcE = src + m_wb.pMesh->nVtx; src != srcE; src++, dst++ ) {
+			for( int i = 0; i != _countof( src->pos ); i++ ) 
+				dst->pos[i] = src->pos[i];
+			for( int i = 0; i != _countof( src->uv ); i++ ) 
+				dst->uv[i] = src->uv[i];
+			// blend
+			float& x = dst->uv[0];
+			float& y = dst->uv[1];
+			float x0 = floor( dst->uv[0] * ( m_wb.header.width - 1 ) );
+			float y0 = floor( dst->uv[1] * ( m_wb.header.height - 1 ) );
+			float x1 = x0 + 1;
+			if( x1 >= m_wb.header.width )
+				x1 = x0 - 1;
+			float y1 = y0 + 1;
+			if( y1 >= m_wb.header.height )
+				y1 = y0 - 1;
 
-			for( VWB_uint i = 0; i != vertices.size(); i++ ) {
-				// we create a screen plane by using the mapping lookups and transform them by the view and base matrix
-				// this way 2D and 3D meshes can be used exact same way in the host program
-				// lPt1 contains a uv lookup
-				// unproject
-				VWB_VEC4f sc(
-					-m_viewSizes[0] + ( m_viewSizes[0] + m_viewSizes[2] ) * vertices[i].lPt1[0],
-					m_viewSizes[1] - ( m_viewSizes[1] + m_viewSizes[3] ) * vertices[i].lPt1[1],
-					m_bRH ? -screenDist : screenDist,
-					1
-				);
-				// put into view
-				VWB_VEC3f pos = VWB_VEC3f( mVI * sc );
-				// lPt2 contains the pixel position on the projector, this needs to be normalized
-				mesh.vtx[i] = VWB_WarpBlendVertex{
-					{ pos.x, pos.y, pos.z },
-					{ vertices[i].lPt2[0] / w, vertices[i].lPt2[1] / h },
-					{ vertices[i].lTangDescX[0] * vertices[i].lTangDescY[1],
-					  vertices[i].lTangDescX[1] * vertices[i].lTangDescY[1],
-					  vertices[i].lTangDescY[0] * vertices[i].lTangDescY[1]
-				} };
+			VWB_VEC3f rgb00; // blend at x0,y0
+			VWB_VEC3f rgb01; // blend at x0,y1
+			VWB_VEC3f rgb10; // blend at x1,y0
+			VWB_VEC3f rgb11; // blend at x1,y1
+			if( m_wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV2 ) {
+				VWB_BlendRecord2 const* b = m_wb.pBlend2 + VWB_int( y0 ) * m_wb.header.width + VWB_int( x0 );
+				rgb00 = VWB_VEC3f( float( b->r ) / 65535.f, float( b->g ) / 65535.f, float( b->b ) / 65535.f );
+				b = m_wb.pBlend2 + VWB_int( y1 ) * m_wb.header.width + VWB_int( x0 );
+				rgb10 = VWB_VEC3f( float( b->r ) / 65535.f, float( b->g ) / 65535.f, float( b->b ) / 65535.f );
+				b = m_wb.pBlend2 + VWB_int( y0 ) * m_wb.header.width + VWB_int( x1 );
+				rgb01 = VWB_VEC3f( float( b->r ) / 65535.f, float( b->g ) / 65535.f, float( b->b ) / 65535.f );
+				b = m_wb.pBlend2 + VWB_int( y1 ) * m_wb.header.width + VWB_int( x1 );
+				rgb11 = VWB_VEC3f( float( b->r ) / 65535.f, float( b->g ) / 65535.f, float( b->b ) / 65535.f );
+			} else if( m_wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV3 ) {
+				VWB_BlendRecord3 const* b = m_wb.pBlend3 + VWB_int( y0 ) * m_wb.header.width + VWB_int( x0 );
+				rgb00 = VWB_VEC3f( b->r, b->g, b->b );
+				b = m_wb.pBlend3 + VWB_int( y1 ) * m_wb.header.width + VWB_int( x0 );
+				rgb10 = VWB_VEC3f( b->r, b->g, b->b );
+				b = m_wb.pBlend3 + VWB_int( y0 ) * m_wb.header.width + VWB_int( x1 );
+				rgb01 = VWB_VEC3f( b->r, b->g, b->b );
+				b = m_wb.pBlend3 + VWB_int( y1 ) * m_wb.header.width + VWB_int( x1 );
+				rgb11 = VWB_VEC3f( b->r, b->g, b->b );
+			} else {
+				VWB_BlendRecord const* b = m_wb.pBlend + VWB_int( y0 ) * m_wb.header.width + VWB_int( x0 );
+				rgb00 = VWB_VEC3f( float( b->r ) / 255.f, float( b->g ) / 255.f, float( b->b ) / 255.f );
+				b = m_wb.pBlend + VWB_int( y1 ) * m_wb.header.width + VWB_int( x0 );
+				rgb10 = VWB_VEC3f( float( b->r ) / 255.f, float( b->g ) / 255.f, float( b->b ) / 255.f );
+				b = m_wb.pBlend + VWB_int( y0 ) * m_wb.header.width + VWB_int( x1 );
+				rgb01 = VWB_VEC3f( float( b->r ) / 255.f, float( b->g ) / 255.f, float( b->b ) / 255.f );
+				b = m_wb.pBlend + VWB_int( y1 ) * m_wb.header.width + VWB_int( x1 );
+				rgb11 = VWB_VEC3f( float( b->r ) / 255.f, float( b->g ) / 255.f, float( b->b ) / 255.f );
 			}
 
-			mesh.nIdx = (VWB_uint)indices.size();
+			// pick closest, p00 = { x0, y0 }, p01 = { x0, y1 }, p10 = { x1, y0 }, p11 = { x1, y1 }
+			VWB_VEC3f p( x, y, 0 );
+			VWB_VEC3f p00( x0, y0, 0 );
+			VWB_VEC3f p01( x1, y0, 0 );
+			VWB_VEC3f p10( x0, y1, 0 );
+			VWB_VEC3f p11( x1, y1, 0 );
+			VWB_VEC3f lx11 = p.Cart2Bary( p00, p01, p10 ); // without p11
+			VWB_VEC3f lx00 = p.Cart2Bary( p01, p10, p11 ); // without p00
+			VWB_VEC3f lx01 = p.Cart2Bary( p10, p01, p11 ); // without p01
+			VWB_VEC3f lx10 = p.Cart2Bary( p11, p01, p00 ); // without p10
+			VWB_VEC3f rgb;
+			// we check lx[0], which is the closest to 1
+			if( lx11[0] < lx00[0] ) { // p00 is further than p01
+				if( lx11[0] < lx01[0] ) { // p00 is also further than p10
+					if( lx11[0] < lx10[0] ) { // p00 is also further than p11
+						// p00 is the furthest
+						rgb = lx00.Bary2Cart( rgb01, rgb10, rgb11 );
+					} else {
+						// p11 is the furthest
+						rgb = lx11.Bary2Cart( rgb00, rgb01, rgb10 );
+					}
+				} else { // p10 is further than p00
+					if( lx01[0] < lx10[0] ) { // p10 is also further than p11
+						// p10 is the furthest
+						rgb = lx10.Bary2Cart( rgb00, rgb01, rgb11 );
+					} else {
+						// p11 is the furthest
+						rgb = lx11.Bary2Cart( rgb00, rgb01, rgb10 );
+					}
+				}
+			} else {
+				if( lx00[0] < lx01[0] ) { // p01 is further than p00
+					if( lx00[0] < lx10[0] ) { // p01 is also further than p11
+						// p01 is the furthest
+						rgb = lx01.Bary2Cart( rgb00, rgb10, rgb11 );
+					} else {
+						// p11 is the furthest
+						rgb = lx11.Bary2Cart( rgb00, rgb01, rgb10 );
+					}
+				} else { // p10 is further than p01
+					if( lx01[0] < lx10[0] ) { // p10 is also further than p11
+						// p10 is the furthest
+						rgb = lx10.Bary2Cart( rgb00, rgb01, rgb11 );
+					} else {
+						// p11 is the furthest
+						rgb = lx11.Bary2Cart( rgb00, rgb01, rgb10 );
+					}
+				}
+			}
+			for( int i = 0; i != 3; i++ )
+				dst->rgb[i] = rgb[i];
+		}
+
+		// create/check index buffer
+		if( !mesh.idx || mesh.nIdx != m_wb.pMesh->nIdx ) {
+			if( mesh.idx )
+				delete[] mesh.idx;
+			mesh.nIdx = m_wb.pMesh->nIdx;
 			mesh.idx = new VWB_uint[mesh.nIdx];
-			for( VWB_uint i = 0; i != indices.size(); i++ ) {
-				mesh.idx[i] = indices[i];
-			}
+		}
+		// copy indices
+		for( auto dstI = 0; dstI != mesh.nIdx; dstI++ )
+			mesh.idx[dstI] = m_wb.pMesh->idx[dstI];
 
-			mesh.dim.cx = w;
-			mesh.dim.cy = h;
+		// set dimension
+		mesh.dim = m_wb.pMesh->dim;
 
-			logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
-			return VWB_ERROR_NONE;
-		} else {
-			logStr( 0, "ERROR: getWarpMesh: Triangulation (CT) failed.\n" );
+		return VWB_ERROR_NONE;
+	} else {
+
+		VWB_int& w = m_wb.header.width;
+		VWB_int& h = m_wb.header.height;
+		int nRecords = w * h;
+
+		if( 1024 > nRecords || NULL == m_wb.pWarp || NULL == m_wb.pBlend ) {
+			logStr( 0, "ERROR: getWarpMesh: warp map too small.\n" );
 			return VWB_ERROR_GENERIC;
+		}
+		logStr( 2, "INFO: getWarpMesh( %i, %i, * ): params OK.\n", cols, rows );
+
+		DynSPPointPairList3f vertices;
+		DynLongList	indices;
+		if( m_bDynamicEye ) {
+			if( pseudoGridFromMapping < testW, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+				expandPseudoGrid< testW, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+				triangulateGrid< SPPair3fWrangler >( vertices, cols, rows, indices ) ) {
+				logStr( 2, "INFO: getWarpMesh: triangulation.\n" );
+				mesh.nVtx = (VWB_uint)vertices.size();
+				mesh.vtx = new VWB_WarpBlendVertex[vertices.size()];
+				for( VWB_uint i = 0; i != vertices.size(); i++ ) {
+					VWB_VEC3f pos = m_mBaseI * VWB_VEC3f::ptr( vertices[i].lPt1 );
+					mesh.vtx[i] = VWB_WarpBlendVertex{
+						{ pos.x, pos.y, pos.z },
+						{ vertices[i].lPt2[0] / w, vertices[i].lPt2[1] / h },
+						{ vertices[i].lTangDescX[0] * vertices[i].lTangDescY[1],
+						  vertices[i].lTangDescX[1] * vertices[i].lTangDescY[1],
+						  vertices[i].lTangDescY[0] * vertices[i].lTangDescY[1]}
+					};
+				}
+
+				mesh.nIdx = (VWB_uint)indices.size();
+				mesh.idx = new VWB_uint[mesh.nIdx];
+				for( VWB_uint i = 0; i != indices.size(); i++ ) {
+					mesh.idx[i] = indices[i];
+				}
+
+				mesh.dim.cx = w;
+				mesh.dim.cy = h;
+
+				logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
+				return VWB_ERROR_NONE;
+			} else {
+				logStr( 0, "ERROR: getWarpMesh: Triangulation (3D) failed.\n" );
+				return VWB_ERROR_GENERIC;
+			}
+		} else {
+			if( pseudoGridFromMapping< testZ, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+				expandPseudoGrid< testZ, SPPair3fWrangler >( m_wb.pWarp, m_wb.pBlend2, w, h, cols, rows, vertices ) &&
+				triangulateGrid< SPPair3fWrangler >( vertices, cols, rows, indices ) &&
+				fixSeam< SPPair3fWrangler, SPPair3fWrangler::x >( vertices, indices, w ) &&
+				fixSeam< SPPair3fWrangler, SPPair3fWrangler::y >( vertices, indices, h )
+				) {
+
+				logStr( 2, "INFO: getWarpMesh: triangulation of grid (%ix%i) with %lu indices (%5.1f%%)\n", cols, rows, indices.size(), float( indices.size() ) / ( rows - 1 ) / ( cols - 1 ) / 6 * 100 );
+
+				mesh.nVtx = (VWB_uint)vertices.size();
+				mesh.vtx = new VWB_WarpBlendVertex[vertices.size()];
+				VWB_MAT44f mVI = m_mViewIG.Inverted();
+
+				for( VWB_uint i = 0; i != vertices.size(); i++ ) {
+					// we create a screen plane by using the mapping lookups and transform them by the view and base matrix
+					// this way 2D and 3D meshes can be used exact same way in the host program
+					// lPt1 contains a uv lookup
+					// unproject
+					VWB_VEC4f sc(
+						-m_viewSizes[0] + ( m_viewSizes[0] + m_viewSizes[2] ) * vertices[i].lPt1[0],
+						m_viewSizes[1] - ( m_viewSizes[1] + m_viewSizes[3] ) * vertices[i].lPt1[1],
+						m_bRH ? -screenDist : screenDist,
+						1
+					);
+					// put into view
+					VWB_VEC3f pos = VWB_VEC3f( mVI * sc );
+					// lPt2 contains the pixel position on the projector, this needs to be normalized
+					mesh.vtx[i] = VWB_WarpBlendVertex{
+						{ pos.x, pos.y, pos.z },
+						{ vertices[i].lPt2[0] / w, vertices[i].lPt2[1] / h },
+						{ vertices[i].lTangDescX[0] * vertices[i].lTangDescY[1],
+						  vertices[i].lTangDescX[1] * vertices[i].lTangDescY[1],
+						  vertices[i].lTangDescY[0] * vertices[i].lTangDescY[1]
+					} };
+				}
+
+				mesh.nIdx = (VWB_uint)indices.size();
+				mesh.idx = new VWB_uint[mesh.nIdx];
+				for( VWB_uint i = 0; i != indices.size(); i++ ) {
+					mesh.idx[i] = indices[i];
+				}
+
+				mesh.dim.cx = w;
+				mesh.dim.cy = h;
+
+				logStr( 2, "INFO: getWarpMesh: Triangulation succeeded. %u vertices with %u triangles.\n", mesh.nVtx, mesh.nIdx / 3 );
+				return VWB_ERROR_NONE;
+			} else {
+				logStr( 0, "ERROR: getWarpMesh: Triangulation (CT) failed.\n" );
+				return VWB_ERROR_GENERIC;
+			}
 		}
 	}
 	return VWB_ERROR_FALSE;

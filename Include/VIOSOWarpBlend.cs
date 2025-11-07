@@ -305,6 +305,8 @@ namespace VIOSOWarpBlend
             /// the plugin id to request from license management
             public Int32 pluginId;
 
+            /// the monitor handle set by ini, will be used if handle is not set in channel
+            public Int32 hMonitor;
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -566,7 +568,7 @@ namespace VIOSOWarpBlend
         * @param [IN]			pWarper	a valid warper
         * @param [IN,OPT]		pSrc    the source texture, a IDirect3DTexture9*, ID3D10Texture2D*, ID3D11Texture2D*, VWB_D3D12_RENDERINPUT* or a GLint texture index; 
         * if current backbuffer must be read, set to NULL in any DX mode except 12 or to -1 in OpenGL mode
-        * in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter.
+        * in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter, use VWB_render2 when using @see VWB_D3D12_RENDERINPUT2.
         * @param [IN,OPT]		stateMask @see VWB_STATEMASK enumeration, default is 0 to restore usual stuff
         * In D3D12 all flags except VWB_STATEMASK_CLEARBACKBUFFER are ignored.
         * The application is required to set inputs and shader in each term anyway.
@@ -574,6 +576,8 @@ namespace VIOSOWarpBlend
         //VIOSOWARPBLEND_API( VWB_ERROR, VWB_render, ( VWB_Warper* pWarper, VWB_param src, VWB_uint stateMask ) );  
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_render", CallingConvention = CallingConvention.Cdecl)]
         public static extern int VWB_render(IntPtr warper, IntPtr src, UInt32 stateMask);
+        [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_render", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int VWB_render2(IntPtr warper, IntPtr src, UInt32 stateMask);
 
         /** get info about .vwf, reads all warp headers
         * @param [IN]			path	the file name or a comma separated list of filenames, set to NULL to release data from a previous set
@@ -685,6 +689,10 @@ namespace VIOSOWarpBlend
         public ERROR Render(IntPtr src, UInt32 stateMask)
         {
             return (ERROR)VWB_render(_warper, src, stateMask);
+        }
+        public ERROR Render2(IntPtr src, UInt32 stateMask)
+        {
+            return (ERROR)VWB_render2(_warper, src, stateMask);
         }
 
         static public ERROR GetVwfInfo(String path, out WarpBlendHeader[] headers)

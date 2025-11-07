@@ -9,7 +9,7 @@
 VWB_DX9WHANDLE VWB_InitDX9A( LPDIRECT3DDEVICE9 pDevice, LPCSTR szConfigFile, LPCSTR szChannel )
 {
 	VWB_Warper* pW = NULL;
-	g_error = (VWB_int)VWB_CreateA( pDevice, szConfigFile, szChannel, &pW, 1, NULL );
+	g_error = (VWB_int)VWB_Create( pDevice, szConfigFile, szChannel, &pW, 1, NULL );
 	if( 0 == g_error )
 		g_error = (VWB_int)VWB_Init( pW );
 	if( 0 == g_error )

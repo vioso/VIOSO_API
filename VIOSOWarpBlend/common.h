@@ -37,6 +37,7 @@
 #include "mmath.h"
 
 #include "../Include/EyePointProvider.h"
+#include "licCM.h"
 
 #if defined( WIN32 )
 extern VWB_int g_error;
@@ -92,6 +93,7 @@ protected:
 	bool m_bUTF8; /// threat chars as UTF-8, this is set by VWB_createW and VWB_createU
 	std::filesystem::path m_configPath;  // the base path to load mappings from
 	bool m_bDP;  // domeplrojection mode
+	std::shared_ptr< const VWBLic::LicenseInfo > m_licenseInfo; // license info
 
 public:
 	VWB_Warper_base();						/// constructor
@@ -132,6 +134,7 @@ public:
     * @param [in,opt] inputTexture    the source texture, if set to NULL, a backbuffer copy is used as input
     * @return VWB_ERROR_NONE on success, otherwise @see VWB_ERROR */
 	virtual VWB_ERROR Render( VWB_param inputTexture, VWB_uint stateMask );
+	virtual VWB_ERROR Render2( VWB_param inputTexture, VWB_uint stateMask );
 
 	virtual VWB_ERROR getWarpBlend( VWB_WarpBlend const*& wb );
 	virtual VWB_ERROR getShaderVPMatrix( VWB_float* pMVP );
