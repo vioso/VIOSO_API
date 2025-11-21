@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // author Jürgen Krahmann
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
@@ -18,7 +18,7 @@
 @file VIOSO API main include header
 @brief
 Get updates from 
-https://bitbucket.org/VIOSO/vioso_api
+https://github.com/VIOSO/vioso_api
 
 This library is meant to be used in image generators to do warping and blending. It takes a .vwf export and a texture buffer
 to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
@@ -32,6 +32,7 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	/** creates a new VIOSO Warp & Blend API instance
 	* @param [IN_OPT] pDxDevice  a pointer to a DirectX device for Direct3D 9 to 11; for Direct3D 12, you need to specify a pointer to a ID3D12CommandQueue, set to NULL for OpenGL, set to VWB_DUMMYDEVICE, to just hold the data to create a textured mesh.
 	* Supported: IDirect3DDevice9,IDirect3DDevice9Ex,ID3D10Device,ID3D10Device1,ID3D11Device,ID3D12CommandQueue (for ID3D12Device initialization)
+	* @param [IN_OPT] pluginId an optional plugin id to identify different warper instances in the log file, set to 0 to set it via config file
 	* @param [IN_OPT] szConfigFile  path to a .ini file containing settings, if NULL the default values are used
 	* @param [IN_OPT] szChannelName a section name to look for in .ini-file.
 	* @param [OUT] ppWarper this receives the warper
@@ -44,9 +45,19 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* You have to destroy a created warper using VWB_Destroy.
 	* After successful creation, call VWB_Init, to load .vwf file and initialize the warper. */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateA, ( void* pDxDevice, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile ) );   
+	/// @overload for wide char
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateW, ( void* pDxDevice, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, wchar_t const* szLogFile ) );   
 #ifdef __cpp_lib_char8_t
+	/// @overload for utf8 char8_t
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateU, ( void* pDxDevice, char8_t const* szConfigFile, char8_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char8_t const* szLogFile ) );
+#endif // def __cpp_lib_char8_t
+	/// @overload for ANSI char with pluginId
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateA2, ( void* pDxDevice, int pluginId, char const* szConfigFile, char const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char const* szLogFile ) );   
+	/// @overload for wide char
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateW2, ( void* pDxDevice, int pluginId, wchar_t const* szConfigFile, wchar_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, wchar_t const* szLogFile ) );   
+#ifdef __cpp_lib_char8_t
+	/// @overload for utf8 char8_t
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_CreateU2, ( void* pDxDevice, int pluginId, char8_t const* szConfigFile, char8_t const* szChannelName, VWB_Warper** ppWarper, VWB_int logLevel, char8_t const* szLogFile ) );
 #endif // def __cpp_lib_char8_t
 
 #ifdef UNICODE
@@ -175,7 +186,8 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* @param [IN]			cols	sets the number of columns
 	* @param [IN]			rows	sets the number of rows
 	* @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
-	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise 
+	* @remark Make sure to call VWB_destroyWarpBlendMesh after use and before reuse, allocated arrays will not be deleted. */
 	#ifdef __cplusplus
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlendMesh, ( VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) );
 	#endif
@@ -193,7 +205,9 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	/** get texture handles from GPU warper, can be used to implement a custom shader or to update GPU resources while initialized
 	* The handles are to be reinterpret_cast to the native format.
 	* The handles are filled to nHandles. Unused resources are set to ((void*)-1), as 0 is a valid handle in OpenGL and Vulkan.
-	* index 0 warp
+	* Also note, a texture resource can't be altered in size and format.
+	* indices:
+	*	0 warp
 	*	1 blend
 	*	2 blacklevel correction
 	*	3 directional shading
@@ -204,6 +218,12 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* @params [IN]		nHandles	the number of handles initialized
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
 	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getNativeGPUResources, ( VWB_Warper* pWarper, void** pResources, VWB_uint nResources ) );
+
+	/** get info flags from current warper
+	* @param [IN]		pWarper	a valid warper
+	* @param [OUT]		pFlags the returned info flags @see VWB_WARPER_INFO_FLAGS 
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER */
+	VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarperInfoFlags, ( VWB_Warper* pWarper, int* pFlags ) );
 
 	/* log some string to the API's log file, exposed version; use VWB_logString instead.
 	* @param [IN]			level	a level indicator. The string is only written to log file, if this is lower or equal to currently set global log level

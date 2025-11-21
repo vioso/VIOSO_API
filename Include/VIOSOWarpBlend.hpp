@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -146,39 +146,69 @@ public:
 	/// @param pDxDevice set to NULL for OpenGL or pointer to a DirectX device for Direct3D 9 to 11
 	///		for Direct3D 12 you need to specify a pointer to a ID3D12CommandQueue, set to VWB_DUMMYDEVICE, to just hold the data to create a textured mesh. 
 	///		Supported: IDirect3DDevice9, IDirect3DDevice9Ex, ID3D10Device, ID3D10Device1, ID3D11Device, ID3D12CommandQueue (for ID3D12Device initialization)
+	/// @param [IN_OPT] pluginId an optional plugin id to identify different warper instances in the log file, set to 0 to set it via config file
 	/// @param szConfigFile path to a .ini file containing settings, if empty the default values are used
 	/// @param szChannelName the name of the channel, also the section name to look for in .ini-file.
 	/// @param logLevel the log level. 0 quiet, 1 fatals only, 2 standard, 3 verbous, 4 debug, 5 debug verbous. Log levels less than 4 do no logging in the render loop.
 	/// @param szLogFile a path to a log file
+#ifdef __cpp_lib_char8_t
 	VWB( std::filesystem::path const& libPath, void* pDxDevice, std::filesystem::path const& szConfigFile, char8_t const* szChannelName, VWB_int logLevel = 2, std::filesystem::path const& szLogFile = "" )
 		: m_warper( NULL ) {
-		if( 1 == ++instanceCounter )
-			_loadLib( libPath );
+		LoadLib( libPath );
 		VWB_ERROR err = VWB_CreateU( pDxDevice, szConfigFile.u8string().c_str(), szChannelName, &m_warper, logLevel, szLogFile.u8string().c_str() );
 		if( VWB_ERROR_NONE != err ) {
-			_unloadLib();
+			UnloadLib();
 			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
 		}
 	}
 	/// @overload
+	VWB( std::filesystem::path const& libPath, int pluginId, void* pDxDevice, std::filesystem::path const& szConfigFile, char8_t const* szChannelName, VWB_int logLevel = 2, std::filesystem::path const& szLogFile = "" )
+		: m_warper( NULL ) {
+		LoadLib( libPath );
+		VWB_ERROR err = VWB_CreateU2( pDxDevice, pluginId, szConfigFile.u8string().c_str(), szChannelName, &m_warper, logLevel, szLogFile.u8string().c_str() );
+		if( VWB_ERROR_NONE != err ) {
+			UnloadLib();
+			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
+		}
+	}
+#endif
+	/// @overload
 	VWB( std::filesystem::path const& libPath, void* pDxDevice, std::filesystem::path const& szConfigFile, char const* szChannelName, VWB_int logLevel = 2, std::filesystem::path const& szLogFile = "" )
 		: m_warper( NULL ) {
-		if( 1 == ++instanceCounter )
-			_loadLib( libPath );
+		LoadLib( libPath );
 		VWB_ERROR err = VWB_CreateA( pDxDevice, szConfigFile.string().c_str(), szChannelName, &m_warper, logLevel, szLogFile.string().c_str() );
 		if( VWB_ERROR_NONE != err ) {
-			_unloadLib();
+			UnloadLib();
+			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
+		}
+	}
+	/// @overload
+	VWB( std::filesystem::path const& libPath, int pluginId, void* pDxDevice, std::filesystem::path const& szConfigFile, char const* szChannelName, VWB_int logLevel = 2, std::filesystem::path const& szLogFile = "" )
+		: m_warper( NULL ) {
+		LoadLib( libPath );
+		VWB_ERROR err = VWB_CreateA2( pDxDevice, pluginId, szConfigFile.string().c_str(), szChannelName, &m_warper, logLevel, szLogFile.string().c_str() );
+		if( VWB_ERROR_NONE != err ) {
+			UnloadLib();
 			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
 		}
 	}
 	/// @overload
 	VWB( std::filesystem::path const& libPath, void* pDxDevice, std::filesystem::path const& szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, std::filesystem::path const& szLogFile = "" )
 		: m_warper( NULL ) {
-		if( 1 == ++instanceCounter )
-			_loadLib( libPath );
+			LoadLib( libPath );
 		VWB_ERROR err = VWB_CreateU( pDxDevice, szConfigFile.u8string().c_str(), VWBUtil::to_u8string( szChannelName ).c_str(), &m_warper, logLevel, szLogFile.u8string().c_str() );
 		if( VWB_ERROR_NONE != err ) {
-			_unloadLib();
+			UnloadLib();
+			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
+		}
+	}
+	/// @overload
+	VWB( std::filesystem::path const& libPath, int pluginId, void* pDxDevice, std::filesystem::path const& szConfigFile, wchar_t const* szChannelName, VWB_int logLevel = 2, std::filesystem::path const& szLogFile = "" )
+		: m_warper( NULL ) {
+		LoadLib( libPath );
+		VWB_ERROR err = VWB_CreateU2( pDxDevice, pluginId, szConfigFile.u8string().c_str(), VWBUtil::to_u8string( szChannelName ).c_str(), &m_warper, logLevel, szLogFile.u8string().c_str() );
+		if( VWB_ERROR_NONE != err ) {
+			UnloadLib();
 			throw std::runtime_error( std::string( "VWB_Create returned error " ) + std::to_string( (int)err ) + ": " + GetErrorCStr( err ) );
 		}
 	}
@@ -187,8 +217,7 @@ public:
 	~VWB() {
 		if( VWB_Destroy && m_warper )
 			VWB_Destroy( m_warper );
-		if( 0 <= --instanceCounter )
-			_unloadLib();
+		UnloadLib();
 	}
 
 	/// @brief access to the warper struct
@@ -268,16 +297,14 @@ public:
 	/// (2)(3) a vector<VWB_WarpBlendHeader>, throws on error
 	static VWB_ERROR VwfInfo( std::filesystem::path const& libPath, std::filesystem::path const& path, std::vector<VWB_WarpBlendHeader>& set ) {
 		VWB_ERROR err = VWB_ERROR_NONE;
-		if( 1 == ++instanceCounter )
-			_loadLib( libPath );
+			LoadLib( libPath );
 		VWB_uint c = 0;
 		err = VWB_vwfInfoCU( path.u8string().c_str(), nullptr, &c );
 		if( VWB_ERROR_NONE == err ) {
 			set.resize( c );
 			err = VWB_vwfInfoCU( path.u8string().c_str(), set.data(), &c );
 		}
-		if( 0 <= --instanceCounter )
-			_unloadLib();
+			UnloadLib();
 		return err;
 	}
 	/// @overload
@@ -314,12 +341,33 @@ public:
 	/// @param rows number of rows of the mesh
 	/// @param mesh [OUT] the mesh
 	/// @return VWB_ERROR_NONE on success, otherwise @see VWB_ERROR
+	/// @remark Make sure to call VWB_destroyWarpBlendMesh after use and before reuse, allocated arrays will not be deleted. */
 	VWB_ERROR GetWarpBlendMesh( VWB_int cols, VWB_int rows, VWB_WarpBlendMesh& mesh ) { return VWB_getWarpBlendMesh( m_warper, cols, rows, mesh ); }
 
 	/// @brief destroys a mesh. Call this to release allocated memory gracefully via the library
 	/// @param mesh the mesh generated by GetWarpBlendMesh
 	/// @return VWB_ERROR_NONE on success, otherwise @see VWB_ERROR
 	VWB_ERROR DestroyWarpBlendMesh( VWB_WarpBlendMesh& mesh ) { return VWB_destroyWarpBlendMesh( m_warper, mesh ); }
+
+	/** get texture handles from GPU warper, can be used to implement a custom shader or to update GPU resources while initialized
+	* The handles are to be reinterpret_cast to the native format.
+	* The handles are filled to nHandles. Unused resources are set to ((void*)-1), as 0 is a valid handle in OpenGL and Vulkan.
+	* Also note, a texture resource can't be altered in size and format.
+	* indices:
+	*	0 warp
+	*	1 blend
+	*	2 blacklevel correction
+	*	3 directional shading
+	*	4 vertex buffer
+	*	5 index buffer
+	* @param [OUT]		pResources	the handles array, must be minimum size nHandles
+	* @params [IN]		nHandles	the number of handles initialized
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+	VWB_ERROR GetNativeGPUResources( void** pResources, VWB_uint nResources ) { return VWB_getNativeGPUResources( m_warper, pResources, nResources ); }
+
+	/** get info flags from current warper
+	* @return info flags @see VWB_WARPER_INFO_FLAGS */
+	int GetWarperInfoFlags() const { int flags; VWB_getWarperInfoFlags( m_warper, &flags ); return flags; }
 
 	/// log some string to the API's log file, exposed version; use VWB_logString instead.
 	/// @param [IN]			level	a level indicator. The string is only written to log file, if this is lower or equal to currently set global log level
@@ -340,11 +388,9 @@ public:
 	/// @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range 
 	static VWB_ERROR getVersion( std::filesystem::path const& libPath, VWB_int* major, VWB_int* minor, VWB_int* maintenance, VWB_int* build ) {
 		VWB_ERROR err = VWB_ERROR_NONE;
-		if( 1 == ++instanceCounter )
-			_loadLib( libPath );
+			LoadLib( libPath );
 		VWB_getVersion( major, minor, maintenance, build );
-		if( 0 <= --instanceCounter )
-			_unloadLib();
+			UnloadLib();
 		return err;
 	}
 

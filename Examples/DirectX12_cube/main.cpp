@@ -843,8 +843,9 @@ public:
         // initialize VIOSO_API
         auto descRT = parent.getDescRT();
 		if( inifile.extension() == ".vwf" ) {
-			cout << "Using VWF file: " << inifile << endl;
-            m_ctx = std::make_unique<VWB>( "", m_queue, "", channel.c_str(), 3, "stdout" );
+			cout << "Using explicit VWF file: " << inifile << endl;
+            // we set Unreal Engine as pluginId
+            m_ctx = std::make_unique<VWB>( "", 12, m_queue, "", channel.c_str(), 3, "stdout" );
 			strcpy_s( m_ctx->get().calibFile, inifile.string().c_str() );
 			m_ctx->get().calibIndex = atoi( channel.c_str() );
             m_ctx->get().trans[0] = 1000;
@@ -869,7 +870,7 @@ public:
             m_ctx->get().bAutoView = true;
         } else {
             cout << "Using config file: " << inifile << endl;
-            m_ctx = std::make_unique<VWB>( "", m_queue, inifile, channel.c_str(), 3, "stdout" );
+            m_ctx = std::make_unique<VWB>( "", 12, m_queue, inifile, channel.c_str(), 3, "stdout" );
         }
         cout << "VIOSO Warper context created." << endl;
 		m_ctx->get().bTurnWithView = m_turnWithView;
@@ -903,19 +904,13 @@ public:
     }
 
     virtual bool preRender( Alloc& alloc, DirectX::XMMATRIX& world, DirectX::XMMATRIX& projection ) override {
-        //XMFLOAT3 eye( 0,1.5,0 );
-		XMFLOAT3 eye( g_fPositionX, g_fPositionY /*+ 1.5f*/, g_fPositionZ );
+		XMFLOAT3 eye( g_fPositionX, g_fPositionY, g_fPositionZ );
         XMFLOAT3 rot( DirectX::XMConvertToRadians( g_fPitch ), DirectX::XMConvertToRadians( g_fHeading ), DirectX::XMConvertToRadians( g_fRoll ) );
         XMMATRIX p, v;
         // we ask dpLib for the current eye position, direction and projection matrix   
 
         // we get the world and projection matrix presented, so we multiply with given from dpLib
         auto res = m_ctx->GetViewProj( &eye.x, &rot.x, &v.r[0].m128_f32[0], &p.r[0].m128_f32[0] );
-        //v.r[3].m128_f32[0] += g_fPositionX;
-        //v.r[3].m128_f32[1] += g_fPositionY;
-        //v.r[3].m128_f32[2] += g_fPositionZ;
-		if( !m_ctx->get().bTurnWithView )
-            v.r[3].m128_f32[1] += 1.5f;
     #if 0
         if( dpNoError == res )
         {

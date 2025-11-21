@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -1032,18 +1032,17 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma ) {
 		wb.header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;
 	}
 
-	// regardless of the given format, prepare blend as U16 NORM
-	// if gamma is set, apply gamma and promote blend to VWB_BlendRecord2
+	// regardless of the given format, prepare blend as RGBA16 UNORM, thus promote to VWB_BlendRecord2
+	// if gamma is set, apply gamma
 	if( 0.0f < gamma && 1.0f != gamma ) {
 		logStr( 1, "Adapting gamma by %.5f\n", gamma );
-		VWB_float g = 1.0f / gamma;
 		if( wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV3 ) {
 			VWB_BlendRecord2* pDst = new VWB_BlendRecord2[sz];
 			VWB_BlendRecord2* pD = pDst;
 			for( VWB_BlendRecord3* p = wb.pBlend3, *pE = wb.pBlend3 + sz; p != pE; p++, pD++ ) {
-				pD->r = VWB_word( pow( p->r, g ) * 65535.0f );
-				pD->g = VWB_word( pow( p->g, g ) * 65535.0f );
-				pD->b = VWB_word( pow( p->b, g ) * 65535.0f );
+				pD->r = VWB_word( pow( p->r, gamma ) * 65535.0f );
+				pD->g = VWB_word( pow( p->g, gamma ) * 65535.0f );
+				pD->b = VWB_word( pow( p->b, gamma ) * 65535.0f );
 				pD->a = VWB_word( p->a * 65535.0f );
 			}
 			wb.header.flags &= ~FLAG_WARPFILE_HEADER_BLENDV3;
@@ -1052,18 +1051,18 @@ VWB_ERROR PrepareForUse( VWB_WarpBlend& wb, const float gamma ) {
 			wb.pBlend2 = pDst;
 		} else if( wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV2 ) {
 			for( VWB_BlendRecord2* p = wb.pBlend2, *pE = wb.pBlend2 + sz; p != pE; p++ ) {
-				p->r = VWB_word( pow( VWB_float( p->r ) / 65535.0f, g ) * 65535.0f );
-				p->g = VWB_word( pow( VWB_float( p->g ) / 65535.0f, g ) * 65535.0f );
-				p->b = VWB_word( pow( VWB_float( p->b ) / 65535.0f, g ) * 65535.0f );
+				p->r = VWB_word( pow( VWB_float( p->r ) / 65535.0f, gamma ) * 65535.0f );
+				p->g = VWB_word( pow( VWB_float( p->g ) / 65535.0f, gamma ) * 65535.0f );
+				p->b = VWB_word( pow( VWB_float( p->b ) / 65535.0f, gamma ) * 65535.0f );
 				// p->a stays untouched
 			}
 		} else {
 			VWB_BlendRecord2* pDst = new VWB_BlendRecord2[sz];
 			VWB_BlendRecord2* pD = pDst;
 			for( VWB_BlendRecord* p = wb.pBlend, *pE = wb.pBlend + sz; p != pE; p++, pD++ ) {
-				pD->r = VWB_word( pow( VWB_float( p->r ) / 255.0f, g ) * 65535.0f );
-				pD->g = VWB_word( pow( VWB_float( p->g ) / 255.0f, g ) * 65535.0f );
-				pD->b = VWB_word( pow( VWB_float( p->b ) / 255.0f, g ) * 65535.0f );
+				pD->r = VWB_word( pow( VWB_float( p->r ) / 255.0f, gamma ) * 65535.0f );
+				pD->g = VWB_word( pow( VWB_float( p->g ) / 255.0f, gamma ) * 65535.0f );
+				pD->b = VWB_word( pow( VWB_float( p->b ) / 255.0f, gamma ) * 65535.0f );
 				pD->a = VWB_word( p->a ) * 255;
 			}
 			wb.header.flags |= FLAG_WARPFILE_HEADER_BLENDV2;

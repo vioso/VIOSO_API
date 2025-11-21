@@ -9,8 +9,8 @@ endif()
 
 file( GLOB HEADERS ../include/*.h ../include/*.hpp )
 
-set( SOURCES ${COMMON_DIR}/logging.cpp ${COMMON_DIR}/PathHelper.cpp VIOSOWarpBlend.cpp VWF.cpp dpXML.cpp ${THIRD_PARTY_DIR}/tinyxml2/tinyxml2.cpp ${THIRD_PARTY_DIR}/aes/aes.c GL/GLWarpBlend.cpp GL/GLWarpBlendXPL.cpp)
-set( HEADERS ${HEADERS} common.h resource.h dpLogo.h ${COMMON_DIR}/mmath.h ${COMMON_DIR}/logging.h ${COMMON_DIR}/PathHelper.h VWF.h dpXML.h ${COMMON_DIR}/licCM.h ${THIRD_PARTY_DIR}/tinyxml2/tinyxml2.h ${THIRD_PARTY_DIR}/aes/aes.h GL/GLWarpBlend.h GL/GLWarpBlendXPL.h GL/pixelshader.h)
+set( SOURCES ${COMMON_DIR}/logging.cpp ${COMMON_DIR}/PathHelper.cpp WarperBase.cpp DummyWarper.cpp VIOSOWarpBlend.cpp VWF.cpp dpXML.cpp ${THIRD_PARTY_DIR}/tinyxml2/tinyxml2.cpp ${THIRD_PARTY_DIR}/aes/aes.c GL/GLWarpBlend.cpp GL/GLWarpBlendXPL.cpp)
+set( HEADERS ${HEADERS} common.h WarperBase.h DummyWarper.h resource.h dpLogo.h ${COMMON_DIR}/mmath.h ${COMMON_DIR}/logging.h ${COMMON_DIR}/PathHelper.h VWF.h dpXML.h ${COMMON_DIR}/licCM.h ${THIRD_PARTY_DIR}/tinyxml2/tinyxml2.h ${THIRD_PARTY_DIR}/aes/aes.h GL/GLWarpBlend.h GL/GLWarpBlendXPL.h GL/pixelshader.h)
 
 if(WIN32)  
    set( SOURCES ${SOURCES}  DX/DXWarpBlend.cpp DX/DX9EXWarpBlend.cpp DX/DX9WarpBlend.cpp DX/DX10WarpBlend.cpp DX/DX11WarpBlend.cpp DX/DX12WarpBlend.cpp VIOSOWarpBlend.rc )  

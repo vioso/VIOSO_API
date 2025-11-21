@@ -1,7 +1,7 @@
 // VIOSO API OpenGL example
 // based on the NeHe tutorial
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause

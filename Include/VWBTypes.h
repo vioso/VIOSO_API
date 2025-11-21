@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -295,6 +295,16 @@ typedef enum VWB_TYPE_CALIBBASE
 	TYP_CALIBBASE_SUPER_COMPOUND,										///<   warp/blend information based on a super compound calibration
 	TYP_CALIBBASE_UNDEF													///<   undefined
 }VWB_TYPE_CALIBBASE;
+
+typedef enum VWB_WARPER_INFO_FLAGS {
+	VWB_WARPER_INFO_FLAGS_CREATED = 0x00000001,							///<   the warper has been created
+	VWB_WARPER_INFO_FLAGS_INITIALIZED = 0x00000002,						///<   warper is initialized and can be used
+	VWB_WARPER_INFO_FLAGS_DYNAMIC_EYEPOINT = 0x00000004,				///<   dynamic eye-point correction enabled
+	VWB_WARPER_INFO_FLAGS_BORDER = 0x00000008,							///<   border correction enabled
+	VWB_WARPER_INFO_FLAGS_RIGHT_HANDED = 0x00000010,					///<   right handed coordinate system
+	VWB_WARPER_INFO_FLAGS_UTF8 = 0x00000020,							///<   use UTF-8 encoding for strings
+	VWB_WARPER_INFO_FLAGS_DOMEPROJECTION = 0x00000040,					///<   dome projection mode enabled
+}VWB_WARPER_INFO_FLAGS;
 
 #pragma pack( push, 4) // 32 bit aligned on all plattforms
 

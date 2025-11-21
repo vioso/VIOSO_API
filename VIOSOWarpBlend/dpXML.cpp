@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -143,7 +143,7 @@ VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asT
 		wb.header.fov[2] = std::stof( std::string( value_views[7] ) );
 		wb.header.fov[3] = -std::stof( std::string( value_views[8] ) );
 
-		wb.header.screen = 0; // indicate static frustum
+		wb.header.screen = 1; // same as screen z-coordinate set, when warpmap is loaded
 	}
 
 	return VWB_ERROR_NONE;
@@ -310,22 +310,24 @@ VWB_ERROR LoadDPWarp( std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 	unsigned int dimY = 0;
 	std::getline( ifs, tmp ); // skip first (comment) line
 	while( std::getline( ifs, tmp ) ) {
-
+		// x;y;u;v;column;row
 		VWB_WarpBlendVertexEx v{};
 		auto value_views = VWBUtil::split( tmp, ';' );
 		if( value_views.size() != 6 ) {
-			logStr( 1, "ERROR: LoadDPWarp Malformed Warpfile." );
+			logStr( 1, "ERROR: LoadDPWarp: Malformed warp map file." );
 			return VWB_ERROR_VWF_LOAD;
 		}
-		// position
-		v.pos[0] = std::stof( std::string( value_views[0] ) );
-		auto f = std::stof( std::string( value_views[1] ) );
-		v.pos[1] = flipVertices ? 1.f - f : f;
 
-		// texture coordinate
-		v.uv[0] = std::stof( std::string( value_views[2] ) );
-		f = std::stof( std::string( value_views[3] ) );
+		// in the x and y coordinates, we get the actual UVs, as these tell, where to sample blend and blacklevel from
+		v.uv[0] = std::stof( std::string( value_views[0] ) );
+		auto f = std::stof( std::string( value_views[1] ) );
 		v.uv[1] = flipUvs ? 1.f - f : f;
+
+		// the u and v coordinates are the position to sample from content, so we stretch these to a frustum( -1, 1, -1, 1 )
+		v.pos[0] = 2.f * std::stof( std::string( value_views[2] ) ) - 1.f;
+		f = 2.f * std::stof( std::string( value_views[3] ) ) - 1.f;
+		v.pos[1] = flipVertices ? f : -f;
+		v.pos[2] = 1.f; // same as screen distance is set when frustum is loaded
 
 		unsigned int c = std::stoi( std::string( value_views[4] ) );
 		unsigned int r = std::stoi( std::string( value_views[5] ) );
@@ -337,8 +339,8 @@ VWB_ERROR LoadDPWarp( std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 		vertices[{ c, r }] = v;
 	}
 
-	if( vertices.empty() ) {
-		logStr( 1, "ERROR: LoadDPWarp: No vertices found in warp file.\n" );
+	if( vertices.size() < 4 ) {
+		logStr( 1, "ERROR: LoadDPWarp: Not enough vertices found in warp map file.\n" );
 		return VWB_ERROR_VWF_LOAD;
 	}
 
@@ -535,6 +537,15 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 		}
 	}
 
+	if( !paths[6].empty() && !paths[7].empty() ) {
+		logStr( 1, "WARNING: LoadDP: Both frustum and target files specified, using target.\n" );
+	}
+
+	if( paths[6].empty() && paths[7].empty() ) {
+		logStr( 1, "WARNING: LoadDP: no frustum or target file specified, enabling autoView.\n" );
+		wb.header.screen = FLT_MAX; // mark for autoView
+	}
+
 	if( !paths[8].empty() ) { // directional-shading
 		if( wb.pMesh && ( VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS ) != ( ( VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS ) & wb.pMesh->has ) ) {
 			logStr( 1, "WARNING: No normals and tangents in shape. Directional shading disabled." );
@@ -568,6 +579,73 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 		DeleteVWF( wb );
 		return VWB_ERROR_VWF_LOAD;
 	}
+
+	// triangulate
+	wb.pMesh->idx = new VWB_uint[ ( wb.pMesh->gridDim.cx - 1 ) * ( wb.pMesh->gridDim.cy - 1 ) * 6 ];
+	auto ii = wb.pMesh->idx;
+	for( unsigned int y = 1; y < wb.pMesh->gridDim.cy; y++ )
+	{
+		for( unsigned int x = 1; x < wb.pMesh->gridDim.cx; x++ )
+		{
+			// case A       B
+			//    a----b  a----b
+			//    | 1 /|  |\  4|
+			//    |  / |  | \  |
+			//    | / 2|  |3 \ |
+			//    c----d  c----d
+
+			VWB_int a = ( y - 1 ) * wb.pMesh->gridDim.cx + x - 1;
+			VWB_int b = ( y - 1 ) * wb.pMesh->gridDim.cx + x;
+			VWB_int c = ( y ) * wb.pMesh->gridDim.cx + x - 1;
+			VWB_int d = ( y ) * wb.pMesh->gridDim.cx + x;
+
+			// we skip triangles with NaN values
+			if( !isnan( wb.pMesh->vtx[a].pos[0] ) ) {
+				if( !isnan( wb.pMesh->vtx[b].pos[0] ) ) {
+					if( !isnan( wb.pMesh->vtx[c].pos[0] ) ) { // we have a,b,c
+						// first triangle is 1
+						*ii = a; ii++;
+						*ii = b; ii++;
+						*ii = c; ii++;
+						if( !isnan( wb.pMesh->vtx[d].pos[0] ) ) { // and also d
+							// second triangle is 2
+							*ii = b; ii++;
+							*ii = d; ii++;
+							*ii = c; ii++;
+						} else {
+							// no second triangle
+							int i = 0; // keep to set a breakpoint here
+						}
+					} else if( !isnan( wb.pMesh->vtx[d].pos[0] ) ) { // we have a,b,d
+						// only triangle is 4
+						*ii = a; ii++;
+						*ii = b; ii++;
+						*ii = d; ii++;
+					} else {
+						// all vertices are NaN, skip
+						int i = 0; // keep to set a breakpoint here
+					}
+				} else if( !isnan( wb.pMesh->vtx[c].pos[0] ) && !isnan( wb.pMesh->vtx[d].pos[0] ) ) { // we have a,c,d
+					// only triangle is 3
+					*ii = a; ii++;
+					*ii = d; ii++;
+					*ii = c; ii++;
+				} else {
+					// all vertices are NaN, skip
+					int i = 0; // keep to set a breakpoint here
+				}
+			} else if( !isnan( wb.pMesh->vtx[b].pos[0] ) && !isnan( wb.pMesh->vtx[d].pos[0] ) && !isnan( wb.pMesh->vtx[c].pos[0] ) ) { // we have b,c,d
+				// only triangle is 2
+				*ii = b; ii++;
+				*ii = d; ii++;
+				*ii = c; ii++;
+			} else {
+				// all vertices are NaN, skip
+				int i = 0; // keep to set a breakpoint here
+			}
+		}
+	}
+	wb.pMesh->nIdx = (VWB_uint)( ii - wb.pMesh->idx );
 
 	set.push_back( new VWB_WarpBlend( wb ) );
 	return VWB_ERROR_NONE;

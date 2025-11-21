@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -155,6 +155,10 @@ struct VWB_VECTOR3
 		VWB_VECTOR3 p;
 		Bary2Cart( p1, p2, p3, *this, p );
 		return p;
+	}
+
+	inline bool BaryInside() const {
+		return x >= T( 0 ) && y >= T( 0 ) && z >= T( 0 ) && x + y + z <= T( 1 );
 	}
 
 	inline operator T const* () const { return &x; }

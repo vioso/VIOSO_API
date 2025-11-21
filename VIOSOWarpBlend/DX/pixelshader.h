@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -974,16 +974,10 @@ struct PS_OUTPUT
 	float4 Color : SV_Target;
 };
 
-VS_OUTPUT VSMESHX(in VS_INPUT In)
-{
-	VS_OUTPUT Out;
-	Out.Position = float4( Out.Tex0.x * 2 - 1.0, 1.0 - Out.Tex0.y * 2, 0, 1.0 );
-	return Out;
-}
-
 VS_OUTPUT VSMESH(in VS_INPUT In)
 {
 	VS_OUTPUT Out;
+	// compute the position in clip space
 	float4 pos = mul( float4( In.Pos, 1 ), camera_mvp );
 	// pass through texture coordinate, to sample from mappings
 	Out.Tex0 = float2( In.Tex.x, params[8] > 0.0 ? 1.0 - In.Tex.y : In.Tex.y );
@@ -1043,7 +1037,7 @@ PS_OUTPUT PSDP(in VS_OUTPUT In)
 	// apply blending, TODO: move linearization to texture loader
 	if( params[2] > 0.0 ) {
 		float3 blend1 = txBlending.Sample( samLinear, In.Tex0 ).rgb;
-		blend1 = pow( blend1, gamma );  // linearize
+//		blend1 = pow( blend1, gamma );  // linearize , this is commented out as the main blending texture is now stored already linearized
 		output *= blend1;
 	}
 

@@ -49,10 +49,18 @@ if(WIN32)
     add_subdirectory(Examples/DirectX12_cube)
 endif(WIN32)
 
-add_custom_target(copy_to_unreal
+add_custom_target(copy_to_unreal56
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:VIOSOWarpBlend>
             "D:/UnrealEngine/UE_5.6/Engine/Plugins/Runtime/nDisplay/Source/ThirdParty/VIOSO/DLL/VIOSOWarpBlend64.dll"
+    DEPENDS VIOSOWarpBlend
+    COMMENT "Copying VIOSOWarpBlend64.dll to Unreal plugin folder"
+)
+
+add_custom_target(copy_to_unreal55
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:VIOSOWarpBlend>
+            "D:/UnrealEngine/UE_5.5/Engine/Plugins/Runtime/nDisplay/Source/ThirdParty/VIOSO/DLL/VIOSOWarpBlend64.dll"
     DEPENDS VIOSOWarpBlend
     COMMENT "Copying VIOSOWarpBlend64.dll to Unreal plugin folder"
 )

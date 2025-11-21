@@ -1,6 +1,6 @@
 ﻿// VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -598,7 +598,7 @@ namespace VIOSOWarpBlend
 
         /** fills a VWB_WarpBlend from currently loaded data. Warper needs to be initialized as VWB_DUMMYDEVICE.
         * @param [IN]			pWarper	a valid warper
-        * @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
+        * @param [OUT]			wb	a warp blend structure handle
         * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
         //VIOSOWARPBLEND_API( VWB_ERROR, VWB_getWarpBlend, ( VWB_Warper* pWarper, VWB_WarpBlend src, VWB_uint stateMask ) );  
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_getWarpBlend", CallingConvention = CallingConvention.Cdecl)]
@@ -608,8 +608,9 @@ namespace VIOSOWarpBlend
         * @param [IN]			pWarper	a valid warper
         * @param [IN]			cols	sets the number of columns
         * @param [IN]			rows	sets the number of rows
-        * @param [OUT]			mesh	the resulting mesh, the mesh will be emptied before filled
-        * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise */
+        * @param [OUT]			mesh	the resulting mesh
+        * @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER, if parameters are out of range, VWB_ERROR_GENERIC otherwise 
+      	* @remark Make sure to call VWB_destroyWarpBlendMesh after use and before reuse, allocated arrays will not be deleted. */
         //VIOSOWARPBLEND_API(VWB_ERROR, VWB_getWarpBlendMeshC, (VWB_Warper* pWarper, VWB_int cols, VWB_int rows, VWB_WarpBlendMesh* mesh) );
         [DllImport("VIOSOWarpBlend64.dll", EntryPoint = "VWB_getWarpBlendMeshC", CallingConvention = CallingConvention.Cdecl)]
         static extern int VWB_getWarpBlendMesh(IntPtr warper, Int32 cols, Int32 rows, ref MarshalMesh mesh);

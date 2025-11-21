@@ -1,4 +1,4 @@
-// Copyright VIOSO GmbH 2015-2024
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 

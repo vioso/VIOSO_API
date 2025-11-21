@@ -1,6 +1,6 @@
 // VIOSO API
-// http://bitbucket.org/vioso/vioso_api
-// Copyright VIOSO GmbH 2015-2024
+// http://github.com/vioso/vioso_api
+// Copyright VIOSO GmbH 2015-2026
 // This code is published under BSD 2-Clause license
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
@@ -345,34 +345,40 @@ HRESULT saveTextureToFile( ID3D12Device* device, ID3D12CommandQueue* queue, std:
 	if( !file.is_open() ) return E_INVALIDARG;
 	file.write( reinterpret_cast< const char* >( &fileHeader ), sizeof( fileHeader ) );
 	file.write( reinterpret_cast< const char* >( &infoHeader ), sizeof( infoHeader ) );
+	// note: bitmap has brga ordering
 	switch( textureDesc.Format ) {
 	case DXGI_FORMAT_R16G16B16A16_FLOAT:
 		for( auto p = reinterpret_cast< uint8_t* >( data ), pE = p + rowPitch * height; p != pE; p+= rowPitch )
 			for( auto pp = p, ppE = p + 8 * width; pp != ppE; pp += 8 ) {
-				uint8_t rgba[4]{
-					uint8_t( 255 * half2float( *(uint16_t*)( pp ) ) ),
-					uint8_t( 255 * half2float( *(uint16_t*)( pp + 2 ) ) ),
+				uint8_t bgra[4]{
 					uint8_t( 255 * half2float( *(uint16_t*)( pp + 4 ) ) ),
+					uint8_t( 255 * half2float( *(uint16_t*)( pp + 2 ) ) ),
+					uint8_t( 255 * half2float( *(uint16_t*)( pp ) ) ),
 					uint8_t( 255 * half2float( *(uint16_t*)( pp + 6 ) ) ),
 				};
-				file.write( (char const*)rgba, 4 );
+				file.write( (char const*)bgra, 4 );
 			}
 		break;
 	case DXGI_FORMAT_R32G32B32A32_FLOAT:
 		for( auto p = reinterpret_cast< uint8_t* >( data ), pE = p + rowPitch * height; p != pE; p+= rowPitch )
 			for( auto pp = p, ppE = p + 16 * width; pp != ppE; pp += 16 ) {
-				uint8_t rgba[4]{
-					uint8_t( 255 * *(float*)( pp ) ),
-					uint8_t( 255 * *(float*)( pp + 4 ) ),
+				uint8_t bgra[4]{
 					uint8_t( 255 * *(float*)( pp + 8 ) ),
+					uint8_t( 255 * *(float*)( pp + 4 ) ),
+					uint8_t( 255 * *(float*)( pp ) ),
 					uint8_t( 255 * *(float*)( pp + 12 ) ),
 				};
-				file.write( (char const*)rgba, 4 );
+				file.write( (char const*)bgra, 4 );
 			}
 		break;
 	default:
 		for( auto p = reinterpret_cast< const char* >( data ), pE = p + rowPitch * height; p != pE; p+= rowPitch )
-			file.write( p, bmRowPitch );
+			for( auto pp = p, ppE = p + bmRowPitch; pp != ppE; pp += bytesPerPixel ) {
+				file.put( pp[2] );
+				file.put( pp[1] );
+				file.put( pp[0] );
+				file.put( pp[3] );
+			}
 	};
 	file.close();
 
@@ -710,7 +716,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					LPCWSTR					name;
 				} texDescs[] {
 					{ (UINT64)wb.directionalSz.cx, (UINT)wb.directionalSz.cy, DXGI_FORMAT_R8G8B8A8_UNORM, &m_texDirectionalShading, { wb.pDirectional, wb.directionalSz.cx * sizeof( VWB_BlendRecord ) }, L"dp_texDirectionalShading" },
-					{ (UINT64)m_sizeMap.cx, (UINT)m_sizeMap.cy, DXGI_FORMAT_R8G8B8A8_UNORM, &m_texBlend, { wb.pBlend, m_sizeMap.cx * sizeof( VWB_BlendRecord ) }, L"dp_texBlend" },
+					{ (UINT64)m_sizeMap.cx, (UINT)m_sizeMap.cy, DXGI_FORMAT_R16G16B16A16_UNORM, &m_texBlend, { wb.pBlend2, m_sizeMap.cx * sizeof( VWB_BlendRecord2 ) }, L"dp_texBlend" },
 					{ (UINT64)m_sizeMap.cx, (UINT)m_sizeMap.cy, DXGI_FORMAT_R8G8B8A8_UNORM, &m_texBlack, { wb.pBlack, m_sizeMap.cx * sizeof( VWB_BlendRecord ) }, L"dp_texBlack" },
 					{ (UINT64)m_sizeMap.cx, (UINT)m_sizeMap.cy, DXGI_FORMAT_R8G8B8A8_UNORM, &m_texBlend2, { wb.p2ndBlend, m_sizeMap.cx * sizeof( VWB_BlendRecord ) }, L"dp_texBlend2" },
 				};
@@ -753,52 +759,24 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			// Create the vertex buffer.
 			{
 				std::vector<DirVertex> vertices( warpmap.nVtx, DirVertex{} );
-				if( m_bDynamicEye ) { 
-					auto const* wv = warpmap.vtx;
-					for( auto& v : vertices )
-					{
-						v.Pos.x = wv->pos[0];
-						v.Pos.y = wv->pos[1];
-						v.Pos.z = wv->pos[2];
+				auto const* wv = warpmap.vtx;
+				for( auto& v : vertices ) {
+					v.Pos.x = wv->pos[0];
+					v.Pos.y = wv->pos[1];
+					v.Pos.z = wv->pos[2];
 
-						v.Tex.u = wv->uv[0];
-						v.Tex.v = wv->uv[1];
+					v.Tex.u = wv->uv[0];
+					v.Tex.v = wv->uv[1];
 
-						v.Nor.x = wv->n[0];
-						v.Nor.y = wv->n[1];
-						v.Nor.z = wv->n[2];
+					v.Nor.x = wv->n[0];
+					v.Nor.y = wv->n[1];
+					v.Nor.z = wv->n[2];
 
-						v.Tan.x = wv->t[0];
-						v.Tan.y = wv->t[1];
-						v.Tan.z = wv->t[2];
+					v.Tan.x = wv->t[0];
+					v.Tan.y = wv->t[1];
+					v.Tan.z = wv->t[2];
 
-						wv++;
-					}
-				} else {
-					auto const* wv = warpmap.vtx;
-					for( auto& v : vertices )
-					{
-						// normalize vertices from -1/1 (upper left corner) to 1/-1 (lower right corner)
-						// makes it easier to create a projection matrix
-						v.Pos.x = -1000.0f + wv->pos[0] * 2000.0f;
-						v.Pos.y = 1000;
-						v.Pos.z = 1000.0f - wv->pos[1] * 2000.0f;
-						// warped texture coords set
-						v.Tex.u = wv->uv[0];
-						v.Tex.v = wv->uv[1];
-
-						// set tangent to +x						
-						v.Nor.x = 0;
-						v.Nor.y = 1;
-						v.Nor.z = 0;
-
-						// set tangent to +x						
-						v.Tan.x = 1;
-						v.Tan.y = 0;
-						v.Tan.z = 0;
-
-						wv++;
-					}
+					wv++;
 				}
 
 				const UINT vertexBufferSize = UINT(vertices.size()) * sizeof( DirVertex );
@@ -816,77 +794,10 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			// Create the index buffer.
 			{
 				VWB_WarpBlend& wb = *wbs[calibIndex];
-				auto& warpmap = *wb.pMesh;
-				std::vector<DWORD> indices( ( warpmap.gridDim.cx - 1 )* ( warpmap.gridDim.cy - 1 ) * 6 );
-				auto ii = indices.begin();
-				for( unsigned int y = 1; y < warpmap.gridDim.cy; y++ )
-				{
-					for( unsigned int x = 1; x < warpmap.gridDim.cx; x++ )
-					{
 
-						//    a----b  a----b
-						//    | 1 /|  |\  4|
-						//    |  / |  | \  |
-						//    | / 2|  |3 \ |
-						//    c----d  c----d
-						//
+				const UINT indexBufferSize = UINT( warpmap.nIdx ) * sizeof( uint32_t );
 
-						VWB_int a = ( y - 1 ) * warpmap.gridDim.cx + x - 1;
-						VWB_int b = ( y - 1 ) * warpmap.gridDim.cx + x;
-						VWB_int c = ( y ) * warpmap.gridDim.cx + x - 1;
-						VWB_int d = ( y ) * warpmap.gridDim.cx + x;
-						// check warpmap.vtx[a].pos[0] is not NaN
-						// we skip triangles with NaN values
-
-						if( !isnan( warpmap.vtx[a].pos[0] ) ) {
-							if( !isnan( warpmap.vtx[a].pos[0] ) || !isnan( warpmap.vtx[b].pos[0] ) || !isnan( warpmap.vtx[c].pos[0] ) ) {
-								// first triangle is 1//
-								*ii = a; ii++;
-								*ii = b; ii++;
-								*ii = c; ii++;
-								if( !isnan( warpmap.vtx[d].pos[0] ) ) {
-									// second triangle is 2 //
-									*ii = b; ii++;
-									*ii = d; ii++;
-									*ii = c; ii++;
-								}
-							} else if( !isnan( warpmap.vtx[d].pos[0] ) ) {
-								if( !isnan( warpmap.vtx[c].pos[0] ) ) {
-									// first triangle is 3 //
-									*ii = b; ii++;
-									*ii = d; ii++;
-									*ii = c; ii++;
-								} else if( !isnan( warpmap.vtx[b].pos[0] ) ) {
-									// first triangle is 4 //
-									*ii = a; ii++;
-									*ii = b; ii++;
-									*ii = d; ii++;
-								}
-							}
-						} else if( !isnan( warpmap.vtx[b].pos[0] ) || !isnan( warpmap.vtx[d].pos[0] ) || !isnan( warpmap.vtx[c].pos[0] ) ) {
-							// first triangle is 2 //
-							*ii = b; ii++;
-							*ii = d; ii++;
-							*ii = c; ii++;
-						} else {
-							// all vertices are NaN, skip
-							int i = 0;
-						}
-					}
-				}
-				indices.erase( ii, indices.end() );
-
-			#ifdef _DEBUG
-				std::ofstream fs( "debug_indices.txt" );
-				for( auto& v : indices ) {
-					fs << std::setw(5) << std::setfill(' ') << v << ", ";
-				}
-				fs << std::endl;
-			#endif
-
-				const UINT indexBufferSize = UINT( indices.size() ) * sizeof( DWORD );
-
-				auto data = D3D12_SUBRESOURCE_DATA{ indices.data(), indexBufferSize } ;
+				auto data = D3D12_SUBRESOURCE_DATA{ warpmap.idx, indexBufferSize } ;
 				auto desc = CD3DX12_RESOURCE_DESC::Buffer( indexBufferSize );
 				RPT_HR_FATAL( CreateAndFillResource( m_device, m_cl, desc, data, m_indexBuffer, stagingTexs, L"dp_IndexBuffer", D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER ), "Could not create index buffer", VWB_ERROR_GENERIC );
 
@@ -895,7 +806,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				m_indexBufferView.SizeInBytes = indexBufferSize;
 				m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
 
-				m_nIndices = (UINT)indices.size();
+				m_nIndices = (UINT)warpmap.nIdx;
 			}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1445,8 +1356,7 @@ VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
 	}
 
 	// update constant buffer
-	if( m_cbMap )
-	{
+	if( m_cbMap ) {
 		if( m_bDP ) {
 			DPConstantBuffer& cb = *reinterpret_cast<DPConstantBuffer*>( m_cbMap );
 			cb.gamma = gamma;
@@ -1459,11 +1369,23 @@ VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
 			cb.colorCorr = m_texDirectionalShading ? 1 : 0;
 			cb.flip_v = bFlipWarpmeshTexcoords ? 1 : 0;
 			//cb.reserved[7]; // in total 16 until here
-			memcpy( cb.mvp, m_mVP.Transposed(), sizeof( cb.mvp ) );
-			cb.pos[0] = m_ep.x;
-			cb.pos[1] = m_ep.y;
-			cb.pos[2] = m_ep.z;
-			cb.pos[3] = 1.0f;
+			if( m_bDynamicEye ) {
+				// copy current view-projection matrix and eye position
+				memcpy( cb.mvp, m_mVP.Transposed(), sizeof( cb.mvp ) );
+				cb.pos[0] = m_ep.x;
+				cb.pos[1] = m_ep.y;
+				cb.pos[2] = m_ep.z;
+				cb.pos[3] = 1.0f;
+			} else {
+				// set a view-projection, that renders a square from 0,0 to 1,1, as this is where the warp-map's position coordinates are defined
+				static VWB_float clip[]{ 0.f, 1.f, 1.f, 0.f, 1.f, 10.0f };
+				static VWB_MAT44f P = VWB_MAT44f::I(); // we use identity as projection, to just keep x and y as is
+				memcpy( cb.mvp, P, sizeof( cb.mvp ) );
+				cb.pos[0] = 0.f;
+				cb.pos[1] = 0.f;
+				cb.pos[2] = 0.f;
+				cb.pos[3] = 1.f;
+			}
 
 		#ifdef _DEBUG
 			static bool once = true;
