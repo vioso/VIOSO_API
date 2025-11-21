@@ -16,6 +16,9 @@
 #include <fstream>
 #include <limits>
 
+#undef min
+#undef max
+
 using namespace std::chrono_literals;
 using namespace std;
 using namespace VWBUtil;
@@ -1078,7 +1081,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 		int wh = wb.header.width / 2;
 		int hh = wb.header.height / 2;
 		VWB_WarpRecord* ptl = NULL, * ptr = NULL, * pbl = NULL, * pbr = NULL; // the extremal corners
-		int ltl = INT_MAX, ltr = INT_MIN, lbl = INT_MAX, lbr = INT_MIN; // the extremal corner's distance to projector centre on projector
+		int ltl = std::numeric_limits<int>::max(), ltr = std::numeric_limits<int>::min(), lbl = std::numeric_limits<int>::max(), lbr = std::numeric_limits<int>::min(); // the extremal corner's distance to projector centre on projector
 	#ifdef _DEBUG
 		struct ImageCorners {
 			struct px {

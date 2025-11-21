@@ -10,6 +10,9 @@
 
 #define SAFE_RELEASE( x ) if( x ){ x->Release(); x = NULL; }
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+
 // C RunTime Header Files
 #include <memory.h>
 #include <stdio.h>
@@ -22,9 +25,6 @@
 #define STRVER( ma, mi, x ) STRINGIFY(ma.mi.x)
 #define VWB_VERSTR STRVER(VWB_Version_MAJ,VWB_Version_MIN,VWB_Version_MAI)
 #include "mmath.h"
-
-#include "../Include/EyePointProvider.h"
-#include "licCM.h"
 
 #if defined( WIN32 )
 extern VWB_int g_error;
@@ -46,7 +46,7 @@ size_t copyCursorBitmapToMappedTexture( HBITMAP hbmMask, HBITMAP hbmColor, BITMA
 	#define MAX(a,b)  ((a) < (b) ? (b) : (a))
 #endif
 
-#if !defined( MSVC_VER ) || ( MSVC_VER < 1900 )
+#if !defined( _countof )
 #define _countof( array ) ( sizeof( array ) / sizeof( array[0] ) )
 #endif
 

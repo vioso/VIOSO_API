@@ -402,6 +402,7 @@ DX12WarpBlend::DX12WarpBlend( ID3D12CommandQueue* pCQ )
 , m_indexBufferView( { 0, 0, DXGI_FORMAT_R32_UINT } )
 , m_texWarp( NULL )
 , m_texBlend( NULL )
+, m_texBlendX( NULL )
 , m_texBlend2( NULL )
 , m_texDirectionalShading( NULL )
 , m_texBlack( NULL )
@@ -426,6 +427,7 @@ DX12WarpBlend::~DX12WarpBlend(void)
 {
 	SAFE_RELEASE( m_texWarp );
 	SAFE_RELEASE( m_texBlend );
+	SAFE_RELEASE( m_texBlendX );
 	SAFE_RELEASE( m_texBlack );
 	SAFE_RELEASE( m_texCur );
 	SAFE_RELEASE( m_texBlend2 );
@@ -706,7 +708,13 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					D3D12_TEXTURE_LAYOUT_UNKNOWN,// D3D12_TEXTURE_LAYOUT Layout;
 					D3D12_RESOURCE_FLAG_NONE,// D3D12_RESOURCE_FLAGS Flags;
 				};
-				static const uint8_t _white[4] = { 255,255,255,255 };
+				constexpr uint8_t _white[4] = { 255,255,255,255 };
+
+				VWB_BlendRecord2* blendX = nullptr;
+				if( wb.pBlend2 ) {
+					blendX = new VWB_BlendRecord2[m_sizeMap.cx * m_sizeMap.cy];
+					std::copy_n( wb.pBlend2, m_sizeMap.cx* m_sizeMap.cy, blendX );
+				}
 				struct TexDesc {
 					UINT64 width;
 					UINT height;

@@ -10,7 +10,10 @@
 
 #pragma comment( lib, "d3d10.lib" )
 
-const FLOAT _black[4] = {0,0,0,1};
+#undef min
+#undef max
+
+constexpr FLOAT _black[4] = {0,0,0,1};
 
 bool SaveTex( LPCSTR path, ID3D10Device* dev, ID3D10Texture2D* tex )
 {

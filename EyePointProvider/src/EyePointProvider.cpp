@@ -10,7 +10,7 @@
 #ifdef WIN32
 	#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 	#include <sdkddkver.h>
-	#include <windows.h>
+	//#include <windows.h>
 	#define STDCALL __stdcall
 	HMODULE g_hModDll = 0;
 	#define GETTIME( tm ) timespec_get( &tm, TIME_UTC )

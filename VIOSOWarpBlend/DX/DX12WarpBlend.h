@@ -29,6 +29,7 @@ protected:
 	D3D12_INDEX_BUFFER_VIEW		m_indexBufferView;    // the index buffer view
 	ID3D12Resource*				m_texWarp;
 	ID3D12Resource*				m_texBlend;
+	ID3D12Resource*				m_texBlendX;
 	ID3D12Resource*				m_texBlack;
 	ID3D12Resource*				m_texCur;
 	ID3D12Resource*				m_texBlend2; // the second blend texture

@@ -24,6 +24,9 @@
 #include "stb/stb_image.h"
 #endif // def WIN32
 
+#undef min
+#undef max
+
 VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asTarget = false ) {
 	std::ifstream ifs;
 	std::string tmp;

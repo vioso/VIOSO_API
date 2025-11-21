@@ -7,17 +7,18 @@
 
 #include "VWF.h"
 
-#include <stdlib.h>
 #include <fstream>
-#include <math.h>
 #include <cfloat>
 #include <cstring>
-#include <limits.h>
+#include <limits>
+#include <math.h>
 
 #include "../Include/StringConversions.h"
 #include "logging.h"
 #include "aes/aes.hpp"
 
+#undef min
+#undef max
 
 const uint8_t _iv[]{ 0xd7, 0x04, 0xa7, 0x9f, 0xad, 0x4a, 0x48, 0xb6, 0x1f, 0x3e, 0x55, 0x30, 0x46, 0x6a, 0xa1, 0x2d };
 
@@ -1226,7 +1227,7 @@ VWB_ERROR CalculateDimensions( VWB_WarpBlend const& wb, int& dimX, int& dimY ) {
 		VWB_WarpRecord const* p;
 		Corner( int initL ) : l{ initL }, x{ 0 }, y{ 0 }, p{ nullptr } {}
 		Corner( int _l, int _x, int _y, VWB_WarpRecord const* _p ) : l{ _l }, x{ _x }, y{ _y }, p{ _p } {}
-	} tl( INT_MAX ), tr( INT_MIN ), bl( INT_MAX ), br( INT_MIN );
+	} tl( std::numeric_limits<int>::max() ), tr( std::numeric_limits<int>::min() ), bl( std::numeric_limits<int>::max() ), br( std::numeric_limits<int>::min() );
 
 	for( int y = hh - wb.header.height; y != hh; y++ )
 		for( int x = wh - wb.header.width; x != wh; x++, pW++ ) {
