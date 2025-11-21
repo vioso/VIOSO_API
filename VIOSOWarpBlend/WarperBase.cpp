@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <chrono>
 #include <fstream>
+#include <limits>
 
 using namespace std::chrono_literals;
 using namespace std;
@@ -29,7 +30,7 @@ static char const* _libExt = "";
 static char const* _libExt = ".so";
 #endif // defined( WIN32 )
 
-static const VWB_size _size0 = { 0,0 };
+constexpr VWB_size _size0 = { 0,0 };
 static bool __isFirstInstance = false;
 
 VWB_ERROR invertWB( VWB_WarpBlend const& in, VWB_WarpBlend& out );
@@ -1227,12 +1228,12 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 	VWB_VEC3f::ptr( dir ) = VWB_VEC3f( ( m_bRH ? M.GetR() : -M.GetR() ) * ( 180.0 / M_PI ) );
 
 	// caclulate FoVs
-	double minDx = FLT_MAX, minDy = FLT_MAX;  // minimal horizontal and vertical projected distance on render plane, for quality purposes
-	double maxL = FLT_MAX, maxT = -FLT_MAX, maxR = -FLT_MAX, maxB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom
-	double maxEL = FLT_MAX, maxET = -FLT_MAX, maxER = -FLT_MAX, maxEB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom throughout moving space
+	double minDx = std::numeric_limits<float>::max(), minDy = std::numeric_limits<float>::max();  // minimal horizontal and vertical projected distance on render plane, for quality purposes
+	double maxL = std::numeric_limits<float>::max(), maxT = -std::numeric_limits<float>::max(), maxR = -std::numeric_limits<float>::max(), maxB = std::numeric_limits<float>::max();  // maximum horizontal and vertical view size, left top right bottom
+	double maxEL = std::numeric_limits<float>::max(), maxET = -std::numeric_limits<float>::max(), maxER = -std::numeric_limits<float>::max(), maxEB = std::numeric_limits<float>::max();  // maximum horizontal and vertical view size, left top right bottom throughout moving space
 
 	// now we get the corners of a box in that coordinate system
-	VWB_BOXd b( VWB_VEC3d( DBL_MAX, DBL_MAX, DBL_MAX ), VWB_VEC3d( -DBL_MAX, -DBL_MAX, -DBL_MAX ) );
+	VWB_BOXd b( VWB_VEC3d( std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() ), VWB_VEC3d( -std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), -std::numeric_limits<double>::max() ) );
 
 	size_t sz = ptrdiff_t( wb.header.width ) * wb.header.height;
 	// double l = autoViewC * screenDist / 4; optimized (we devide everything by screenDist and multiply the final result):
@@ -1319,7 +1320,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 			}
 		}
 
-		if( FLT_MAX == maxEL || FLT_MAX == maxET || -FLT_MAX == maxER || -FLT_MAX == maxEB ) {
+		if( std::numeric_limits<float>::max() == maxEL || std::numeric_limits<float>::max() == maxET || -std::numeric_limits<float>::max() == maxER || -std::numeric_limits<float>::max() == maxEB ) {
 			logStr( 1, "WARNING: AutoView cannot calculate FoVs.\n" );
 			return VWB_ERROR_GENERIC;
 		}
@@ -1352,7 +1353,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 			// now we search for lowest, but ignoring values, that would result in more than double resolution
 			// 2 * width = ( maxR - maxL ) / capX
 			// <=> capX = 0.5 * ( maxR - maxL ) / width
-			double minX = DBL_MAX;
+			double minX = std::numeric_limits<double>::max();
 			double cap = 0.5 * ( maxR - maxL ) / wb.header.width;
 			size_t droppedX = 0;
 			for( auto x : distanceMapX ) {
@@ -1364,7 +1365,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 					droppedX++;
 			}
 
-			double minY = DBL_MAX;
+			double minY = std::numeric_limits<double>::max();
 			cap = 0.5 * ( maxT - maxB ) / wb.header.height;
 			size_t droppedY = 0;
 			for( auto y : distanceMapY ) {
@@ -1426,7 +1427,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb ) {
 				maxEB = vy - dd;
 
 		}
-		if( FLT_MAX == maxEL || FLT_MAX == maxET || -FLT_MAX == maxER || -FLT_MAX == maxEB ) {
+		if( std::numeric_limits<float>::max() == maxEL || std::numeric_limits<float>::max() == maxET || -std::numeric_limits<float>::max() == maxER || -std::numeric_limits<float>::max() == maxEB ) {
 			logStr( 1, "WARNING: AutoView cannot calculate FoVs.\n" );
 			return VWB_ERROR_GENERIC;
 		}
@@ -1688,8 +1689,8 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb ) {
 
 	{
 		// we need to recalculate...
-		float minU = FLT_MAX, minV = FLT_MAX;
-		float maxU = -FLT_MAX, maxV = -FLT_MAX;
+		float minU = std::numeric_limits<float>::max(), minV = std::numeric_limits<float>::max();
+		float maxU = -std::numeric_limits<float>::max(), maxV = -std::numeric_limits<float>::max();
 		for( auto const* p = wb.pWarp, *pE = p + wb.header.width * wb.header.height; p != pE; p++ ) {
 			if( 0.5f < p->z ) {
 				if( minU > p->x )
@@ -1702,8 +1703,8 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb ) {
 					maxV = p->y;
 			}
 		}
-		if( minU != FLT_MAX && minV != FLT_MAX &&
-			maxU != -FLT_MAX && maxV != -FLT_MAX ) {
+		if( minU != std::numeric_limits<float>::max() && minV != std::numeric_limits<float>::max() &&
+			maxU != -std::numeric_limits<float>::max() && maxV != -std::numeric_limits<float>::max() ) {
 			if( wb.header.vCntDispPx[4] || wb.header.vCntDispPx[4] ) { // if we got a content size, we keep it. Just recalculating the partial rect
 				auto fX = 1.0f / ( wb.header.vCntDispPx[4] * wb.header.width * ( maxU - minU ) );
 				auto fY = 1.0f / ( wb.header.vCntDispPx[5] * wb.header.height * ( maxV - minV ) );

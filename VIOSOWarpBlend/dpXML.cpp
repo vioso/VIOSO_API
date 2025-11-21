@@ -101,7 +101,7 @@ VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asT
 			//auto R = VWB_MAT33f::Base( dx, dy ); // right, up
 			auto R = VWB_MAT33f::R( DEG2RADf( wb.header.dir[0] ), DEG2RADf( wb.header.dir[1] ), DEG2RADf( wb.header.dir[2] ) );
 
-			float maxL = FLT_MAX, maxT = -FLT_MAX, maxR = -FLT_MAX, maxB = FLT_MAX;  // maximum horizontal and vertical view size, left top right bottom
+			float maxL = std::numeric_limits<float>::max(), maxT = -std::numeric_limits<float>::max(), maxR = -std::numeric_limits<float>::max(), maxB = std::numeric_limits<float>::max();  // maximum horizontal and vertical view size, left top right bottom
 
 			for( auto const& v : std::span( corners, 4 ) ) {
 				auto vTT = R * v;
@@ -117,7 +117,7 @@ VWB_ERROR LoadDPFrustum( std::filesystem::path path, VWB_WarpBlend& wb, bool asT
 				if( maxB > vy ) // bottom, minimal y
 					maxB = vy;
 			}
-			if( FLT_MAX == maxL || FLT_MAX == maxT || -FLT_MAX == maxR || -FLT_MAX == maxB ) {
+			if( std::numeric_limits<float>::max() == maxL || std::numeric_limits<float>::max() == maxT || -std::numeric_limits<float>::max() == maxR || -std::numeric_limits<float>::max() == maxB ) {
 				logStr( 1, "WARNING: AutoView cannot calculate FoVs.\n" );
 				return VWB_ERROR_VWF_LOAD;
 			}
@@ -543,7 +543,7 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 
 	if( paths[6].empty() && paths[7].empty() ) {
 		logStr( 1, "WARNING: LoadDP: no frustum or target file specified, enabling autoView.\n" );
-		wb.header.screen = FLT_MAX; // mark for autoView
+		wb.header.screen = std::numeric_limits<float>::max(); // mark for autoView
 	}
 
 	if( !paths[8].empty() ) { // directional-shading

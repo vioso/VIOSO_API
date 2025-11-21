@@ -617,8 +617,8 @@ VWB_ERROR DX11WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			1, //UINT MaxAnisotropy;
 			D3D11_COMPARISON_NEVER, //D3D11_COMPARISON_FUNC ComparisonFunc;
 			{0,0,0,0}, //FLOAT BorderColor[ 4 ];
-			-FLT_MAX, //FLOAT MinLOD;
-			FLT_MAX, //FLOAT MaxLOD;
+			-std::numeric_limits<float>::max(), //FLOAT MinLOD;
+			std::numeric_limits<float>::max(), //FLOAT MaxLOD;
 		};
 		m_device->CreateSamplerState( &descSam, &m_SSLin );
 

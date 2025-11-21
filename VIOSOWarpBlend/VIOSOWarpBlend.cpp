@@ -497,7 +497,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 			VWB_VEC3f( set.back()->header.dir ).SetPtr( pWarper->dir );
 			VWB_VEC4f( set.back()->header.fov ).SetPtr( pWarper->fov );
 			pWarper->screenDist = set.back()->header.screen;
-			if( FLT_MAX == pWarper->screenDist ) { // no target or frustum loaded; we enable autoView
+			if( std::numeric_limits<float>::max() == pWarper->screenDist ) { // no target or frustum loaded; we enable autoView
 				pWarper->bAutoView = true;
 				// and set a default screen distance for domeprojection setups
 				pWarper->screenDist = 1000.f;
@@ -548,9 +548,9 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 		#if defined( WIN32 ) || defined( WIN64 )
 			( infoFlags& VWB_WARPER_INFO_FLAGS_UTF8 ) ? "UTF-8" : "ANSI",
 		#else
-			"UTF-8"
+			"UTF-8",
 		#endif
-			( infoFlags& VWB_WARPER_INFO_FLAGS_DOMEPROJECTION ) ? "SHAPE" : "PIXELMAP"
+			( infoFlags & VWB_WARPER_INFO_FLAGS_DOMEPROJECTION ) ? "SHAPE" : "PIXELMAP"
 	);
 	report( &pWarper, false );
 	return err;

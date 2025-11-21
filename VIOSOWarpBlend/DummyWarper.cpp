@@ -5,13 +5,14 @@
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
 
-#include "Dummywarper.h"
+#include "DummyWarper.h"
 #include "common.h"
 #include "VWF.h"
 
 #include <list>
 #include <map>
 #include <fstream>
+#include <limits>
 
 Dummywarper::Dummywarper( void )
 	: VWB_Warper_base() {
@@ -821,7 +822,7 @@ bool RepairUniformGrid( std::vector<TP>& grid, int wGrid, int hGrid, int dist ) 
 							y + delta[matches[i].pos[j]].cy >= 0 ) // not over top border
 						{
 							ppOO[j] = grid.begin() + ( ( ptrdiff_t( y ) + delta[matches[i].pos[j]].cy ) * wGrid + x + delta[matches[i].pos[j]].cx );
-							if( FLT_EPSILON > ppOO[j]->lPt2[2] ) {
+							if( std::numeric_limits<float>::epsilon() > ppOO[j]->lPt2[2] ) {
 								ppOO[0] = grid.end();
 								break;
 							}
@@ -883,7 +884,7 @@ bool RepairUniformGrid( std::vector<TP>& grid, int wGrid, int hGrid, int dist ) 
 					pN->lTangDescY[1] += vE[5];
 				}
 
-				if( FLT_EPSILON <= pN->lPt2[2] ) {
+				if( std::numeric_limits<float>::epsilon() <= pN->lPt2[2] ) {
 					pN->lPt2[0] /= pN->lPt2[2];
 					pN->lPt2[1] /= pN->lPt2[2];
 					pN->lTangDescX[0] /= pN->lPt2[2];
@@ -893,8 +894,8 @@ bool RepairUniformGrid( std::vector<TP>& grid, int wGrid, int hGrid, int dist ) 
 
 					pN->lPt2[2] /= nMatches;
 
-					if( FLT_EPSILON > pN->lPt2[2] )
-						pN->lPt2[2] = FLT_EPSILON;
+					if( std::numeric_limits<float>::epsilon() > pN->lPt2[2] )
+						pN->lPt2[2] = std::numeric_limits<float>::epsilon();
 				}
 
 			}
@@ -921,7 +922,7 @@ bool RepairUniformGrid( std::vector<TP>& grid, int wGrid, int hGrid, int dist ) 
 			{
 				pO->lPt2[0] = pN->lPt2[0];
 				pO->lPt2[1] = pN->lPt2[1];
-				pO->lPt2[2] = +.5f + MAX( FLT_EPSILON, pN->lPt2[2] * 0.5f ); // fit back to "good value" window
+				pO->lPt2[2] = +.5f + MAX( std::numeric_limits<float>::epsilon(), pN->lPt2[2] * 0.5f ); // fit back to "good value" window
 				pO->lTangDescX[0] = pN->lTangDescX[0];
 				pO->lTangDescX[1] = pN->lTangDescX[1];
 				pO->lTangDescY[0] = pN->lTangDescY[0];

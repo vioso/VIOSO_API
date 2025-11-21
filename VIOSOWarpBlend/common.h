@@ -5,10 +5,10 @@
 // see LICENSE.md
 // https://opensource.org/license/bsd-2-clause
 
-#define SAFE_RELEASE( x ) if( x ){ x->Release(); x = NULL; }
-
 #if !defined( VWB_common_h )
 #define VWB_common_h
+
+#define SAFE_RELEASE( x ) if( x ){ x->Release(); x = NULL; }
 
 // C RunTime Header Files
 #include <memory.h>
@@ -46,10 +46,13 @@ size_t copyCursorBitmapToMappedTexture( HBITMAP hbmMask, HBITMAP hbmColor, BITMA
 	#define MAX(a,b)  ((a) < (b) ? (b) : (a))
 #endif
 
+#if !defined( MSVC_VER ) || ( MSVC_VER < 1900 )
+#define _countof( array ) ( sizeof( array ) / sizeof( array[0] ) )
+#endif
+
 #if defined( __GNU__ )
   void __attribute__ ((constructor)) my_init(void);
   void __attribute__ ((destructor)) my_fini(void);
 #endif
 
 #endif //!defined( VWB_common_h )
-

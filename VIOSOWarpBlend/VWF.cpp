@@ -1125,7 +1125,7 @@ VWB_ERROR CalculateBounds( VWB_WarpBlend const& wb, int& resX, int& resY, int& m
 		return VWB_ERROR_WARP;
 	}
 
-	VWB_float minXf = FLT_MAX, minYf = FLT_MAX, maxXf = -FLT_MAX, maxYf = -FLT_MAX;
+	VWB_float minXf = std::numeric_limits<float>::max(), minYf = std::numeric_limits<float>::max(), maxXf = -std::numeric_limits<float>::max(), maxYf = -std::numeric_limits<float>::max();
 
 	if( wb.pBlend ) {
 		if( wb.header.flags & FLAG_WARPFILE_HEADER_BLENDV2 ) {
@@ -1189,7 +1189,7 @@ VWB_ERROR CalculateBounds( VWB_WarpBlend const& wb, int& resX, int& resY, int& m
 		}
 	}
 
-	if( FLT_MAX == minXf || FLT_MAX == minYf || -FLT_MAX == maxXf || -FLT_MAX == maxYf ) {
+	if( std::numeric_limits<float>::max() == minXf || std::numeric_limits<float>::max() == minYf || -std::numeric_limits<float>::max() == maxXf || -std::numeric_limits<float>::max() == maxYf ) {
 		logStr( 0, "ERROR: Warp texture is empty. Can't calculate bounds on that\n" );
 		return VWB_ERROR_WARP;
 	}
