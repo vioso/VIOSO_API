@@ -17,6 +17,8 @@
 #include "logging.h"
 #include "common.h"
 
+#include "dpLogo.h"
+
 class VWB_Warper_base : public VWB_Warper 
 {
 protected:

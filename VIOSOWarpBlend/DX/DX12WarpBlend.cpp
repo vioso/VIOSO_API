@@ -17,6 +17,7 @@
 #ifdef _DEBUG
 #include <iomanip>
 #endif
+#include "stb_image.h"
 //#pragma comment( lib, "d3d12.lib" )
 
 extern "C" HRESULT WINAPI D3D12SerializeVersionedRootSignature(
@@ -703,7 +704,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					(UINT)m_sizeMap.cy,//UINT Height;
 					1,//UINT16 DepthOrArraySize;
 					1,//UINT16 MipLevels;
-					DXGI_FORMAT_R8G8B8A8_UNORM,//DXGI_FORMAT Format;
+					DXGI_FORMAT_R16G16B16A16_UNORM,//DXGI_FORMAT Format;
 					{1,0},//DXGI_SAMPLE_DESC SampleDesc;
 					D3D12_TEXTURE_LAYOUT_UNKNOWN,// D3D12_TEXTURE_LAYOUT Layout;
 					D3D12_RESOURCE_FLAG_NONE,// D3D12_RESOURCE_FLAGS Flags;
@@ -714,7 +715,37 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				if( wb.pBlend2 ) {
 					blendX = new VWB_BlendRecord2[m_sizeMap.cx * m_sizeMap.cy];
 					std::copy_n( wb.pBlend2, m_sizeMap.cx* m_sizeMap.cy, blendX );
+
+					int w = 0, h = 0;
+					auto logo = stbi_load_from_memory( LOGO, sizeof( LOGO ), &w, &h, NULL, 4 );
+					if( logo ) {
+						// apply logo to blendX
+						// apply to the center of the texture
+						for( int y = 0; y < h; y++ ) {
+							for( int x = 0; x < w; x++ ) {
+								int lx = x;
+								int ly = y;
+								int tx = ( m_sizeMap.cx - w ) / 2 + lx;
+								int ty = ( m_sizeMap.cy - h ) / 2 + ly;
+								if( tx >= 0 && tx < (int)m_sizeMap.cx && ty >= 0 && ty < (int)m_sizeMap.cy ) {
+									uint8_t* lc = &logo[( ly * w + lx ) * 4];
+									if( lc[3] > 0 ) { // alpha threshold
+										auto& bl = blendX[ty * m_sizeMap.cx + tx];
+										bl.r = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[0] ) / 255 + uint32_t( 255 - lc[3] ) * bl.r / 255 );
+										bl.g = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[1] ) / 255 + uint32_t( 255 - lc[3] ) * bl.g / 255 );
+										bl.b = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[2] ) / 255 + uint32_t( 255 - lc[3] ) * bl.b / 255 );
+									}
+								}
+							}
+						}
+
+						stbi_image_free( logo );
+						D3D12_SUBRESOURCE_DATA subRes{ blendX, m_sizeMap.cx * sizeof( VWB_BlendRecord2 ) };
+						RPT_HR_FATAL( CreateAndFillResource( m_device, m_cl, textureDesc, subRes, m_texBlendX, stagingTexs, L"dp_texBlendX", D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE ), "Could not create texture \"dp_texBlendX\"", VWB_ERROR_GENERIC );
+					}
+					delete[] blendX;
 				}
+
 				struct TexDesc {
 					UINT64 width;
 					UINT height;
@@ -1244,9 +1275,18 @@ VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
 	__super::Render2( inputTexture, stateMask );
 	logStr( 4, "DX12::Render2..." );
 
+	static bool wasValid = true;
 	if( !m_licenseInfo->isValid )
 	{
-		logStr( 1, "WARNING: Invalid license for DX12 warper. Output may be watermarked." );
+		if( wasValid ) {
+			logStr( 2, "WARNING: VIOSO Warp & Blend license is not valid. Applying watermark.\n" );
+			m_device->CreateShaderResourceView( m_texBlendX, NULL, { m_srvHeap->GetCPUDescriptorHandleForHeapStart().ptr + m_device->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV )} );
+			wasValid = false;
+		}
+	} else if( !wasValid ) {
+		logStr( 2, "INFO: VIOSO Warp & Blend license restored. Removing watermark.\n" );
+		m_device->CreateShaderResourceView( m_texBlend, NULL, { m_srvHeap->GetCPUDescriptorHandleForHeapStart().ptr + m_device->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV )} );
+		wasValid = true;
 	}
 
 	if( VWB_STATEMASK_STANDARD == stateMask )
