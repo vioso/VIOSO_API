@@ -27,9 +27,11 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 
 	if( VWB_ERROR_NONE == err ) try
 	{
-		err = CreatePixelShader();
+		err = CreateShaders();
 		if( VWB_ERROR_NONE != err )
 			return err;
+
+		glActiveTexture( GL_TEXTURE0 );
 
 		XPLM->GenerateTextureNumbers( reinterpret_cast<int*>(&m_texWarp), 1 );
 		XPLM->GenerateTextureNumbers( reinterpret_cast<int*>(&m_texBlend), 1 );
@@ -42,9 +44,7 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 			return VWB_ERROR_BLEND;
 		}
 
-		XPLM->BindTexture2d( m_texWarp, 0 );
-		glActiveTexture( GL_TEXTURE0 );
-		err = FillTexture( ( wbs[calibIndex]->header.flags & FLAG_WARPFILE_HEADER_3D ) ? GL_RGB32F : GL_RG32F, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_FLOAT, wbs[calibIndex]->pWarp, GL_NEAREST, GL_CLAMP_TO_BORDER );
+		err = FillTexture( m_texWarp, ( wbs[calibIndex]->header.flags & FLAG_WARPFILE_HEADER_3D ) ? GL_RGB32F : GL_RG32F, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_FLOAT, wbs[calibIndex]->pWarp, GL_NEAREST, GL_CLAMP_TO_BORDER );
 		if( VWB_ERROR_NONE != err )
 		{
 			logStr( 0, "ERROR: %d failed to fill warp texture:\n", err );
@@ -60,9 +60,8 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 
 		if( wbs[calibIndex]->pBlend2 )
 		{
-			XPLM->BindTexture2d( m_texBlend, 0 );
 			//glBindTexture( GL_TEXTURE_2D, m_texBlend );
-			err = FillTexture( GL_RGBA16, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_SHORT, wbs[calibIndex]->pBlend2, GL_LINEAR, GL_CLAMP_TO_BORDER );
+			err = FillTexture( m_texBlend, GL_RGBA16, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_SHORT, wbs[calibIndex]->pBlend2, GL_LINEAR, GL_CLAMP_TO_BORDER );
 			if( VWB_ERROR_NONE != err )
 			{
 				logStr( 0, "ERROR: %d failed to fill blend texture:", err );
@@ -84,8 +83,7 @@ VWB_ERROR GLWarpBlendXPL::Init( VWB_WarpBlendSet& wbs )
 
 		if( wbs[calibIndex]->pBlack )
 		{
-			XPLM->BindTexture2d( m_texBlack, 0 );
-			err = FillTexture( GL_RGBA8, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->pBlack, GL_LINEAR, GL_CLAMP_TO_BORDER );
+			err = FillTexture( m_texBlack, GL_RGBA8, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->pBlack, GL_LINEAR, GL_CLAMP_TO_BORDER );
 			if( VWB_ERROR_NONE != err )
 			{
 				logStr( 0, "ERROR: %d failed to fill blend texture:\n", err );
@@ -198,15 +196,16 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 		{
 			res = glGetError();
 			
-			VWB_ERROR rr = FillTexture( GL_RGB, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, NULL, GL_LINEAR, GL_CLAMP_TO_BORDER );
+			VWB_ERROR rr = FillTexture( m_texBB, GL_RGB, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, NULL, GL_LINEAR, GL_CLAMP_TO_BORDER );
 			if( VWB_ERROR_NONE != rr )
 			{
-				logStr( 0, "ERROR: %d failed to fill content clone texture:\n", rr );
+				logStr( 0, "ERROR: %d failed to create content clone texture:\n", rr );
 				return VWB_ERROR_BLEND;
 			}
 			else
 				logStr( 2, "clone texture (%dx%d) created.", viewport[2], viewport[3] );
 
+			logStr( 2, "clone texture (%dx%d) created.", viewport[2], viewport[3] );
 
 			m_sizeIn.cx = viewport[2];
 			m_sizeIn.cy = viewport[3];
@@ -274,7 +273,7 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 				else
 					glUniform1i( m_locBorder, m_bBorder );
 				if( bBicubic )
-					glUniform4f( m_locParams, ( GLfloat )m_sizeIn.cx, ( GLfloat )m_sizeIn.cy, 1.0f / m_sizeIn.cx, 1.0f / m_sizeIn.cy );
+					glUniform4f( m_locParamsBicubic, ( GLfloat )m_sizeIn.cx, ( GLfloat )m_sizeIn.cy, 1.0f / m_sizeIn.cx, 1.0f / m_sizeIn.cy );
 				glUniform1i( m_locDoNotBlend, bDoNotBlend );
 				glUniform1i( m_locDoNoBlack, bDoNoBlack );
 				if( bPartialInput )
@@ -376,7 +375,6 @@ VWB_ERROR GLWarpBlendXPL::Render( VWB_param inputTexture, VWB_uint stateMask )
 			else
 			{
 				glBindVertexArray(m_iVertexArray);
-				glUniform4f( overlay ? m_locSizeBypass : m_locSize, (GLfloat)viewport[2], (GLfloat)viewport[3],1.0f/viewport[2], 1.0f/viewport[3] );
 				glDisable(GL_DEPTH_TEST); 
 				glDisable(GL_CLIP_PLANE0);
 				glDisable(GL_CLIP_PLANE1);

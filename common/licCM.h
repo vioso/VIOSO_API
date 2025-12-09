@@ -1,7 +1,82 @@
-#pragma once
-
 #include "lic.h"
+#define _CODEMETER_NODEFLIB
+#define _CODEMETER_API_STATIC_LIB
 #include "CodeMeter.h"
+
+// it gets a bit messy here, as we don't want to let a missing library fail the load of ours
+// this is a template to implement late binding of functions defined in a dll/so
+// we define the functions as weak symbols, so that if they are not present, we can handle it gracefully
+// a not present function will just return an the usual error code
+// make sure to define LIC_CREATE_STATIC_FUNCTIONS in one and only one compilation unit to create the symbols
+// use this in all of these kind of VWBLic extensions
+
+#ifdef LIC_CREATE_STATIC_FUNCTIONS
+#include <atomic>
+// create the symbols for used functions
+void* _hCMModule = nullptr;
+std::atomic_int _cmStaticInstanceCounter = 0;
+typedef HCMSysEntry( *fnCmAccess2_t )( CMULONG flCtrl, CMACCESS2* pcmAcc );
+typedef int( *fnCmRelease_t )( HCMSysEntry hcmse );
+typedef int( *fnCmGetSecureData_t )( HCMSysEntry hcmse, CMSECUREDATA* pcmSecureData, CMENTRYDATA* pcmEntryData );
+typedef int( *fnCmDecryptPioData_t )( CMBYTE* pabDest, CMUINT cbDest, CMBYTE* pabPiodkDest, CMUINT cbPiodkDest );
+typedef int( *fnCmGetInfo_t )( HCMSysEntry hcmse, CMULONG flCtrl, void* pvDest, CMUINT cbDest );
+fnCmAccess2_t pfnCmAccess2 = nullptr;
+fnCmRelease_t pfnCmRelease = nullptr;
+fnCmGetSecureData_t pfnCmGetSecureData = nullptr;
+fnCmDecryptPioData_t pfnCmDecryptPioData = nullptr;
+fnCmGetInfo_t pfnCmGetInfo = nullptr;
+
+HCMSysEntry CmAccess2( CMULONG flCtrl, CMACCESS2* pcmAcc ) {
+	HCMSysEntry ret{};
+	if( pfnCmAccess2 )
+		ret = pfnCmAccess2( flCtrl, pcmAcc );
+	return ret;
+}
+
+int CmRelease( HCMSysEntry hcmse ) {
+	int ret = 0;
+	if( pfnCmRelease )
+		ret = pfnCmRelease( hcmse );
+	return ret;
+}
+
+int CmGetSecureData( HCMSysEntry hcmse, CMSECUREDATA* pcmSecureData, CMENTRYDATA* pcmEntryData ) {
+	int ret = 0;
+	if( pfnCmGetSecureData )
+		ret = pfnCmGetSecureData( hcmse, pcmSecureData, pcmEntryData );
+	return ret;
+}
+
+int CmDecryptPioData( CMBYTE* pabDest, CMUINT cbDest, CMBYTE* pabPiodkDest, CMUINT cbPiodkDest ) {
+	int ret = 0;
+	if( pfnCmDecryptPioData )
+		ret = pfnCmDecryptPioData( pabDest, cbDest, pabPiodkDest, cbPiodkDest );
+	return ret;
+}
+
+int CmGetInfo( HCMSysEntry hcmse, CMULONG flCtrl, void* pvDest, CMUINT cbDest ) {
+	int ret = 0;
+	if( pfnCmGetInfo )
+		ret = pfnCmGetInfo( hcmse, flCtrl, pvDest, cbDest );
+	return ret;
+}
+#else
+extern void* _hCMModule;
+extern std::atomic_int _cmStaticInstanceCounter;
+typedef HCMSysEntry( *fnCmAccess2_t )( CMULONG flCtrl, CMACCESS2* pcmAcc );
+typedef int( *fnCmRelease_t )( HCMSysEntry hcmse );
+typedef int( *fnCmGetSecureData_t )( HCMSysEntry hcmse, CMSECUREDATA* pcmSecureData, CMENTRYDATA* pcmEntryData );
+typedef int( *fnCmDecryptPioData_t )( CMBYTE* pabDest, CMUINT cbDest, CMBYTE* pabPiodkDest, CMUINT cbPiodkDest );
+typedef int( *fnCmGetInfo_t )( HCMSysEntry hcmse, CMULONG flCtrl, void* pvDest, CMUINT cbDest );
+extern fnCmAccess2_t pfnCmAccess2;
+extern fnCmRelease_t pfnCmRelease;
+extern fnCmGetSecureData_t pfnCmGetSecureData;
+extern fnCmDecryptPioData_t pfnCmDecryptPioData;
+extern fnCmGetInfo_t pfnCmGetInfo;
+#endif // def CM_CREATE_STATIC_FUNCTIONS
+
+#ifndef LIC_CM_H_INCLUDED
+#define LIC_CM_H_INCLUDED
 #include <array>
 
 class VWBLicCM : public VWBLic {
@@ -11,11 +86,54 @@ protected:
 		void* handle = nullptr;
 	};
 
-
 	CMULONG m_productCode;
+
 	VWBLicCM( std::chrono::seconds checkInterval, CMULONG productCode )
 		: m_productCode( productCode )
-		, VWBLic( checkInterval ) {}
+		, VWBLic( checkInterval ) 
+	{
+		if( 1 == ++_cmStaticInstanceCounter ) {
+		#ifdef WIN32
+			_hCMModule = ::LoadLibraryA( "WibuCm64.dll" );
+		#else
+			_hCMModule = ::dlopen( "libwibucmhip.so", RTLD_LAZY );
+		#endif
+			if( _hCMModule ) {
+			#ifdef WIN32
+				pfnCmAccess2 = ( fnCmAccess2_t )::GetProcAddress( (HMODULE)_hCMModule, "CmAccess2" );
+				pfnCmRelease = ( fnCmRelease_t )::GetProcAddress( (HMODULE)_hCMModule, "CmRelease" );
+				pfnCmGetSecureData = ( fnCmGetSecureData_t )::GetProcAddress( (HMODULE)_hCMModule, "CmGetSecureData" );
+				pfnCmDecryptPioData = ( fnCmDecryptPioData_t )::GetProcAddress( (HMODULE)_hCMModule, "CmDecryptPioData" );
+				pfnCmGetInfo = ( fnCmGetInfo_t )::GetProcAddress( (HMODULE)_hCMModule, "CmGetInfo" );
+			#else
+				pfnCmAccess2 = ( fnCmAccess2_t )::dlsym( (HMODULE)_hCMModule, "CmAccess2" );
+				pfnCmRelease = ( fnCmRelease_t )::dlsym( (HMODULE)_hCMModule, "CmRelease" );
+				pfnCmGetSecureData = ( fnCmGetSecureData_t )::dlsym( (HMODULE)_hCMModule, "CmGetSecureData" );
+				pfnCmDecryptPioData = ( fnCmDecryptPioData_t )::dlsym( (HMODULE)_hCMModule, "CmDecryptPioData" );
+				pfnCmGetInfo = ( fnCmGetInfo_t )::dlsym( (HMODULE)_hCMModule, "CmGetInfo" );
+			#endif
+			} else {
+				// throwing here will not call my destructor and VWBLic::init() fail
+				_cmStaticInstanceCounter--;
+				throw std::runtime_error( "Could not load CodeMeter library." );
+			}
+		}
+	}
+
+	virtual ~VWBLicCM() {
+		if( 0 == --_cmStaticInstanceCounter ) {
+		#ifdef WIN32
+			::FreeLibrary( (HMODULE)_hCMModule );
+		#else
+			::dlclose( _hCMModule );
+		#endif
+			pfnCmAccess2 = nullptr;
+			pfnCmRelease = nullptr;
+			pfnCmGetSecureData = nullptr;
+			pfnCmDecryptPioData = nullptr;
+			pfnCmGetInfo = nullptr;
+		}
+	}
 
 	virtual bool _checkLicense( LicenseInfo& infoExt ) override {
 		LicenseInfoInt& info = static_cast<LicenseInfoInt&>( infoExt );
@@ -94,7 +212,7 @@ protected:
 				return true;
 			}
 		} catch( ... ) {}
-		// failed
+		// failed. Note: this happens only if no license can be found / no codemeter dll present
 		return false;
 	}
 
@@ -103,14 +221,15 @@ protected:
 	};
 
 	virtual void _releaseChannel( std::shared_ptr<LicenseInfo>& lcs ) {
-		// cast to internal type, as long as lcs is not rested, the object is valid
-		auto& pIntern = static_cast<LicenseInfoInt&>( *lcs );
+		// cast to internal type, as long as lcs is not reseted, the object is valid
+		auto pIntern = static_cast<LicenseInfoInt*>( lcs.get() );
 
 		// then release the handle and return the license
-		if( pIntern.handle ) {
-			CmRelease( pIntern.handle );
-			pIntern.handle = 0;
+		if( pIntern && pIntern->handle ) {
+			CmRelease( pIntern->handle );
+			pIntern->handle = 0;
 		}
 	};
 
 };
+#endif // ndef LIC_CM_H_INCLUDED

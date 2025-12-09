@@ -161,7 +161,18 @@ VWB_ERROR AddUnwarped2DTo( VWB_WarpBlendSet& set, std::filesystem::path const& p
 /// @param [IN|OUT] wb				the VWB_WarpBlend to add the blacklevel map to
 /// @param blacklevelMap			a blacklevel map. Must contain width * height entries.
 /// @param blacklevelMapRaw			a blacklevel map in float format, interleaved RGB. Must contain 3 * width * height entries. 
-/// @return VWB_ERROR_NONE in cas of success, VWB_ERROR_PARAMETER if some parameter is out of bound
+/// @return VWB_ERROR_NONE in case of success, VWB_ERROR_PARAMETER if some parameter is out of bound
 VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, VWB_BlendRecord const* blacklevelMap, float scale = 1.0f, float dark = 1.0f, float bright = 1.0f );
 VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, float const* blacklevelMapRaw, float dark = 1.0f, float bright = 1.0f );
 
+/// @brief Blends an RGBA image with the given blend map
+/// The alpha channel of the RGBA image is used to blend with the blend map.
+/// The blended image is centered to the blend map.
+/// @param pBlend the target blend map
+/// @param cx the width of the blend map
+/// @param cy the height of the blend map
+/// @param rgba the RGBA image to blend
+/// @param w the width of the RGBA image
+/// @param h the height of the RGBA image
+/// @return VWB_ERROR_NONE in case of success, VWB_ERROR_GENERIC otherwise
+VWB_ERROR alphablend( VWB_BlendRecord2* pBlend, VWB_int cx, VWB_int cy, VWB_byte* rgba, VWB_int w, VWB_int h );

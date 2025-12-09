@@ -19,8 +19,17 @@
 
 #include "dpLogo.h"
 
+#include <functional>
+
 class VWB_Warper_base : public VWB_Warper 
 {
+public:
+	typedef struct ImageBuffer {
+		int type;
+		int width;
+		int height;
+		void* data;
+	} ImageBuffer;
 protected:
 	VWB_uint		m_type4cc;				/// the class type
 	VWB_size		m_sizeMap;				/// the size of the mappings
@@ -52,6 +61,9 @@ protected:
 	std::filesystem::path m_configPath;  // the base path to load mappings from
 	bool m_bDP;  // domeplrojection mode
 	std::shared_ptr< const VWBLic::LicenseInfo > m_licenseInfo; // license info
+	std::array<ImageBuffer,2> m_overlayBuffers; // double buffered overlay images
+	std::atomic_int m_currentOverlayBuffer; // index of the current overlay buffer
+	std::atomic_bool m_bOverlayUpdated; // indicates that overlay buffer has been updated
 
 public:
 	VWB_Warper_base();						/// constructor
@@ -132,6 +144,8 @@ public:
 
 		return flags;
 	}
+	// thread-safe overlay image update
+	void UpdateOverlayImage( ImageBuffer const& imgBuf );
 protected:
 	/// set all default values to the VWB_Warper struct
 	static void Default( VWB_Warper& w );
@@ -142,4 +156,8 @@ protected:
 	VWB_ERROR FixWraparound( VWB_WarpBlend& wb );
 	// calculate clipping planes
 	void getClip( VWB_VEC3f const& e, VWB_float* pClip );
+
+	/// virtual overlay texture update
+	virtual void UpdateOverlayTexture( int type, int w, int h, void const* data ) {};
+
 };

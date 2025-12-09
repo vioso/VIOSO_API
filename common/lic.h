@@ -12,7 +12,8 @@ public:
 		int pluginId;
 		std::chrono::seconds keepValidFor;
 		std::chrono::steady_clock::time_point lastChecked;
-		bool isValid;
+		bool isTemporary; // indicates that the license is temporary, it has not been checked yet
+		bool isValid; // indicates that the license is valid
 		bool canWarp;
 		bool canBlend;
 		bool canBlacklevel;
@@ -23,8 +24,8 @@ private:
 	std::mutex m_listMutex;
 	std::mutex m_checkingMutex;
 	std::vector <std::shared_ptr<LicenseInfo>> m_acquiredLicenses;
-	std::chrono::seconds m_checkInterval = std::chrono::seconds( 5 );
-	bool m_isRunning = false;
+	std::chrono::seconds m_checkInterval;
+	bool m_isRunning; // initially true
 	std::thread m_checkThread; // must be last for proper construction
 	
 	static std::unique_ptr<VWBLic>& instancePtr() {
@@ -38,10 +39,11 @@ protected:
 	}
 
 	VWBLic( std::chrono::seconds checkInterval ) 
-		: m_checkThread( std::thread( [](VWBLic* that) {
+		: m_checkInterval( checkInterval )
+		, m_isRunning( true ) // initially true, to make the thread run
+		, m_checkThread( std::thread( [](VWBLic* that) {
 			using namespace std;
 			using namespace std::chrono_literals;
-			that->m_isRunning = true;
 			while( that->m_isRunning ) {
 				vector<shared_ptr<LicenseInfo>> shadow;
 				{
@@ -52,9 +54,10 @@ protected:
 					auto lock = lock_guard( that->m_checkingMutex );
 					for( auto& lic : shadow ) {
 						if( lic ) {
-							if( that->_checkLicense( *lic ) )
+							if( that->_checkLicense( *lic ) ) {
 								lic->lastChecked = std::chrono::steady_clock::now();
-							else {
+								lic->isTemporary = false;
+							} else {
 								if( std::chrono::steady_clock::now() - lic->lastChecked >= lic->keepValidFor ) {
 									lic->isValid = false;
 								}
@@ -91,7 +94,7 @@ public:
 	static bool init( ARGS&& ...args ) {
 		if( !instancePtr() ) {
 			try {
-				instancePtr().reset( new T( std::forward<ARGS>( args )... ) );
+				instancePtr().reset( new T( std::forward<ARGS>( args )... ) ); // make_unique<T> does not compile because of protected CTOR/DTOR
 			} catch( ... ) {
 				return false;
 			}
@@ -99,9 +102,14 @@ public:
 		return true;
 	}
 
+	static void destroy() {
+		instancePtr().reset();
+	}
+
 	static std::shared_ptr< const LicenseInfo > acquireChannel( int pluginId, std::chrono::seconds keepValidFor = std::chrono::seconds( 10 ) ) {
-		auto ret = instance()._acquireChannel( LicenseInfo{ pluginId, keepValidFor, std::chrono::steady_clock::now(), true, true, true, true, true } ); // insert a valid license by default
-		instance()._checkLicense( *ret ); // do an immediate check
+		auto ret = instance()._acquireChannel( LicenseInfo{ pluginId, keepValidFor, std::chrono::steady_clock::now(), true, true, true, true, true, true } ); // insert a valid license by default
+		if( instance()._checkLicense( *ret ) ) // do an immediate check
+			ret->isTemporary = false;
 		instance().addLicenseInfo( ret );
 		return ret;
 	}

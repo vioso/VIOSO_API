@@ -361,7 +361,7 @@ VWB_ERROR LoadDPWarp( std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 
 	pMesh->gridDim.cx = dimX + 1;
 	pMesh->gridDim.cy = dimY + 1;
-	pMesh->has = VWB_WARPBLENDMESHEX_HAS_POS | VWB_WARPBLENDMESHEX_HAS_UV;
+	pMesh->has = VWB_WARPBLENDMESHEX_HAS_POS | VWB_WARPBLENDMESHEX_HAS_UV  | VWB_WARPBLENDMESHEX_HAS_NORMALS | VWB_WARPBLENDMESHEX_HAS_TANGENTS;
 
 	if( !pMesh->vtx || pMesh->nVtx != pMesh->gridDim.cx * pMesh->gridDim.cy ) {
 		pMesh->nVtx = pMesh->gridDim.cx * pMesh->gridDim.cy;

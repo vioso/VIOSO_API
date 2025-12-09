@@ -142,6 +142,7 @@ public:
 	}
 
 	/// @brief the constructor
+	/// There are many overloads to support different string types
 	/// @param libPath a path to the warper dll to load
 	/// @param pDxDevice set to NULL for OpenGL or pointer to a DirectX device for Direct3D 9 to 11
 	///		for Direct3D 12 you need to specify a pointer to a ID3D12CommandQueue, set to VWB_DUMMYDEVICE, to just hold the data to create a textured mesh. 

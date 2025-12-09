@@ -12,7 +12,13 @@
 #include "GLext.h"
 #include <filesystem>
 #include <fstream>
-
+#include "../VWF.h"
+// check for windows platform
+#if defined( WIN32 ) || defined( WIN64 )  // via VCPKG
+	#include <stb_image.h>
+#else // apt installs to subdir
+	#include "stb/stb_image.h"
+#endif
 GLfloat GLWarpBlend::colBlack[4] = {0,0,0,0};
 //save a texture to .bmp image
 bool GLWarpBlend::savetex( std::filesystem::path filename ,GLint iTex )
@@ -39,13 +45,16 @@ bool GLWarpBlend::savetex( std::filesystem::path filename ,GLint iTex )
 			unsigned char *data = new unsigned char[imageSize];
 			if (data)
 			{
-				glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);// split x and y sizes into bytes
+				// note: requesting GL_BGRA_EXT format solves swizzling to BGRA for Windows Bitmaps
+				glGetTexImage( GL_TEXTURE_2D, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data );
 				if( GL_NO_ERROR == glGetError() )
 				{
+					// note: we need no row padding for 32bit bitmaps
 					const VWB_uint pitch = 4 * x;
 					BITMAPINFOHEADER hdr = { 0 };
 					hdr.biSize = sizeof( hdr );
 					hdr.biWidth = x;
+					// note: the sign of biHeight specifies if the bitmap is upside down, positive is bottom-up like GL texture data
 					hdr.biHeight = VWB_int( y );
 					hdr.biPlanes = 1;
 					hdr.biBitCount = 32;
@@ -75,34 +84,43 @@ bool GLWarpBlend::savetex( std::filesystem::path filename ,GLint iTex )
 	return bRet;
 }
 
-GLWarpBlend::GLWarpBlend(): 
-	m_texBlend( -1 ),
-	m_texWarp( -1 ),
-	m_texBlack( -1 ), 
-	m_texBB( -1 ),
-	
-	m_locWarp( -1 ),
-	m_locBorder( -1 ),
-	m_locBlend( -1 ),
-	m_locBlack( -1 ),
-	m_locSize( -1 ),
-	m_locSizeBypass( -1 ),
-	m_locDoNotBlend( -1 ),
-	m_locDoNoBlack( -1 ),
-	m_locContent( -1 ),
-	m_locContentBypass( -1 ),
-	m_locMatView( -1 ),
-	m_locDim(-1),
-	m_locSmooth(-1),
-	m_locBlackBias( -1 ),
-	m_locParams(-1),
-	m_iVertexArray(-1),
-	
-	m_FragmentShader( -1 ),
-	m_FragmentShaderBypass( -1 ),
-	m_VertexShader( -1 ),
-	m_Program(-1),
-	m_ProgramBypass(-1)
+GLWarpBlend::GLWarpBlend()
+	: m_texBlend( -1 )
+	, m_texBlendX( -1 )
+	, m_texWarp( -1 )
+	, m_texBlack( -1 )
+	, m_tex2ndBlend( -1 )
+	, m_texDirectionalShading( -1 )
+	, m_texBB( -1 )
+	, m_texOverlay( -1 )
+	, m_texOverlay2( -1 )
+
+	, m_locCamPos( -1 )
+	, m_locWarp( -1 )
+	, m_locBorder( -1 )
+	, m_locBlend( -1 )
+	, m_locBlack( -1 )
+	, m_loc2ndBlend( -1 )
+	, m_locDirectionalShading( -1 )
+	, m_locDoNotBlend( -1 )
+	, m_locDoNoBlack( -1 )
+	, m_locOffsScale( -1 )
+	, m_locContent( -1 )
+	, m_locContentBypass( -1 )
+	, m_locMatView( -1 )
+	, m_locDim(-1)
+	, m_locSmooth(-1)
+	, m_locBlackBias( -1 )
+	, m_locParamsBicubic(-1)
+	, m_locParamsDomeprojection(-1)
+
+	, m_iVertexArray(-1)
+	, m_iVertices(-1)
+	, m_iIndices( -1 )
+
+	, m_Program(-1)
+	, m_ProgramBypass(-1)
+	, m_nIndices( 0 )
 {
 	logStr( 1, "INFO: Start initializing OGL-Warper...\n" );
 
@@ -135,276 +153,247 @@ GLWarpBlend::GLWarpBlend():
 
 GLWarpBlend::~GLWarpBlend()
 {
+	if( -1 != m_iIndices )
+		glDeleteBuffers( 1, &m_iIndices );
+
+	if( -1 != m_iVertices )
+		glDeleteBuffers( 1, &m_iVertices );
+
 	if( -1 != m_iVertexArray )
 		glDeleteVertexArrays( 1, &m_iVertexArray );
 
 	if( -1 != m_Program )
 		glDeleteProgram( m_Program );
 
-	if( -1 != m_FragmentShader )
-		glDeleteShader( m_FragmentShader );
-
 	if( -1 != m_ProgramBypass )
 		glDeleteProgram( m_ProgramBypass );
 
-	if( -1 != m_FragmentShaderBypass )
-		glDeleteShader( m_FragmentShaderBypass );
-
-	if( -1 != m_VertexShader )
-		glDeleteShader( m_VertexShader );
-
+	if( -1 != m_texOverlay )
+		glDeleteTextures( 1, &m_texOverlay );
 	if( -1 != m_texBB )
 		glDeleteTextures( 1, &m_texBB );
 	if( -1 != m_texWarp )
 		glDeleteTextures( 1, &m_texWarp );
 	if( -1 != m_texBlend )
 		glDeleteTextures( 1, &m_texBlend );
+	if( -1 != m_texBlendX )
+		glDeleteTextures( 1, &m_texBlendX );
 	if( -1 != m_texBlack )
 		glDeleteTextures( 1, &m_texBlack );
+	if( -1 != m_tex2ndBlend )
+		glDeleteTextures( 1, &m_tex2ndBlend );
+	if( -1 != m_texDirectionalShading )
+		glDeleteTextures( 1, &m_texDirectionalShading );
 	logStr( 1, "INFO: OGL-Warper uninitialized.\n" );
 }
 
-VWB_ERROR GLWarpBlend::CreatePixelShader()
-{
-	// compile shaders
-	struct ShaderInit {
-		GLuint numShaders;
-		GLchar const* shaders[4];
-	};
+// create bypass shader
+struct ShaderInit {
+	GLuint numShaders;
+	GLchar const* shaders[4];
+	GLenum type;
+	char const* debugName;
+};
 
-	GLenum err = 0;
-
-	ShaderInit const s[] = {
-		{1,{s_szPasstrough_vertex_shader_v110}},
-		{3,{s_fragment_shader_header_v110,s_func_tex2D,s_bypass_fragment_shader}},
-		{3,{s_fragment_shader_header_v110,s_func_tex2D,s_warp_blend_fragment_shader}},
-		{3,{s_fragment_shader_header_v110,s_func_tex2D,s_warp_blend_fragment_shader_3D}},
-		{3,{s_fragment_shader_header_v110,s_func_tex2D_BC,s_bypass_fragment_shader}},
-		{3,{s_fragment_shader_header_v110,s_func_tex2D_BC,s_warp_blend_fragment_shader}},
-		{3,{s_fragment_shader_header_v110,s_func_tex2D_BC,s_warp_blend_fragment_shader_3D}},
-
-		{1,{s_szPasstrough_vertex_shader_v330}},
-		{3,{s_fragment_shader_header_v330,s_func_tex2D,s_bypass_fragment_shader}},
-		{3,{s_fragment_shader_header_v330,s_func_tex2D,s_warp_blend_fragment_shader}},
-		{3,{s_fragment_shader_header_v330,s_func_tex2D,s_warp_blend_fragment_shader_3D}},
-		{3,{s_fragment_shader_header_v330,s_func_tex2D_BC,s_bypass_fragment_shader}},
-		{3,{s_fragment_shader_header_v330,s_func_tex2D_BC,s_warp_blend_fragment_shader}},
-		{3,{s_fragment_shader_header_v330,s_func_tex2D_BC,s_warp_blend_fragment_shader_3D}},
-	};
+GLuint CompileFromSource( ShaderInit const& si ) {
+	GLuint iS = glCreateShader( si.type );
 	GLchar log[2048];
-	GLint iS = 0;
-
-	if( !bUseGL110 )
+	glShaderSource( iS, si.numShaders, (const GLchar**)si.shaders, NULL );
+	glCompileShader( iS );
+	auto err = ::glGetError();
+	glGetShaderInfoLog( iS, 2048, NULL, log );
+	if( GL_NO_ERROR != err )
 	{
-		logStr( 2, "INFO: using #version 330 shader.\n" );
-		iS += 7;
-		err = ::glGetError();
-		if( GL_NO_ERROR != err )
-		{
-			logStr( 1, "WARNING: %d before glCreateShader (vertex).\n", err );
-		}
-		m_VertexShader = glCreateShader( GL_VERTEX_SHADER );
-		glShaderSource( m_VertexShader, s[iS].numShaders, (const GLchar**)s[iS].shaders, NULL );
-		glCompileShader( m_VertexShader );
-		err = ::glGetError();
-		glGetShaderInfoLog( m_VertexShader, 2048, NULL, log );
-		if( log[0] )
-		{
-			logStr( 0, "ERROR: glCompileShader (vertex):\n%s\n", log );
-			return VWB_ERROR_SHADER;
-		}
-		if( GL_NO_ERROR != err )
-		{
-			logStr( 0, "ERROR: %d at glCompileShader (vertex).\n", err );
-			return VWB_ERROR_SHADER;
-		}
-		glGenVertexArrays( 1, &m_iVertexArray );
+		logStr( 0, "ERROR: %d at glCompileShader (%s) \"%s\".\n", err );
 	}
-	else
-		logStr( 2, "INFO: using #version 110 shader.\n" );
-
-
-	m_FragmentShaderBypass = glCreateShader( GL_FRAGMENT_SHADER );
-	iS++;
-
-	if( bBicubic )
-		iS += 3;
-
-	glShaderSource( m_FragmentShaderBypass, s[iS].numShaders, (const GLchar**)s[iS].shaders, NULL );
-	glCompileShader( m_FragmentShaderBypass );
-	err = ::glGetError();
-	glGetShaderInfoLog( m_FragmentShaderBypass, 2048, NULL, log );
 	if( log[0] )
 	{
-		logStr( 0, "ERROR: glCompileShader (fragment bypass):\n%s\n", log );
-		return VWB_ERROR_SHADER;
+		logStr( 0, "INFO: glCompileShader (%s) \"%s\":\n%s\n", si.type == GL_VERTEX_SHADER ? "vertex" : "fragment", si.debugName, log );
 	}
 	if( GL_NO_ERROR != err )
 	{
-		logStr( 0, "ERROR: %d at glCompileShader (fragment bypass).\n", err );
-		return VWB_ERROR_SHADER;
+		if( iS != -1 )
+			glDeleteShader( iS );
+		iS = -1;
 	}
+	return iS;
+}
 
-	m_ProgramBypass = glCreateProgram();
-	err = ::glGetError();
+// create program from compiled shaders
+GLuint CreateProgram( std::vector<GLuint> shaders, char const* debugName, std::vector<std::pair<GLuint*,const char*>> locations ) {
+	//  { iVS, iFSB }, "bypass", { { m_locContentBypass, "samContent" }, { m_locSizeBypass, "size" } }
+	auto iP = glCreateProgram();
+	auto err = ::glGetError();
 	if( GL_NO_ERROR != err )
 	{
-		logStr( 0, "ERROR: %d at glCreateProgram bypass.\n", err );
+		logStr( 0, "ERROR: %d at glCreateProgram %s.\n", err, debugName );
 		return VWB_ERROR_SHADER;
 	}
-	if( -1 != m_VertexShader )
-	{
-		glAttachShader( m_ProgramBypass, m_VertexShader );
+	for( int i = 0; i != shaders.size(); i++ ) {
+		if( shaders[i] == -1 )
+			continue;
+		glAttachShader( iP, shaders[i] );
 		err = ::glGetError();
-		if( GL_NO_ERROR != err )
-		{
-			logStr( 0, "ERROR: %d at glAttachShader (vertex bypass).\n", err );
+		if( GL_NO_ERROR != err ) {
+			logStr( 0, "ERROR: %d at glAttachShader #%d to program %s.\n", err, i, debugName );
 			return VWB_ERROR_SHADER;
 		}
 	}
-	glAttachShader( m_ProgramBypass, m_FragmentShaderBypass );
-	err = ::glGetError();
-	if( GL_NO_ERROR != err )
-	{
-		logStr( 0, "ERROR: %d at glAttachShader (fragment bypass).\n", err );
-		return VWB_ERROR_SHADER;
-	}
 
-	glLinkProgram( m_ProgramBypass );
+	glLinkProgram( iP );
 	err = ::glGetError();
 	if( GL_NO_ERROR != err )
 	{
-		logStr( 0, "ERROR: %d at glLinkProgram.\n", err );
+		logStr( 0, "ERROR: %d at glLinkProgram %s.\n", err, debugName );
 		return VWB_ERROR_SHADER;
 	}
 
 	GLint isLinked = 0;
-	glGetProgramiv( m_ProgramBypass, GL_LINK_STATUS, &isLinked );
+	glGetProgramiv( iP, GL_LINK_STATUS, &isLinked );
 	if( isLinked == GL_FALSE )
 	{
 		GLint maxLength = 0;
-		glGetProgramiv( m_ProgramBypass, GL_INFO_LOG_LENGTH, &maxLength );
+		glGetProgramiv( iP, GL_INFO_LOG_LENGTH, &maxLength );
 
 		//The maxLength includes the NULL character
 		std::vector<GLchar> infoLog( maxLength );
-		glGetProgramInfoLog( m_ProgramBypass, maxLength, &maxLength, infoLog.data() );
+		glGetProgramInfoLog( iP, maxLength, &maxLength, infoLog.data() );
 
 		//The program is useless now. So delete it.
-		glDeleteProgram( m_ProgramBypass );
-		m_ProgramBypass = -1;
+		glDeleteProgram( iP );
+		iP = -1;
 
-		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog.data() );
+		logStr( 0, "ERROR: %d at glLinkProgram bypass %s:\n%s\n", err, debugName, infoLog.data() );
 		return VWB_ERROR_SHADER;
 	}
-	m_locContentBypass = glGetUniformLocation( m_ProgramBypass, "samContent" );
-	m_locSizeBypass = glGetUniformLocation( m_ProgramBypass, "size" );
+	for( auto& loc : locations ) {
+		*( loc.first ) = glGetUniformLocation( iP, loc.second );
+	}
+	return iP;
+}
 
-	m_FragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
+VWB_ERROR GLWarpBlend::CreateShaders()
+{
+	GLenum err = 0;
+
+	ShaderInit const s[] = {
+		{0,{},GL_VERTEX_SHADER,""}, // not used
+		{3,{s_fragment_shader_header_v110,s_func_tex2D,s_bypass_fragment_shader},GL_FRAGMENT_SHADER,"VIOSO v110 bypass"},
+		{3,{s_fragment_shader_header_v110,s_func_tex2D,s_warp_blend_fragment_shader},GL_FRAGMENT_SHADER,"VIOSO v110 2D"},
+		{3,{s_fragment_shader_header_v110,s_func_tex2D,s_warp_blend_fragment_shader_3D},GL_FRAGMENT_SHADER,"VIOSO v110 3D"},
+		{3,{s_fragment_shader_header_v110,s_func_tex2D_BC,s_bypass_fragment_shader},GL_FRAGMENT_SHADER,"VIOSO v110 bypass bicubic"},
+		{3,{s_fragment_shader_header_v110,s_func_tex2D_BC,s_warp_blend_fragment_shader},GL_FRAGMENT_SHADER,"VIOSO v110 2D bicubic"},
+		{3,{s_fragment_shader_header_v110,s_func_tex2D_BC,s_warp_blend_fragment_shader_3D},GL_FRAGMENT_SHADER,"VIOSO v110 3D bicubic"},
+
+		{1,{s_szPasstrough_vertex_shader_v330},GL_VERTEX_SHADER,"Pass-through shader"},
+		{3,{s_fragment_shader_header_v330,s_func_tex2D,s_bypass_fragment_shader},GL_FRAGMENT_SHADER},
+		{3,{s_fragment_shader_header_v330,s_func_tex2D,s_warp_blend_fragment_shader},GL_FRAGMENT_SHADER},
+		{3,{s_fragment_shader_header_v330,s_func_tex2D,s_warp_blend_fragment_shader_3D},GL_FRAGMENT_SHADER},
+		{3,{s_fragment_shader_header_v330,s_func_tex2D_BC,s_bypass_fragment_shader},GL_FRAGMENT_SHADER},
+		{3,{s_fragment_shader_header_v330,s_func_tex2D_BC,s_warp_blend_fragment_shader},GL_FRAGMENT_SHADER},
+		{3,{s_fragment_shader_header_v330,s_func_tex2D_BC,s_warp_blend_fragment_shader_3D},GL_FRAGMENT_SHADER},
+
+		{1,{s_sz_vertex_shader_v330_dp},GL_VERTEX_SHADER,"Domeprojection shader"},
+		{3,{s_fragment_shader_header_v330_dp,s_func_tex2D,s_bypass_fragment_shader_dp},GL_FRAGMENT_SHADER,"DP bypass"},
+		{3,{s_fragment_shader_header_v330_dp,s_func_tex2D,s_warp_blend_fragment_shader_dp},GL_FRAGMENT_SHADER,"DP"},
+		{3,{s_fragment_shader_header_v330_dp,s_func_tex2D,s_warp_blend_fragment_shader_dp},GL_FRAGMENT_SHADER,"DP"},
+		{3,{s_fragment_shader_header_v330_dp,s_func_tex2D_BC,s_bypass_fragment_shader_dp},GL_FRAGMENT_SHADER,"DP bypass bicubic"},
+		{3,{s_fragment_shader_header_v330_dp,s_func_tex2D_BC,s_warp_blend_fragment_shader_dp},GL_FRAGMENT_SHADER,"DP bicubic"},
+		{3,{s_fragment_shader_header_v330_dp,s_func_tex2D_BC,s_warp_blend_fragment_shader_dp},GL_FRAGMENT_SHADER,"DP bicubic"},
+	};
+	err = ::glGetError();
+	if( GL_NO_ERROR != err )
+		logStr( 1, "WARNING: %d before glCreateShader (vertex).\n", err );
+
+	GLint iS = 0;
+	GLuint iVS = -1;
+	if( m_bDP ) {
+		if( bUseGL110 ) {
+			logStr( 0, "ERROR: Fixed pipeline openGL is not supported with someprojection shader.\n" );
+			return VWB_ERROR_SHADER;
+		}
+		logStr( 2, "INFO: using #version 330 domeprojection shader.\n" );
+		iS += 14;
+		iVS = CompileFromSource( s[iS] );
+	}
+	else if( !bUseGL110 )
+	{
+		logStr( 2, "INFO: using #version 330 shader.\n" );
+		iS += 7;
+		iVS = CompileFromSource( s[iS] );
+	} else {
+		logStr( 2, "INFO: using #version 110 shader.\n" );
+		// no vertex shader
+	}
+
+	// increment to bypass fragment shader
 	iS++;
+
+	// if bicubic, increment to bicubic bypass shader
+	if( bBicubic )
+		iS += 3;
+
+	auto iFSB = CompileFromSource( s[iS] );
+	if( -1 == iFSB )
+		return VWB_ERROR_SHADER;
+
+	m_ProgramBypass = CreateProgram( { iVS, iFSB }, "bypass", { { &m_locContentBypass, "samContent" } } );
+	if( -1 == m_ProgramBypass )
+		return VWB_ERROR_SHADER;
+	glDeleteShader( iFSB );
+
+	// increment to warp shader
+	iS++;
+
+	// if dynamic, increment to 3D shader
 	if( m_bDynamicEye )
 		iS++;
 
-	err = GL_INVALID_VALUE;
-	err = GL_INVALID_OPERATION;
-	glShaderSource( m_FragmentShader, s[iS].numShaders, (const GLchar**)s[iS].shaders, NULL );
-	err = ::glGetError();
-	glCompileShader( m_FragmentShader );
-	err = ::glGetError();
-	glGetShaderInfoLog( m_FragmentShader, 2048, NULL, log );
-	if( log[0] )
-	{
-		logStr( 0, "ERROR: glCompileShader (fragment):\n%s\n", log );
+	auto iFS = CompileFromSource( s[iS] );
+	if( -1 == iFSB )
 		return VWB_ERROR_SHADER;
-	}
-	if( GL_NO_ERROR != err )
-	{
-		logStr( 0, "ERROR: %d at glCompileShader (fragment).\n", err );
-		return VWB_ERROR_SHADER;
-	}
-
-	m_Program = glCreateProgram();
-	err = ::glGetError();
-	if( GL_NO_ERROR != err )
-	{
-		logStr( 0, "ERROR: %d at glCreateProgram.\n", err );
-		return VWB_ERROR_SHADER;
-	}
-	if( -1 != m_VertexShader )
-	{
-		glAttachShader( m_Program, m_VertexShader );
-		err = ::glGetError();
-		if( GL_NO_ERROR != err )
-		{
-			logStr( 0, "ERROR: %d at glAttachShader (vertex).\n", err );
-			return VWB_ERROR_SHADER;
-		}
-	}
-	glAttachShader( m_Program, m_FragmentShader );
-	err = ::glGetError();
-	if( GL_NO_ERROR != err )
-	{
-		logStr( 0, "ERROR: %d at glAttachShader (fragment).\n", err );
-		return VWB_ERROR_SHADER;
-	}
-
-	glLinkProgram( m_Program );
-	err = ::glGetError();
-	if( GL_NO_ERROR != err )
-	{
-		logStr( 0, "ERROR: %d at glLinkProgram.\n", err );
-		return VWB_ERROR_SHADER;
-	}
-
-	glGetProgramiv( m_Program, GL_LINK_STATUS, &isLinked );
-	if( isLinked == GL_FALSE )
-	{
-		GLint maxLength = 0;
-		glGetProgramiv( m_Program, GL_INFO_LOG_LENGTH, &maxLength );
-
-		//The maxLength includes the NULL character
-		std::vector<GLchar> infoLog( maxLength );
-		glGetProgramInfoLog( m_Program, maxLength, &maxLength, &infoLog[0] );
-
-		//The program is useless now. So delete it.
-		glDeleteProgram( m_Program );
-		m_ProgramBypass = -1;
-
-		logStr( 0, "ERROR: %d at glLinkProgram bypass:\n%s\n", err, infoLog.data() );
-		return VWB_ERROR_SHADER;
-	}
-
-	m_locSize = glGetUniformLocation( m_Program, "size" );
-	m_locContent = glGetUniformLocation( m_Program, "samContent" );
-	m_locWarp = glGetUniformLocation( m_Program, "samWarp" );
-	m_locBorder = glGetUniformLocation( m_Program, "bBorder" );
-	m_locBlend = glGetUniformLocation( m_Program, "samBlend" );
-	m_locBlack = glGetUniformLocation( m_Program, "samBlack" );
-	m_locDoNotBlend = glGetUniformLocation( m_Program, "bDoNotBlend" );/*-*/
-	m_locDoNoBlack = glGetUniformLocation( m_Program, "bDoNoBlack" );
-	m_locOffsScale = glGetUniformLocation( m_Program, "offsScale" );
-	m_locMatView = glGetUniformLocation( m_Program, "matView" );
-	m_locDim = glGetUniformLocation( m_Program, "dim" );
-	m_locSmooth = glGetUniformLocation( m_Program, "range" );
-	m_locBlackBias = glGetUniformLocation( m_Program, "blackBias" );
-	m_locParams = glGetUniformLocation( m_Program, "params" );
-
+	m_Program = CreateProgram( { iVS,iFS }, "warp", {
+		{ &m_locCamPos, "camPos" },
+		{ &m_locContent, "samContent" },
+		{ &m_locWarp, "samWarp" },
+		{ &m_locBorder, "bBorder" },
+		{ &m_locBlend, "samBlend" },
+		{ &m_locBlack, "samBlack" },
+		{ &m_loc2ndBlend, "samBlend2" },
+		{ &m_locDirectionalShading, "samDirectionalShading" },
+		{ &m_locDoNotBlend, "bDoNotBlend" },
+		{ &m_locDoNoBlack, "bDoNoBlack" },
+		{ &m_locOffsScale, "offsScale" },
+		{ &m_locMatView, "matView" },
+		{ &m_locDim, "dim" },
+		{ &m_locSmooth, "range" },
+		{ &m_locBlackBias, "blackBias" },
+		{ &m_locParamsBicubic, "paramsBicubic" },
+		{ &m_locParamsDomeprojection, "params" }
+							   } );
+	return VWB_ERROR_NONE;
 	if( -1 == m_locContent || -1 == m_locContentBypass )
 	{
 		logStr( 0, "WARINIG: Shader content input missing.\n" );
-		//return VWB_ERROR_SHADER;
+		return VWB_ERROR_SHADER;
 	}
 	return VWB_ERROR_NONE;
 }
 
-VWB_ERROR GLWarpBlend::FillTexture( GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid const* data, GLint filter, GLenum wrap )
+VWB_ERROR GLWarpBlend::FillTexture( GLuint& iTex, GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid const* data, GLint filter, GLenum wrap, char const* name, bool save )
 {
+	if( nullptr == name )
+		name = "unnamed";
+
+	glGenTextures( 1, &iTex );
+	glBindTexture( GL_TEXTURE_2D, iTex );
 	GLenum err = ::glGetError();
 	glTexImage2D( GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, data );
 	err = ::glGetError();
 	if( GL_NO_ERROR != err )
 	{
-		logStr( 0, "ERROR: %d at glTexImage2D:\n", err );
-		return VWB_ERROR_WARP;
+		logStr( 0, "Failed to create %s texture, error %d while glTexImage2D.\n", name, err );
+		return VWB_ERROR_BLEND;
 	}
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter );
 	err = ::glGetError();
@@ -418,8 +407,23 @@ VWB_ERROR GLWarpBlend::FillTexture( GLint internalFormat, GLsizei width, GLsizei
 	err = ::glGetError();
 	if( GL_NO_ERROR != err )
 	{
-		logStr( 0, "ERROR: %d at glTexParameteri:\n", err );
-		return VWB_ERROR_WARP;
+		logStr( 0, "ERROR: Failed to create %s texture, error %d while setting parameters.\n", name, err );
+		return VWB_ERROR_BLEND;
+	}
+
+	logStr( 2, "INFO: Succeeded to create %s texture (%dx%d).\n", name, width, height );
+
+	// to save, we need allowance, data and log level >=4
+	if( save && data && 4 <= g_logLevel )
+	{
+		std::filesystem::path o(g_logFilePath);
+		o += ".tex.";
+		o += name;
+		o += +".bmp";
+		if( savetex( o.string().c_str(), iTex ) )
+			logStr( 4, "INFO: Saved %s texture (%dx%d) saved as \"%s\".", name, width, height, o.string().c_str() );
+		else
+			logStr( 4, "WARNING: Failed to save %s texture (%dx%d) saved as \"%s\".", name, width, height, o.string().c_str() );
 	}
 
 	return VWB_ERROR_NONE;
@@ -431,79 +435,140 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 	if( VWB_ERROR_NONE == err ) try
 	{
-		err = CreatePixelShader();
+		err = CreateShaders();
 		if( VWB_ERROR_NONE != err )
 			return err;
 
-		glGenTextures( 1, &m_texWarp );
-		glGenTextures( 1, &m_texBlend );
-		glGenTextures( 1, &m_texBlack );
-		glGenTextures( 1, &m_texBB );
-		GLenum errGL = ::glGetError();
-		if( GL_NO_ERROR != errGL )
-		{
-			logStr( 0, "ERROR: GLERROR %d at glGenTextures:\n", errGL );
-			return VWB_ERROR_BLEND;
-		}
+		// create vertex array
+		glGenVertexArrays( 1, &m_iVertexArray );
+		glBindVertexArray( m_iVertexArray );
 
-		glActiveTexture( GL_TEXTURE0 );
-		glBindTexture( GL_TEXTURE_2D, m_texWarp );
-		err = FillTexture( ( wbs[calibIndex]->header.flags & FLAG_WARPFILE_HEADER_3D ) ? GL_RGB32F : GL_RG32F, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_FLOAT, wbs[calibIndex]->pWarp, GL_NEAREST, GL_CLAMP_TO_BORDER );
-		if( VWB_ERROR_NONE != err )
-		{
-			logStr( 0, "ERROR: %d failed to fill warp texture:\n", err );
-			return err;
-		}
-		if( 4 <= g_logLevel )
-		{
-			std::filesystem::path o( g_logFilePath );
-			o+= ".tex.warp.bmp";
-			savetex( o.string().c_str(), m_texWarp );
-			logStr( 4, "Warp texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str() );
-		}
+		if( m_bDP ) {
+			if( !wbs[calibIndex]->pMesh ) {
+				logStr( 0, "FATAL: No mesh present.\n", err );
+				return VWB_ERROR_WARP;
+			}
 
-		if( wbs[calibIndex]->pBlend2 )
-		{
-			glBindTexture( GL_TEXTURE_2D, m_texBlend );
-			err = FillTexture( GL_RGBA16, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_SHORT, wbs[calibIndex]->pBlend2, GL_LINEAR, GL_CLAMP_TO_BORDER );
-			if( VWB_ERROR_NONE != err )
-			{
-				logStr( 0, "ERROR: %d failed to fill blend texture:\n", err );
+			// create and fill vertex buffer
+			glGenBuffers( 1, &m_iVertices );
+			std::vector<Vertex> vertices( wbs[calibIndex]->pMesh->nVtx );
+			for( VWB_uint i = 0; i != wbs[calibIndex]->pMesh->nVtx; i++ ) {
+				vertices[i].x = wbs[calibIndex]->pMesh->vtx[i].pos[0];
+				vertices[i].y = wbs[calibIndex]->pMesh->vtx[i].pos[1];
+				vertices[i].z = wbs[calibIndex]->pMesh->vtx[i].pos[2];
+				vertices[i].u = wbs[calibIndex]->pMesh->vtx[i].uv[0];
+				vertices[i].v = wbs[calibIndex]->pMesh->vtx[i].uv[1];
+				vertices[i].nx = wbs[calibIndex]->pMesh->vtx[i].n[0];
+				vertices[i].ny = wbs[calibIndex]->pMesh->vtx[i].n[1];
+				vertices[i].nz = wbs[calibIndex]->pMesh->vtx[i].n[2];
+				vertices[i].tx = wbs[calibIndex]->pMesh->vtx[i].t[0];
+				vertices[i].ty = wbs[calibIndex]->pMesh->vtx[i].t[1];
+				vertices[i].tz = wbs[calibIndex]->pMesh->vtx[i].t[2];
+			}
+			glBindBuffer(GL_ARRAY_BUFFER, m_iVertices);
+			glBufferData(GL_ARRAY_BUFFER,
+						  vertices.size() * sizeof(Vertex),
+						  vertices.data(),
+						  GL_STATIC_DRAW);
+
+			GLenum errGL = ::glGetError();
+			if( GL_NO_ERROR != errGL ) {
+				logStr( 0, "ERROR: GLERROR %d at glGenBuffers for vertex buffer.\n", errGL );
 				return VWB_ERROR_BLEND;
 			}
-			if( 4 <= g_logLevel )
-			{
-				std::filesystem::path o(g_logFilePath);
-				o+= ".tex.blend.bmp";
-				savetex( o.string().c_str(), m_texBlend );
-				logStr( 4, "Blend texture (%dx%d) saved as \"%s\".", wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, o.string().c_str());
+
+			// set vertex layout
+			glEnableVertexAttribArray( 0 ); // pos
+			glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, sizeof( Vertex ), (GLvoid*)offsetof( Vertex, x ) );
+			glEnableVertexAttribArray( 1 ); // texture coord
+			glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, sizeof( Vertex ), (GLvoid*)offsetof( Vertex, u ) );
+			glEnableVertexAttribArray( 2 ); // normal
+			glVertexAttribPointer( 2, 3, GL_FLOAT, GL_FALSE, sizeof( Vertex ), (GLvoid*)offsetof( Vertex, nx ) );
+			glEnableVertexAttribArray( 3 ); // tangent
+			glVertexAttribPointer( 3, 3, GL_FLOAT, GL_FALSE, sizeof( Vertex ), (GLvoid*)offsetof( Vertex, tx ) );
+			errGL = ::glGetError();
+			if( GL_NO_ERROR != errGL ) {
+				logStr( 0, "ERROR: GLERROR %d at glVertexAttribPointer for vertex buffer.\n", errGL );
+				return VWB_ERROR_BLEND;
 			}
+
+			// create and fill index buffer
+			glGenBuffers( 1, &m_iIndices );
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_iIndices);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+						  wbs[calibIndex]->pMesh->nIdx * sizeof(wbs[calibIndex]->pMesh->idx[0]),
+						  wbs[calibIndex]->pMesh->idx,
+						  GL_STATIC_DRAW);
+			errGL = ::glGetError();
+			if( GL_NO_ERROR != errGL ) {
+				logStr( 0, "ERROR: GLERROR %d at glGenBuffers for index buffer.\n", errGL );
+				return VWB_ERROR_BLEND;
+			}
+
+			m_nIndices = wbs[calibIndex]->pMesh->nIdx;
 		}
-		else
-		{
+		// the VIOSO warper uses static quad from within the shader via gl_VertexID, so we skip creating buffers
+
+		glBindVertexArray( 0 );
+
+		// create textures
+		glActiveTexture( GL_TEXTURE0 );
+
+		if( m_bDP ) {
+			// secondary blend
+			if( wbs[calibIndex]->p2ndBlend ) {
+				err = FillTexture( m_tex2ndBlend, GL_RGBA8, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->p2ndBlend, GL_NEAREST, GL_CLAMP_TO_BORDER, "secondary blend", true );
+				if( VWB_ERROR_NONE != err )
+					return err;
+			}
+			// directional shading
+			if( wbs[calibIndex]->pDirectional ) {
+				err = FillTexture( m_texDirectionalShading, GL_RGBA, wbs[calibIndex]->directionalSz.cx, wbs[calibIndex]->directionalSz.cy, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->pDirectional, GL_LINEAR, GL_CLAMP_TO_BORDER, "directional shading", true );
+				if( VWB_ERROR_NONE != err )
+					return err;
+			}
+		} else {
+			// warp
+			if( !wbs[calibIndex]->pWarp ) {
+				logStr( 0, "FATAL: No warp texture present.\n", err );
+				return VWB_ERROR_WARP;
+			}
+			err = FillTexture( m_texWarp, ( wbs[calibIndex]->header.flags & FLAG_WARPFILE_HEADER_3D ) ? GL_RGB32F : GL_RG32F, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_FLOAT, wbs[calibIndex]->pWarp, GL_NEAREST, GL_CLAMP_TO_BORDER, "warp", true );
+			if( VWB_ERROR_NONE != err )
+				return err;
+		}
+
+		// blend
+		if( wbs[calibIndex]->pBlend2 ) {
+			err = FillTexture( m_texBlend, GL_RGBA16, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_SHORT, wbs[calibIndex]->pBlend2, GL_LINEAR, GL_CLAMP_TO_BORDER, "blend", true );
+			if( VWB_ERROR_NONE != err )
+				return err;
+
+			VWB_BlendRecord2* pX = new VWB_BlendRecord2[wbs[calibIndex]->header.width * wbs[calibIndex]->header.height];
+			std::copy( wbs[calibIndex]->pBlend2, wbs[calibIndex]->pBlend2 + (ptrdiff_t)wbs[calibIndex]->header.width * (ptrdiff_t)wbs[calibIndex]->header.height, pX );
+			int w = 0, h = 0;
+			auto logo = stbi_load_from_memory( LOGO, sizeof( LOGO ), &w, &h, NULL, 4 );
+			if( !logo ) {
+				logStr( 0, "FATAL: No internal blend texture present.", err );
+				return VWB_ERROR_BLEND;
+			}
+			alphablend( pX, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, logo, w, h );
+			err = FillTexture( m_texBlendX, GL_RGBA16, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_SHORT, pX, GL_LINEAR, GL_CLAMP_TO_BORDER, "blend with logo", true );
+			delete[] pX;
+			stbi_image_free( logo );
+			if( VWB_ERROR_NONE != err )
+				return err;
+		} else if( !bDoNotBlend ) {
 			logStr( 3, "WARINIG: No blend texture present.", err );
 			bDoNotBlend = true;
 		}
 
-		if( wbs[calibIndex]->pBlack )
-		{
-			glBindTexture( GL_TEXTURE_2D, m_texBlack );
-			err = FillTexture( GL_RGBA8, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->pBlack, GL_LINEAR, GL_CLAMP_TO_BORDER );
+		// blacklevel
+		if( wbs[calibIndex]->pBlack ) {
+			err = FillTexture( m_texBlack, GL_RGBA8, wbs[calibIndex]->header.width, wbs[calibIndex]->header.height, GL_RGBA, GL_UNSIGNED_BYTE, wbs[calibIndex]->pBlack, GL_LINEAR, GL_CLAMP_TO_BORDER, "blacklevel", true );
 			if( VWB_ERROR_NONE != err )
-			{
-				logStr( 0, "ERROR: %d failed to fill blend texture:\n", err );
-				return VWB_ERROR_BLEND;
-			}
-			if( 4 <= g_logLevel )
-			{
-				std::filesystem::path o( g_logFilePath );
-				o+= ".tex.black.bmp";
-				savetex( o.string().c_str(), m_texBlack );
-				logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o.string().c_str());
-			}
-		}
-		else
-		{
+				return err;
+		} else if( !bDoNoBlack ) {
 			logStr( 3, "WARINIG: No blacklevel texture present.", err );
 			bDoNoBlack = true;
 		}
@@ -547,6 +612,39 @@ inline VWB_MAT44f GLWarpBlend::UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& 
 		V = T * igView;
 
 	return V;
+}
+
+void GLWarpBlend::UpdateOverlayTexture( int type, int w, int h, void const* data ) {
+	// we try to fill 2nd overlay texture
+	if( -1 == m_texOverlay2 ) {
+		glGenTextures( 1, &m_texOverlay2 );
+	}
+	// get width and height and format from the texture
+	glBindTexture( GL_TEXTURE_2D, m_texOverlay2 );
+	GLenum currentInternalFormat;
+	GLuint currentWidth;
+	GLuint currentHeight;
+	glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, (GLint*)&currentInternalFormat );
+	glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, (GLint*)&currentWidth );
+	glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, (GLint*)&currentHeight );
+
+	// ToDo: translate type to channel lyaout
+	GLenum newFormat = GL_RGBA;
+	// ToDo: translate type to channel format
+	GLenum newType = GL_UNSIGNED_BYTE;
+	// ToDo: translate to internal format
+	GLenum newInternalFormat = GL_RGBA8;
+
+	if( currentWidth != (GLuint)w || currentHeight != (GLuint)h || currentInternalFormat != newInternalFormat ) {
+		// we need to re-create the texture
+		glTexImage2D( GL_TEXTURE_2D, 0, newInternalFormat, w, h, 0, newFormat, newType, data );
+	} else {
+		// we can update the texture
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, w, h, newFormat, newType, data );
+	}
+
+	// we swap handles
+	std::swap( m_texOverlay, m_texOverlay2 );
 }
 
 // set up the view matrix,
@@ -713,7 +811,6 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLenum res = GL_NO_ERROR;
 	GLint iSrc = (GLint)(long long)inputTexture;
 	GLint url = -1;
-	bool overlay = false;
 
 	GLint                       matrix_mode = -1;
 	GLuint                      program = -1;
@@ -721,6 +818,8 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint                       currentTexture2DBinding1 = -1;
 	GLint                       currentTexture2DBinding2 = -1;
 	GLint                       currentTexture2DBinding3 = -1;
+	GLint                       currentTexture2DBinding4 = -1;
+	GLint                       currentTexture2DBinding5 = -1;
 	GLint                       active_texture_unit = -1;
 	GLint						active_client_texture_unit = -1;
 	GLint						oldVA = -1;
@@ -755,71 +854,70 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 		glActiveTexture( GL_TEXTURE3 );
 		glGetIntegerv( GL_TEXTURE_BINDING_2D, &( currentTexture2DBinding3 ) );
+
+		glActiveTexture( GL_TEXTURE4 );
+		glGetIntegerv( GL_TEXTURE_BINDING_2D, &( currentTexture2DBinding4 ) );
+
+		glActiveTexture( GL_TEXTURE5 );
+		glGetIntegerv( GL_TEXTURE_BINDING_2D, &( currentTexture2DBinding5 ) );
 	}
 
 	GLint viewport[4] = { 0 };
 	glGetIntegerv( GL_VIEWPORT, viewport );
 
-	if( -1 == iSrc )
-	{
-		glGetIntegerv( GL_UNPACK_ROW_LENGTH, &url );
-		glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
+	if( -1 == m_texOverlay ) {
+		if( -1 == iSrc ) {
+			glGetIntegerv( GL_UNPACK_ROW_LENGTH, &url );
+			glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
 
-		::glActiveTexture( GL_TEXTURE0 );
-		::glBindTexture( GL_TEXTURE_2D, m_texBB );
+			::glActiveTexture( GL_TEXTURE0 );
 
-		GLint oldRB = GL_BACK;
-		GLint WB = GL_BACK;
-		glGetIntegerv( GL_READ_BUFFER, &oldRB );
-		glGetIntegerv( GL_DRAW_BUFFER, &WB );
-		//gl
-		glReadBuffer( WB );
+			if( viewport[2] != m_sizeIn.cx || viewport[3] != m_sizeIn.cy ) {
+				res = glGetError();
 
+				VWB_ERROR rr = FillTexture( m_texBB, GL_RGB, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, nullptr, GL_LINEAR, GL_CLAMP_TO_BORDER, "content clone" );
+				if( VWB_ERROR_NONE != rr ) 
+					return rr;
 
-		if( viewport[2] != m_sizeIn.cx || viewport[3] != m_sizeIn.cy )
-		{
+				m_sizeIn.cx = viewport[2];
+				m_sizeIn.cy = viewport[3];
+			} else {
+				::glBindTexture( GL_TEXTURE_2D, m_texBB );
+			}
+
+			GLint oldRB = GL_BACK;
+			GLint WB = GL_BACK;
+			glGetIntegerv( GL_READ_BUFFER, &oldRB );
+			glGetIntegerv( GL_DRAW_BUFFER, &WB );
+			glReadBuffer( WB );
+			res = glGetError(); // clear error flag
+			if( GL_NO_ERROR != res ) {
+				static bool bOnce = true;
+				if( bOnce ) {
+					logStr( 3, "FAILED to set read buffer, glError = %#04x", res );
+					bOnce = false;
+				}
+				return VWB_ERROR_PARAMETER;
+			}
+			glCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, viewport[0], viewport[1], viewport[2], viewport[3] );
 			res = glGetError();
-			
-			VWB_ERROR rr = FillTexture( GL_RGB, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, NULL, GL_LINEAR, GL_CLAMP_TO_BORDER );
-			if( VWB_ERROR_NONE != rr )
-			{
-				logStr( 0, "ERROR: %d failed to fill content clone texture:\n", rr );
-				return VWB_ERROR_BLEND;
+			if( GL_NO_ERROR == res ) {
+				logStr( 4, "Copied input texture from current write buffer" );
+			} else {
+				static bool bOnce = true;
+				if( bOnce ) {
+					logStr( 3, "FAILED to copy input texture from current write buffer, glError = %#04x", res );
+					bOnce = false;
+				}
+				return VWB_ERROR_PARAMETER;
 			}
-			else
-				logStr( 2, "clone texture (%dx%d) created.", viewport[2], viewport[3] );
 
-
-			m_sizeIn.cx = viewport[2];
-			m_sizeIn.cy = viewport[3];
+			if( oldRB != GL_BACK )
+				glReadBuffer( oldRB );
+			iSrc = m_texBB;
 		}
-
-		glCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, viewport[0], viewport[1], viewport[2], viewport[3] );
-		res = glGetError();
-		if( GL_NO_ERROR == res )
-		{
-			logStr( 4, "Copied input texture from current write buffer" );
-		}
-		else
-		{
-			static bool bOnce = true;
-			if( bOnce )
-			{
-				logStr( 3, "FAILED to copy input texture from current write buffer, glError = %#04x", res );
-				bOnce = false;
-			}
-		}
-
-		if( oldRB != GL_BACK )
-			glReadBuffer( oldRB );
-		iSrc = m_texBB;
-	}
-	else
-	{
-		glActiveTexture( GL_TEXTURE0 );
-		glBindTexture( GL_TEXTURE_2D, iSrc );
-		glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &m_sizeIn.cx );
-		glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &m_sizeIn.cy );
+	} else {
+		iSrc = m_texOverlay;
 	}
 
 	if( 4 <= g_logLevel )
@@ -831,7 +929,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	}
 
 	// set own params
-	if( overlay )
+	if( -1 != m_texOverlay )
 		::glUseProgram( m_ProgramBypass );
 	else
 		::glUseProgram(m_Program);
@@ -839,48 +937,78 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	if( GL_NO_ERROR == res )
 	{
 		// Set the texturing modes
-		if( !overlay )
-		{
-			SetTexture( m_locWarp, m_texWarp, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locBlend, m_texBlend, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locBlack, m_texBlack, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
-		}
-		else
-			SetTexture( m_locContentBypass, iSrc );
+		if( -1 == m_texOverlay )
+		{ // no overlay
+			if( m_bDP ) {
+				SetTexture( m_loc2ndBlend, 4, m_tex2ndBlend, GL_CLAMP, GL_NEAREST );
+				SetTexture( m_locDirectionalShading, 5, m_texDirectionalShading, GL_CLAMP, GL_NEAREST );
+			} else {
+				SetTexture( m_locWarp, 1, m_texWarp, GL_CLAMP, GL_NEAREST );
+			}
 
-		//res = glGetError();
-		//if( GL_NO_ERROR == res )
-		{
-			if( !overlay )
-			{
+			if( m_licenseInfo->isValid )
+				SetTexture( m_locBlend, 2, m_texBlend, GL_CLAMP, GL_NEAREST );
+			else
+				SetTexture( m_locBlend, 2, m_texBlendX, GL_CLAMP, GL_NEAREST );
+
+			SetTexture( m_locBlack, 3, m_texBlack, GL_CLAMP, GL_NEAREST );
+			SetTexture( m_locContent, 0, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
+		}
+		else // in overlay mode, we set overlay texture as the source texture 
+			SetTexture( m_locContentBypass, 0, iSrc );
+
+		static const VWB_MAT44f I = VWB_MAT44f::I();
+		if( -1 == m_texOverlay )
+		{ // no overlay
+			if( m_bDP ) {
+				// set special uniforms for domeprojection shaders
+				GLfloat params[16]{
+					/* 0*/gamma,
+					/* 1*/1, // always do warp
+					/* 2*/-1 != m_texBlend && !bDoNotBlend ? 1.f : 0.f,
+					/* 3*/-1 != m_texBlack && !bDoNoBlack  ? 1.f : 0.f,
+					/* 4*/-1 != m_tex2ndBlend ? 1.f : 0.f,
+					/* 5*/inputGamma,
+					/* 6*/1.0f / outputGamma,
+					/* 7*/-1 != m_texDirectionalShading ? 1.f : 0.f,
+					/* 8*/bFlipWarpmeshTexcoords ? 1.f : 0.f
+				};
+
+				if( m_bDynamicEye ) {
+					glUniformMatrix4fv( m_locMatView, 1, GL_TRUE, m_mVP );
+				} else {
+					glUniformMatrix4fv( m_locMatView, 1, GL_TRUE, I );
+				}
+				// using eye coordinates here, enables us to do directional shading on 2D warp, just set the eye according to a normalized plane x = -1..1, y = -1..1, z = 1
+				glUniform4f( m_locCamPos, m_ep.x, m_ep.y, m_ep.z, 1.f );
+				glUniform4fv( m_locParamsDomeprojection, 4, params );
+			} else {
+				// set special uniforms for vioso shader
 				if( m_bDynamicEye )
 					glUniformMatrix4fv( m_locMatView, 1, GL_TRUE, m_mVP );
 				else
 					glUniform1i( m_locBorder, m_bBorder );
-				if( bBicubic )
-					glUniform4f( m_locParams, ( GLfloat )m_sizeIn.cx, ( GLfloat )m_sizeIn.cy, 1.0f / m_sizeIn.cx, 1.0f / m_sizeIn.cy );
 				glUniform1i( m_locDoNotBlend, bDoNotBlend );
 				glUniform1i( m_locDoNoBlack, bDoNoBlack );
 				if( bPartialInput )
 					glUniform4f( m_locOffsScale,
-								 ( GLfloat )optimalRect.left / ( GLfloat )optimalRes.cx,
-								 ( GLfloat )optimalRect.top / ( GLfloat )optimalRes.cy,
-								 ( GLfloat )optimalRes.cx / ( ( GLfloat )optimalRect.right - ( GLfloat )optimalRect.left ),
-								 ( GLfloat )optimalRes.cy / ( ( GLfloat )optimalRect.bottom - ( GLfloat )optimalRect.top )
+								 (GLfloat)optimalRect.left / (GLfloat)optimalRes.cx,
+								 (GLfloat)optimalRect.top / (GLfloat)optimalRes.cy,
+								 (GLfloat)optimalRes.cx / ( (GLfloat)optimalRect.right - (GLfloat)optimalRect.left ),
+								 (GLfloat)optimalRes.cy / ( (GLfloat)optimalRect.bottom - (GLfloat)optimalRect.top )
 					);
 				else
 					glUniform4f( m_locOffsScale, 0.0f, 0.0f, 1.0f, 1.0f );
 
 				float bb[4] = {
-					m_blackBias.x  * blackScale,
+					m_blackBias.x * blackScale,
 					m_blackBias.y,
 					m_blackBias.z,
 					inputGamma };
 
 				if( blackDarkAdjust <= 0.5f )
 					bb[1] *= blackDarkAdjust * 2.0f;
-				else 
+				else
 					bb[1] += ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
 				if( blackBrightAdjust <= 0.5f )
 					bb[2] *= blackBrightAdjust * 2.0f;
@@ -890,85 +1018,104 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				bb[3] = inputGamma;
 				glUniform4fv( m_locBlackBias, 1, bb );
 			}
-
-			if( VWB_STATEMASK_VIEWPORT & stateMask )
-			{
-				glViewport( 0, 0, m_sizeIn.cx, m_sizeIn.cy );
+			if( bBicubic )
+				glUniform4f( m_locParamsBicubic, (GLfloat)m_sizeIn.cx, (GLfloat)m_sizeIn.cy, 1.0f / m_sizeIn.cx, 1.0f / m_sizeIn.cy );
+		} else {
+			if( m_bDP ) {
+				// in overlay mode, we need to set uniforms for the dp vertex shader
+				GLfloat params[16]{}; // all zero		}
+				glUniformMatrix4fv( m_locMatView, 1, GL_TRUE, I ); // put identity
+				glUniform4f( m_locCamPos, 0.f, 0.f, 0.f, 1.0f );
+				glUniform4fv( m_locParamsDomeprojection, 4, params );
 			}
+			if( bBicubic )
+				glUniform4f( m_locParamsBicubic, (GLfloat)m_sizeIn.cx, (GLfloat)m_sizeIn.cy, 1.0f / m_sizeIn.cx, 1.0f / m_sizeIn.cy );
+		}
 
-			if( VWB_STATEMASK_CLEARBACKBUFFER & stateMask )
-			{
-				glClearColor( 0, 0, 0, 1 );
-				glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-			}
+		if( VWB_STATEMASK_VIEWPORT & stateMask )
+		{
+			glViewport( 0, 0, m_sizeIn.cx, m_sizeIn.cy );
+		}
 
-			if (bUseGL110)
-			{
-				glMatrixMode( GL_MODELVIEW );
-				glPushMatrix();
-				glLoadIdentity();
+		if( VWB_STATEMASK_CLEARBACKBUFFER & stateMask )
+		{
+			glClearColor( 0, 0, 0, 1 );
+			glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+		}
 
-				glMatrixMode( GL_TEXTURE );
-				glPushMatrix();
-				glLoadIdentity();
+		if( bUseGL110 )
+		{
+			glMatrixMode( GL_MODELVIEW );
+			glPushMatrix();
+			glLoadIdentity();
 
-				glMatrixMode( GL_PROJECTION );
-				glPushMatrix();
-				glLoadIdentity();
-				glOrtho(0, 1, 1, 0, -100, 100);
+			glMatrixMode( GL_TEXTURE );
+			glPushMatrix();
+			glLoadIdentity();
 
-				GLfloat x1 = ( -0.5f 			  ) / viewport[2];
-				GLfloat y1 = ( -0.5f 			  ) / viewport[3];
-				GLfloat x2 = ( 0.5f + viewport[2] ) / viewport[2];
-				GLfloat y2 = ( 0.5f + viewport[3] ) / viewport[3];
+			glMatrixMode( GL_PROJECTION );
+			glPushMatrix();
+			glLoadIdentity();
+			glOrtho(0, 1, 1, 0, -100, 100);
 
-				glDisable(GL_FOG); 
-				glDisable(GL_TEXTURE_1D);
-				glDisable(GL_LIGHTING); 
-				glDisable(GL_LIGHT0); 
-				glDisable(GL_ALPHA_TEST); 
-				glDisable(GL_BLEND); 
-				glDisable(GL_CULL_FACE);
-				glDisable(GL_DEPTH_TEST); 
-				glDepthMask(GL_TRUE); 
-				glDepthMask(GL_FALSE); 
+			glDisable(GL_FOG); 
+			glDisable(GL_TEXTURE_1D);
+			glDisable(GL_LIGHTING); 
+			glDisable(GL_LIGHT0); 
+			glDisable(GL_ALPHA_TEST); 
+			glDisable(GL_BLEND); 
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_DEPTH_TEST); 
+			glDepthMask(GL_TRUE); 
+			glDepthMask(GL_FALSE); 
 
-				glDisable(GL_COLOR_MATERIAL);
-				glDisable(GL_CLIP_PLANE0);
-				glDisable(GL_CLIP_PLANE1);
-				glDisable(GL_CLIP_PLANE2);
-				glDisable(GL_CLIP_PLANE3);
-				glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+			glDisable(GL_COLOR_MATERIAL);
+			glDisable(GL_CLIP_PLANE0);
+			glDisable(GL_CLIP_PLANE1);
+			glDisable(GL_CLIP_PLANE2);
+			glDisable(GL_CLIP_PLANE3);
+			glDisableClientState( GL_TEXTURE_COORD_ARRAY );
 
-				glEnable(GL_TEXTURE_2D);
-				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-				glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
+			glEnable(GL_TEXTURE_2D);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
 
-				res = ::glGetError();
-				// draw quad
-				glBegin(GL_QUADS);
-					glTexCoord2f(0,0);        glVertex2f(x1,y1);
-					glTexCoord2f(0,1);        glVertex2f(x1,y2);
-					glTexCoord2f(1,1);        glVertex2f(x2,y2);
-					glTexCoord2f(1,0);        glVertex2f(x2,y1);
-				glEnd();
+			res = ::glGetError();
+			// draw quad
+			glBegin(GL_QUADS);
 
-				glPopMatrix();
-				glMatrixMode( GL_TEXTURE );
-				glPopMatrix();
-				glMatrixMode( GL_MODELVIEW );
-				glPopMatrix();
-			}
-			else
-			{
-				glBindVertexArray(m_iVertexArray);
-				glUniform4f( overlay ? m_locSizeBypass : m_locSize, (GLfloat)viewport[2], (GLfloat)viewport[3],1.0f/viewport[2], 1.0f/viewport[3] );
-				glDisable(GL_DEPTH_TEST); 
-				glDisable(GL_CLIP_PLANE0);
-				glDisable(GL_CLIP_PLANE1);
-				glDisable(GL_CLIP_PLANE2);
-				glDisable(GL_CLIP_PLANE3);
-				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4 );
+				// no mid-pixel correction needed, it is done in the warp texture already
+				//GLfloat x1 = ( -0.5f 			  ) / viewport[2];
+				//GLfloat y1 = ( -0.5f 			  ) / viewport[3];
+				//GLfloat x2 = ( 0.5f + viewport[2] ) / viewport[2];
+				//GLfloat y2 = ( 0.5f + viewport[3] ) / viewport[3];
+
+				glTexCoord2f(0,0); glVertex2f(0,0);
+				glTexCoord2f(0,1); glVertex2f(0,1);
+				glTexCoord2f(1,1); glVertex2f(1,1);
+				glTexCoord2f(1,0); glVertex2f(1,0);
+			glEnd();
+
+			glPopMatrix();
+			glMatrixMode( GL_TEXTURE );
+			glPopMatrix();
+			glMatrixMode( GL_MODELVIEW );
+			glPopMatrix();
+			glMatrixMode( GL_PROJECTION );
+			glPopMatrix();
+		}
+		else
+		{
+			glBindVertexArray( m_iVertexArray );
+			glDisable( GL_DEPTH_TEST );
+			glDisable( GL_CLIP_PLANE0 );
+			glDisable( GL_CLIP_PLANE1 );
+			glDisable( GL_CLIP_PLANE2 );
+			glDisable( GL_CLIP_PLANE3 );
+			if( m_bDP ) {
+				glDrawElements(GL_TRIANGLES, m_nIndices, GL_UNSIGNED_INT, 0);
+			} else {
+				glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
 			}
 		}
 	}
@@ -991,6 +1138,12 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		glActiveTexture( GL_TEXTURE3 );
 		glBindTexture( GL_TEXTURE_2D, ( currentTexture2DBinding3 ) );
 
+		glActiveTexture( GL_TEXTURE4 );
+		glBindTexture( GL_TEXTURE_2D, ( currentTexture2DBinding4 ) );
+
+		glActiveTexture( GL_TEXTURE5 );
+		glBindTexture( GL_TEXTURE_2D, ( currentTexture2DBinding5 ) );
+
 		glActiveTexture(active_texture_unit);
 	}
 
@@ -1008,13 +1161,12 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
     return VWB_ERROR_NONE;
 }
 	
-void GLWarpBlend::SetTexture( GLuint loc, GLuint tex, GLuint wrapMode, GLuint filter ) const
+void GLWarpBlend::SetTexture( GLuint loc, GLuint unit, GLuint tex, GLuint wrapMode, GLuint filter ) const
 {
 	if( -1 != loc && -1 != tex )
 	{
-		::glUniform1i( loc, loc );
-		::glActiveTexture( GL_TEXTURE0 + loc );
-//		::glClientActiveTexture( GL_TEXTURE0 + loc );
+		::glUniform1i( loc, unit );
+		::glActiveTexture( GL_TEXTURE0 + unit );
 		::glBindTexture( GL_TEXTURE_2D, tex );
 
 		::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter );

@@ -369,31 +369,33 @@ bool DrawGLScene()
 	//#ifdef WIN32
 	//OutputDebugStringA( "." );
 	//#endif
-	glm::mat4x4 view, proj;
+	glm::mat4x4 view0, proj0;
+	glm::mat4x4 view1, proj1;
+	glm::mat4x4 view2, proj2;
 
-	#ifdef USE_VIOSO_API
+	glm::mat4x4 view;
+	glm::mat4x4 proj;
+
+#ifdef USE_VIOSO_API
 	//< start VIOSO API code
 	glm::vec3 eye = { 0,0,0 };
 	glm::vec3 rot = { 0,0,0 };
 
 	if( pWarper )
 	{
-		static int c = 0;
-		if( 0 == c )
+
 		{
 			// either use this
-			pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), glm::value_ptr( proj ) );
-			c=1;
+			pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view0 ), glm::value_ptr( proj0 ) );
 		}
-		else if( 1 == c )
+
 		{
 			// or use this, which yields exact same result
 			GLfloat clip[6];
-			pWarper->GetViewClip( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), clip );
-			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			c = 2;
+			pWarper->GetViewClip( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view1 ), clip );
+			proj1 = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
 		}
-		else
+
 		{
 			// or use this, which yields also exact same result
 			GLfloat clip[6];
@@ -401,16 +403,33 @@ bool DrawGLScene()
 			GLfloat dir[3];
 
 			pWarper->GetPosDirClip( &eye.x, &rot.x, pos, dir, clip );
-			view = glm::transpose(
+			view2 = glm::transpose(
 				glm::yawPitchRoll( -dir[1], dir[0], -dir[2] )
 			);
-			view[0].w = pos[0];
-			view[1].w = pos[1];
-			view[2].w = pos[2];
-			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+			view2[0].w = pos[0];
+			view2[1].w = pos[1];
+			view2[2].w = pos[2];
+			proj2 = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
+		}
+		static int c = 0;
+		if( c == 0 ) {
+			view = view0;
+			proj = proj0;
+			c = 1;
+		} else if( c == 1 ) {
+			view = view1;
+			proj = proj1;
+			c = 2;
+		} else {
+			view = view2;
+			proj = proj2;
 			c = 0;
 		}
+	} else {
+		view = glm::mat4(1); // identity
+		proj = glm::frustum( -0.64f, 0.64f, -0.36f, 0.36f, 0.125f, 1000.125f ); // 16:10 frustum
 	}
+
 	//< end VIOSO API code
 	#else
 	view = glm::mat4(1); // identity
@@ -481,6 +500,7 @@ HINSTANCE	hInstance = 0;		// Holds The Instance Of The Application
 
 #include <string>
 #include <windows.h>
+#include <shellscalingapi.h>
 
 inline std::u8string wstring_to_u8string(const std::wstring& wstr) {
 	if (wstr.empty()) return std::u8string();
@@ -728,8 +748,26 @@ GLvoid KillGLWindow( GLvoid )								// Properly Kill The Window
 	}
 }
 
+/// dpi awareness for this application, make sure to call before creating any windows
+/// Microsoft recommends using the application manifest rather than this call.
+HRESULT beDPIAware( PROCESS_DPI_AWARENESS pda ) {
+	HRESULT hr = E_FAIL;
+	typedef HRESULT( STDAPICALLTYPE* PFN_Set_Process_Dpi_Awareness )( _In_ PROCESS_DPI_AWARENESS value );
+	auto hDll = ::LoadLibraryW( L"Shcore.dll" );
+	if( hDll ) {
+		auto SetProcessDpiAwareness = ( PFN_Set_Process_Dpi_Awareness )::GetProcAddress( hDll, "SetProcessDpiAwareness" );
+		if( SetProcessDpiAwareness ) {
+			hr = SetProcessDpiAwareness( pda );
+		}
+		::FreeLibrary( hDll );
+	}
+	return hr;
+}
+
 int wmain( int argc, wchar_t* argv[] )
 {
+	beDPIAware( PROCESS_PER_MONITOR_DPI_AWARE );
+
 	MSG		msg;									// Windows Message Structure
 	BOOL	done = FALSE;							// Bool Variable To Exit Loop
 
@@ -737,11 +775,11 @@ int wmain( int argc, wchar_t* argv[] )
 	int y = 0;
 	int w = 0;
 	int h = 0;
-	u8string channel = u8"0";
+	wstring channel = L"0";
 	if( 1 < argc )
 		configFile = argv[1];
 	if( 2 < argc )
-		channel = wstring_to_u8string( argv[2] );
+		channel = argv[2];
 	if( 3 < argc )
 		x = _wtoi( argv[3] );
 	if( 4 < argc )
@@ -759,7 +797,7 @@ int wmain( int argc, wchar_t* argv[] )
 
 	#ifdef USE_VIOSO_API
 	try {
-		pWarper = make_shared<VWB>( "", nullptr, configFile, channel.c_str(), 3 );
+		pWarper = make_shared<VWB>( L"", nullptr, configFile, channel.c_str(), 3 );
 	}
 	catch( VWB_ERROR )
 	{

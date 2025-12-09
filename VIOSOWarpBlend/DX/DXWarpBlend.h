@@ -60,7 +60,7 @@ public:
 		FLOAT doBlack;
 		FLOAT do2ndBlend;
 		FLOAT inputGamma;
-		FLOAT outputGamma;
+		FLOAT outputGammaRec;
 		FLOAT colorCorr;
 		FLOAT flip_v;
 		FLOAT reserved[7]; // in total 16 until here
@@ -79,13 +79,16 @@ public:
     ///< the destructor
 	virtual ~DXWarpBlend();
 
-	virtual VWB_ERROR Init( VWB_WarpBlendSet& wbs );
-
-	VWB_MAT44f UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e );
-	virtual VWB_ERROR GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj );
-	virtual VWB_ERROR GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip );
+	virtual VWB_ERROR Init( VWB_WarpBlendSet& wbs ) override;
+	virtual VWB_ERROR GetViewProjection( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pProj ) override;
+	virtual VWB_ERROR GetViewClip( VWB_float* eye, VWB_float* rot, VWB_float* pView, VWB_float* pClip ) override;
 	virtual VWB_ERROR GetPosDirClip( VWB_float* eye, VWB_float* rot, VWB_float* pPos, VWB_float* pDir, VWB_float* pClip, bool symmetric, VWB_float aspect ) override;
+	virtual VWB_ERROR SetViewProjection( VWB_float const* pView, VWB_float const* pProj ) override;
 
-	virtual VWB_ERROR SetViewProjection( VWB_float const* pView, VWB_float const* pProj );
-
+	/// @brief Calculates the IG's view matrix and updates the internal view-projection matrix based on input view matrix and eye position
+	/// Note: m_mVP is only the view part after this step, projection must be multiplied later
+	/// @param [IN] igView the view matrix, this is usually the reference to own m_mViewIG, but might be different. This is because requesting a symmetric view might change the view direction.
+	/// @param [OUT] e the resulting eye position calculated from the view matrix + the current rotation with respect to the internal eye offset
+	/// @return the new view matrix
+	VWB_MAT44f UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& e );
 };

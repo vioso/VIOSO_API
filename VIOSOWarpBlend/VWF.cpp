@@ -1464,4 +1464,27 @@ VWB_ERROR AddBlacklevelTo( VWB_WarpBlend& wb, float const* blacklevelMapRaw, flo
 	return VWB_ERROR();
 }
 
+VWB_ERROR alphablend( VWB_BlendRecord2* pBlend, VWB_int cx, VWB_int cy, VWB_byte* rgba, VWB_int w, VWB_int h ) {
+	// apply logo to blendX
+	// apply to the center of the texture
+	for( int y = 0; y < h; y++ ) {
+		for( int x = 0; x < w; x++ ) {
+			int lx = x;
+			int ly = y;
+			int tx = ( cx - w ) / 2 + lx;
+			int ty = ( cy - h ) / 2 + ly;
+			if( tx >= 0 && tx < cx && ty >= 0 && ty < cy ) {
+				uint8_t* lc = &rgba[( ly * w + lx ) * 4];
+				if( lc[3] > 0 ) { // alpha threshold
+					auto& bl = pBlend[ty * cx + tx];
+					bl.r = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[0] ) / 255 + uint32_t( 255 - lc[3] ) * bl.r / 255 );
+					bl.g = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[1] ) / 255 + uint32_t( 255 - lc[3] ) * bl.g / 255 );
+					bl.b = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[2] ) / 255 + uint32_t( 255 - lc[3] ) * bl.b / 255 );
+				}
+			}
+		}
+	}
+	return VWB_ERROR_NONE;
+}
+
 

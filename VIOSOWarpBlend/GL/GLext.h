@@ -163,6 +163,7 @@ typedef void (XAPICALL  *DEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenu
 #define GL_TEXTURE2								0x84C2
 #define GL_TEXTURE3								0x84C3
 #define GL_TEXTURE4								0x84C4
+#define GL_TEXTURE5								0x84C5
 #define GL_ACTIVE_TEXTURE						0x84E0
 #define GL_CLIENT_ACTIVE_TEXTURE				0x84E1
 

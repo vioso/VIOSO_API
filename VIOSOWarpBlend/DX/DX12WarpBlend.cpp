@@ -18,6 +18,7 @@
 #include <iomanip>
 #endif
 #include "stb_image.h"
+#include "../VWF.h"
 //#pragma comment( lib, "d3d12.lib" )
 
 extern "C" HRESULT WINAPI D3D12SerializeVersionedRootSignature(
@@ -719,25 +720,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					int w = 0, h = 0;
 					auto logo = stbi_load_from_memory( LOGO, sizeof( LOGO ), &w, &h, NULL, 4 );
 					if( logo ) {
-						// apply logo to blendX
-						// apply to the center of the texture
-						for( int y = 0; y < h; y++ ) {
-							for( int x = 0; x < w; x++ ) {
-								int lx = x;
-								int ly = y;
-								int tx = ( m_sizeMap.cx - w ) / 2 + lx;
-								int ty = ( m_sizeMap.cy - h ) / 2 + ly;
-								if( tx >= 0 && tx < (int)m_sizeMap.cx && ty >= 0 && ty < (int)m_sizeMap.cy ) {
-									uint8_t* lc = &logo[( ly * w + lx ) * 4];
-									if( lc[3] > 0 ) { // alpha threshold
-										auto& bl = blendX[ty * m_sizeMap.cx + tx];
-										bl.r = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[0] ) / 255 + uint32_t( 255 - lc[3] ) * bl.r / 255 );
-										bl.g = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[1] ) / 255 + uint32_t( 255 - lc[3] ) * bl.g / 255 );
-										bl.b = VWB_word( ( uint32_t( lc[3] ) * 207 * lc[2] ) / 255 + uint32_t( 255 - lc[3] ) * bl.b / 255 );
-									}
-								}
-							}
-						}
+						alphablend( wb.pBlend2, m_sizeMap.cx, m_sizeMap.cy, logo, w, h );
 
 						stbi_image_free( logo );
 						D3D12_SUBRESOURCE_DATA subRes{ blendX, m_sizeMap.cx * sizeof( VWB_BlendRecord2 ) };
@@ -1262,7 +1245,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 }
 
 VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask ) {
-	__super::Render( inputTexture, stateMask );
+	// __super::Render( inputTexture, stateMask ); no need to call, as we call render2 directly
 	logStr( 4, "DX12::Render..." );
 	auto in = (VWB_D3D12_RENDERINPUT2*)inputTexture;
 	VWB_D3D12_RENDERINPUT2 ex = {};
@@ -1413,7 +1396,7 @@ VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
 			cb.doBlack = m_texBlack && !bDoNoBlack  ? 1 : 0;
 			cb.do2ndBlend = m_texBlend2 ? 1 : 0;
 			cb.inputGamma = inputGamma;
-			cb.outputGamma = outputGamma;
+			cb.outputGammaRec = 1.0f / outputGamma;
 			cb.colorCorr = m_texDirectionalShading ? 1 : 0;
 			cb.flip_v = bFlipWarpmeshTexcoords ? 1 : 0;
 			//cb.reserved[7]; // in total 16 until here
@@ -1425,8 +1408,6 @@ VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
 				cb.pos[2] = m_ep.z;
 				cb.pos[3] = 1.0f;
 			} else {
-				// set a view-projection, that renders a square from 0,0 to 1,1, as this is where the warp-map's position coordinates are defined
-				static VWB_float clip[]{ 0.f, 1.f, 1.f, 0.f, 1.f, 10.0f };
 				static VWB_MAT44f P = VWB_MAT44f::I(); // we use identity as projection, to just keep x and y as is
 				memcpy( cb.mvp, P, sizeof( cb.mvp ) );
 				cb.pos[0] = 0.f;

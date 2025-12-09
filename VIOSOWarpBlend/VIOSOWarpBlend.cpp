@@ -329,7 +329,7 @@ VWB_ERROR VWB_CreateU( void* pDxDevice, char8_t const* szConfigFile, char8_t con
 	std::string reportMsg;
 	if( NULL != szConfigFile && 0 != szConfigFile[0] ) {
 		if( VWB_ERROR_NONE != ( (VWB_Warper_base*)*ppWarper )->ReadConfigFile( szConfigFile, (char const*)szChannelName ) ) {
-			logStr( 0, "FATAL: .ini file (%s) parsing error.\n", szConfigFile );
+			logStr( 0, "FATAL: config file (%s) parsing error.\n", szConfigFile );
 			delete ( (VWB_Warper_base*)*ppWarper );
 			*ppWarper = NULL;
 			return VWB_ERROR_INI_LOAD;

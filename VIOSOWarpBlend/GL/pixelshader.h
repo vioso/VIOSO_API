@@ -37,13 +37,73 @@ vec2[4](
 	vec2(1,1)
 );
 
-uniform vec4 size;
-
 void main(void) {
-//	gl_Position = vec4((pos[gl_VertexID].x + pos[gl_VertexID].x * size.x) * size.z, (pos[gl_VertexID].y + pos[gl_VertexID].y * size.y) * size.w, 0.0, 1.0);
 	gl_Position = vec4( pos[gl_VertexID].x, pos[gl_VertexID].y, 0.0, 1.0);
 	texcoord = tex[gl_VertexID];
 }
+)END";
+
+// domeprojection param array:
+// 0: gamma, // gamma linearization for mapping textures
+// 1: warping, // 0: no warping, 1: warping
+// 2: blending, // 0: no blending, 1: blending
+// 3: bla, // 0: no black level adjustment, otherwise it is multiplied to the sampled value
+// 4: secondary blending, // 0: no secondary blending, 1: secondary blending
+// 5: input gamma, // input gamma for content
+// 6: output gamma reciprocal, // 1 / output gamma for content
+// 7: color correction, // 0: no color correction, otherwise it is multiplied to the sampled value
+// 8: flip_v, // 0 : no flip, 1: flip vertically
+// 10-15: reserved
+
+GLchar const* s_sz_vertex_shader_v330_dp = R"END(
+#version 330
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec2 texcoord;
+layout(location = 3) in vec3 normal;
+layout(location = 4) in vec3 tangent;
+
+out vec2 uv_mapping;
+out vec2 uv_content;
+out vec2 uv_directional_shading;
+
+uniform float params[16];
+uniform mat4 matView;
+uniform vec3 camPos;
+
+void main(void) {
+	vec4 pos = matView * vec4( position, 1 );
+	// pass through texture coordinate, to sample from mappings
+	uv_mapping = vec2( texcoord.x, params[8] > 0.0 ? 1.0 - texcoord.y : texcoord.y );
+
+	// get content uv from normalized device coordinates
+	uv_content = pos.xy;
+	uv_content /= pos.w;
+	uv_content.x += 1.0;
+	uv_content.x *= 0.5;
+	if( params[8] > 0.0 ) {
+		uv_content.y += 1.0;
+		uv_content.y *= 0.5;
+	} else {
+		uv_content.y -= 1.0;
+		uv_content.y *= -0.5;
+	}
+		
+	// calculate the color correction look up
+	vec3 dir = camPos.xyz - position;
+	// if direction is too flat, or no normals given, use a default direction
+	if( params[7] > 0.0 && length(dir) > 0.0001 && ( normal.x != 0 || normal.y != 0 && normal.z != 0 ) )  {
+		dir = normalize( dir );
+		vec3 bitan = normalize( cross( normal, tangent ) );
+		// projecting eye by tangent and bitangent effectively gives a perspective mapping
+		vec2 dvec = vec2( dot( dir, tangent ), dot( dir, bitan ) );
+		// go from perspective to spherical mapping
+		dvec *= acos( clamp( dot( dir, normal ), -1.0, 1.0 ) ) / 1.57079632679489661923;
+		uv_directional_shading = vec2( ( dvec.x + 1.0 ) / 2.0, ( dvec.y + 1.0 ) / 2.0 );
+	} else {
+		uv_directional_shading = vec2( 0.5, 0.5 ); // neutral direction
+	}
+}
+
 )END";
 
 GLchar const* s_fragment_shader_header_v110 = R"END(
@@ -74,8 +134,22 @@ out vec4 FragColor;
 vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }
 )END";
 
+GLchar const* s_fragment_shader_header_v330_dp = R"END(
+#version 330
+uniform sampler2D samContent, samBlend, samBlack, samBlend2, samDirectionalShading;
+uniform float params[16];
+
+in vec2 uv_mapping;
+in vec2 uv_content;
+in vec2 uv_directional_shading;
+
+out vec4 FragColor;
+
+vec4 _tex2D( sampler2D sam, vec2 tex ){ return texture( sam, tex ); }
+)END";
+
 GLchar const* s_func_tex2D_BC = R"END(
-uniform vec4 params;
+uniform vec4 paramsBicubic;
 vec4 _texture2D( sampler2D texCnt,
 				   vec2 vPos)		
 {									
@@ -219,6 +293,62 @@ void main()
 		// do lower clamp to stay above common black, upper is done anyways
 		FragColor = max( FragColor, black );				
 	}
+
 	FragColor.a = 1.0;
 }
 )END";
+
+GLchar const* s_warp_blend_fragment_shader_dp = R"END(
+void main(void) {
+	vec3 gamma = vec3(params[0], params[0], params[0]);
+	vec3 inputGamma = vec3(params[5], params[5], params[5]);
+	vec3 outputGamma = vec3(params[6], params[6], params[6]);
+
+	// sample content
+	vec3 output;
+	if( params[9] > 0.0 )
+		output = _texture2D( samContent, mix(  uv_mapping, uv_content, params[1] ) ).rgb;
+	else
+		output = _texture2D( samContent, mix(  uv_mapping, uv_content, params[1] ) ).rgb;
+	output = pow( output, inputGamma ); // linearize content
+
+	// apply directional shading, TODO: move linearization to texture loader
+	if( params[7] > 0.0 ) {
+		vec3 clcrt = _tex2D( samDirectionalShading, uv_directional_shading ).rgb * params[7];
+		clcrt = pow( clcrt, gamma );
+		output *= clcrt;
+	}
+
+	// apply blending, TODO: move linearization to texture loader
+	if( params[2] > 0.0 ) {
+		vec3 blend1 = _tex2D( samBlend, uv_mapping ).rgb; // blend is linearized before loading tex to GPU
+		output *= blend1;
+	}
+
+	// apply secondary blending, TODO: move linearization to texture loader
+	if( params[4] > 0.0 ) {
+		vec3 blend2 = _tex2D( samBlend2, uv_mapping ).rgb;
+		blend2 = pow( blend2, gamma );  // linearize
+		output *= blend2;
+	}
+
+	// apply black level uplift, TODO: move linearization to texture loader
+	if( params[3] > 0.0 ) {
+		vec3 bla = _tex2D( samBlack, uv_mapping ).rgb * params[3];
+		bla = pow( bla, gamma ); // linearize
+		output = output * ( 1.0 - bla ) + bla;
+	}
+
+	// re-gamma and output
+	FragColor = vec4( pow( output, outputGamma ), 1.0 );
+}
+)END";
+
+GLchar const* s_bypass_fragment_shader_dp = R"END(
+void main()													
+{																
+	FragColor = _texture2D( samContent, uv_mapping );			
+	FragColor.a = 1.0;	
+}																
+)END";
+

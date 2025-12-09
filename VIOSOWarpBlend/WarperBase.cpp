@@ -16,6 +16,10 @@
 #include <fstream>
 #include <limits>
 
+#define LIC_CREATE_STATIC_FUNCTIONS
+#include "licCM.h"
+// add other licXX modules here, to have their static functions created
+
 #undef min
 #undef max
 
@@ -34,7 +38,7 @@ static char const* _libExt = ".so";
 #endif // defined( WIN32 )
 
 constexpr VWB_size _size0 = { 0,0 };
-static bool __isFirstInstance = false;
+static bool __isFirstInstance = true;
 
 VWB_ERROR invertWB( VWB_WarpBlend const& in, VWB_WarpBlend& out );
 
@@ -54,11 +58,15 @@ VWB_Warper_base::VWB_Warper_base()
 	, m_blackBias( 0, 1, 1, 0 )
 	, m_hmEPP( 0 )
 	, m_hEPP( NULL )
-	, m_fnEPPCreate( NULL )
-	, m_fnEPPGet( NULL )
-	, m_fnEPPRelease( NULL )
+	, m_fnEPPCreate( nullptr )
+	, m_fnEPPGet( nullptr )
+	, m_fnEPPRelease( nullptr )
 	, m_bUTF8( false )
 	, m_bDP( false )
+	, m_overlayBuffers{}
+	, m_currentOverlayBuffer(0)
+	, m_bOverlayUpdated(0)
+
 {}
 
 VWB_Warper_base::~VWB_Warper_base() {
@@ -362,14 +370,22 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 	m_viewSizes.z = tan( DEG2RAD( fov[2] ) ) * screenDist; // right
 	m_viewSizes.w = tan( DEG2RAD( fov[3] ) ) * screenDist; // bottom
 
-	if( !VWBLic::init<VWBLicCM>( 5s, 107 ) ) { // 107 is the product code for API/SDK
+	if( !VWBLic::init<VWBLicCM>( 30s, 107 ) ) { // check every 30s, 107 is the product code for API/SDK with CodeMeter lic
+		// at this point, we could try another lic type
 		logStr( 0, "ERROR: License initialization failed.\n" );
 		return VWB_ERROR_LICENSE;
 	}
-	m_licenseInfo = VWBLic::acquireChannel( pluginId, 10s );
+	m_licenseInfo = VWBLic::acquireChannel( pluginId, 180s ); // keep valid for 3 minutes
 	if( !m_licenseInfo ) {
 		logStr( 0, "ERROR: License acquisition failed.\n" );
 		return VWB_ERROR_LICENSE;
+	}
+	if( m_licenseInfo->isTemporary ) {
+		// try another license method...
+		// VWBLic::destroy();
+		// if( !VWBLic::init<VWBLicSoracu>( ... ) ) {
+		// ...
+		int i = 0;
 	}
 	return ret;
 }
@@ -1002,6 +1018,13 @@ void VWB_Warper_base::getClip( VWB_VEC3f const& e, VWB_float* pClip ) {
 	pClip[3] = ( m_viewSizes[3] - e.y ) * dd; // bottom
 	pClip[4] = nearDist;
 	pClip[5] = farDist;
+}
+
+void VWB_Warper_base::UpdateOverlayImage( ImageBuffer const& imgBuf ) {
+	auto iBuff = !m_currentOverlayBuffer.load(); // the other buffer
+	m_overlayBuffers[iBuff] = imgBuf;
+	m_currentOverlayBuffer.store( iBuff );
+	m_bOverlayUpdated = true;
 }
 
 /*static*/ void VWB_Warper_base::Default( VWB_Warper& w ) {
@@ -1743,12 +1766,23 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb ) {
 	return VWB_ERROR_NONE;
 }
 
+// make sure to call only one of the Render methods
 VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask ) {
+	// update overlay image
+	if( m_bOverlayUpdated ) {
+		UpdateOverlayTexture( 
+			m_overlayBuffers[m_currentOverlayBuffer].type,
+			m_overlayBuffers[m_currentOverlayBuffer].width,
+			m_overlayBuffers[m_currentOverlayBuffer].height,
+			m_overlayBuffers[m_currentOverlayBuffer].data );
+		m_bOverlayUpdated = false;
+	}
 	return VWB_ERROR_NONE;
 }
 
+// this does the same as Render() for now
 VWB_ERROR VWB_Warper_base::Render2( VWB_param inputTexture, VWB_uint stateMask ) {
-	return VWB_ERROR_NONE;
+	return Render( inputTexture, stateMask );
 }
 
 VWB_ERROR VWB_Warper_base::getWarpBlend( VWB_WarpBlend const*& wb ) {
