@@ -61,8 +61,8 @@ public:
     * @return TRUE on success, FALSE otherwise */
 	//VWB_ERROR DX9WarpBlend::setModel( D3DXMATRIX* pModelView, LPCSTR path, int nBlendChannels, DX9WarpBlend* pBlendChannels );
 
-	virtual VWB_ERROR Render( VWB_param inputTexture, VWB_uint stateMask );  
-	virtual VWB_ERROR Render2( VWB_param inputTexture, VWB_uint stateMask );  
+	virtual VWB_ERROR Render( VWB_param inputTexture, VWB_uint stateMask ) override;  
+	virtual VWB_ERROR Render2( VWB_param inputTexture, VWB_uint stateMask ) override;  
 
 protected:
 };

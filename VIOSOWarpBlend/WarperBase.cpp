@@ -370,12 +370,12 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs ) {
 	m_viewSizes.z = tan( DEG2RAD( fov[2] ) ) * screenDist; // right
 	m_viewSizes.w = tan( DEG2RAD( fov[3] ) ) * screenDist; // bottom
 
-	if( !VWBLic::init<VWBLicCM>( 30s, 107 ) ) { // check every 30s, 107 is the product code for API/SDK with CodeMeter lic
+	if( !VWBLic::init<VWBLicCM>( 10s, 107 ) ) { // check every 30s, 107 is the product code for API/SDK with CodeMeter lic
 		// at this point, we could try another lic type
 		logStr( 0, "ERROR: License initialization failed.\n" );
 		return VWB_ERROR_LICENSE;
 	}
-	m_licenseInfo = VWBLic::acquireChannel( pluginId, 180s ); // keep valid for 3 minutes
+	m_licenseInfo = VWBLic::acquireChannel( pluginId, 20s ); // keep valid for 3 minutes
 	if( !m_licenseInfo ) {
 		logStr( 0, "ERROR: License acquisition failed.\n" );
 		return VWB_ERROR_LICENSE;
@@ -1782,7 +1782,7 @@ VWB_ERROR VWB_Warper_base::Render( VWB_param inputTexture, VWB_uint stateMask ) 
 
 // this does the same as Render() for now
 VWB_ERROR VWB_Warper_base::Render2( VWB_param inputTexture, VWB_uint stateMask ) {
-	return Render( inputTexture, stateMask );
+	return VWB_Warper_base::Render( inputTexture, stateMask );
 }
 
 VWB_ERROR VWB_Warper_base::getWarpBlend( VWB_WarpBlend const*& wb ) {

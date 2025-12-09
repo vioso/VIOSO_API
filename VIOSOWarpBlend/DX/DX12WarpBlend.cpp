@@ -720,7 +720,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					int w = 0, h = 0;
 					auto logo = stbi_load_from_memory( LOGO, sizeof( LOGO ), &w, &h, NULL, 4 );
 					if( logo ) {
-						alphablend( wb.pBlend2, m_sizeMap.cx, m_sizeMap.cy, logo, w, h );
+						alphablend( blendX, m_sizeMap.cx, m_sizeMap.cy, logo, w, h );
 
 						stbi_image_free( logo );
 						D3D12_SUBRESOURCE_DATA subRes{ blendX, m_sizeMap.cx * sizeof( VWB_BlendRecord2 ) };

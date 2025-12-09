@@ -29,6 +29,8 @@ Make sure, you have a c\+\+20 and a c17 compiler handy, like Visual Studio 2022 
 
 ### vcpkg (Windows)
 
+Make sure to set an environment variable VPKG_ROOT to your preferred vcpkg repository.
+
 ``` cmd
 vcpkg install stb
 vcpkg install zlib
