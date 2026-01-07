@@ -100,6 +100,9 @@ inline VWB_MAT44f DXWarpBlend::UpdateView( VWB_MAT44f const& igView, VWB_VEC3f& 
 	if( 0 != this->eye[0] || 0 != this->eye[1] || 0 != this->eye[2] )
 		e -= VWB_VEC3f::ptr( this->eye ) * R;
 
+	// remind effective eye position
+	m_eye = e;
+
 	// translate to local coordinates
 	e = e * igView;
 

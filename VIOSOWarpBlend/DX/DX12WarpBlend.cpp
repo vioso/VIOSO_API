@@ -1147,6 +1147,23 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 					return VWB_ERROR_SHADER;
 				}
 
+				VWB_BlendRecord2* blendX = nullptr;
+				if( wb.pBlend2 ) {
+					blendX = new VWB_BlendRecord2[m_sizeMap.cx * m_sizeMap.cy];
+					std::copy_n( wb.pBlend2, m_sizeMap.cx* m_sizeMap.cy, blendX );
+
+					int w = 0, h = 0;
+					auto logo = stbi_load_from_memory( LOGO, sizeof( LOGO ), &w, &h, NULL, 4 );
+					if( logo ) {
+						alphablend( blendX, m_sizeMap.cx, m_sizeMap.cy, logo, w, h );
+
+						stbi_image_free( logo );
+						D3D12_SUBRESOURCE_DATA subRes{ blendX, m_sizeMap.cx * sizeof( VWB_BlendRecord2 ) };
+						RPT_HR_FATAL( CreateAndFillResource( m_device, m_cl, textureDesc, subRes, m_texBlendX, stagingTexs, L"dp_texBlendX", D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE ), "Could not create texture \"dp_texBlendX\"", VWB_ERROR_GENERIC );
+					}
+					delete[] blendX;
+				}
+
 				// fill black texture
 				char empty[16 * 16 * 4] = { 0 };
 				if( wb.pBlack ) {
@@ -1401,11 +1418,10 @@ VWB_ERROR DX12WarpBlend::Render2( VWB_param inputTexture, VWB_uint stateMask )
 			cb.flip_v = bFlipWarpmeshTexcoords ? 1 : 0;
 			//cb.reserved[7]; // in total 16 until here
 			if( m_bDynamicEye ) {
-				// copy current view-projection matrix and eye position
+				// copy current view-projection matrix
 				memcpy( cb.mvp, m_mVP.Transposed(), sizeof( cb.mvp ) );
-				cb.pos[0] = m_ep.x;
-				cb.pos[1] = m_ep.y;
-				cb.pos[2] = m_ep.z;
+				// the eye position has to be transformed into original screen coordinates
+				VWB_VEC3f::ptr( cb.pos ) = VWB_VEC3f( m_ep.x, m_ep.y, m_ep.z ) * VWB_MAT44f::ptr( trans ).Transposed();
 				cb.pos[3] = 1.0f;
 			} else {
 				static VWB_MAT44f P = VWB_MAT44f::I(); // we use identity as projection, to just keep x and y as is

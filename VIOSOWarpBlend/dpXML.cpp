@@ -195,6 +195,10 @@ VWB_ERROR LoadDPShape(std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 			logStr( 1, "ERROR: LoadDPShape malformed shape file: inconsistent number of values." );
 			return VWB_ERROR_VWF_LOAD;
 		}
+		// NOTE:
+		// We do not touch any of the values in respect of sign or axis swap,
+		// this is done by the main transformation matrix.
+
 		// position
 		v.pos[0] = std::stof( std::string( value_views[0] ) );
 		auto f = std::stof( std::string( value_views[1] ) );
@@ -231,7 +235,7 @@ VWB_ERROR LoadDPShape(std::filesystem::path path, VWB_WarpBlendMeshEx*& pMesh, b
 
 		// grid position
 		unsigned int c = std::stoi( std::string( value_views[ value_views.size() - 2 ] ) );
-		unsigned int r = std::stoi( std::string( value_views[ value_views.size() - 1 ]  ) );
+		unsigned int r = std::stoi( std::string( value_views[ value_views.size() - 1 ] ) );
 
 		if( c > dimX )
 			dimX = c;
@@ -488,7 +492,7 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 
 	if( !paths[4].empty() ) { // 2nd blend
 		int w = 0, h = 0;
-		auto blend2Data = stbi_load( (char const*)paths[2].u8string().c_str(), &w, &h, NULL, 4 );
+		auto blend2Data = stbi_load( (char const*)paths[4].u8string().c_str(), &w, &h, NULL, 4 );
 		if( blend2Data ) {
 			if( 0 == wb.header.width ) {
 				wb.header.width = w;
@@ -496,16 +500,16 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 			} else if( wb.header.width != w || wb.header.height != h ) {
 				stbi_image_free( blend2Data );
 				DeleteVWF( wb );
-				logStr( 1, "ERROR: LoadDP: 2nd Blend image size does not match blend size \"%s\"\n", paths[3].string().c_str() );
+				logStr( 1, "ERROR: LoadDP: 2nd Blend image size does not match blend size \"%s\"\n", paths[4].string().c_str() );
 				return VWB_ERROR( VWB_ERROR_PARAMETER );
 			}
 			wb.p2ndBlend = new VWB_BlendRecord[w * h];
 			memcpy( wb.p2ndBlend, blend2Data, w * h * 4 );
 			wb.header.flags |= FLAG_WARPFILE_HEADER_2NDBLEND;
 			stbi_image_free( blend2Data );
-			logStr( 2, "INFO: LoadDP: 2nd Blend file \"%s\" loaded.\n", paths[3].string().c_str() );
+			logStr( 2, "INFO: LoadDP: 2nd Blend file \"%s\" loaded.\n", paths[4].string().c_str() );
 		} else {
-			logStr( 1, "ERROR: LoadDP: Error loading 2nd blend from \"%s\"\n", paths[3].string().c_str() );
+			logStr( 1, "ERROR: LoadDP: Error loading 2nd blend from \"%s\"\n", paths[4].string().c_str() );
 			DeleteVWF( wb );
 			return VWB_ERROR_VWF_LOAD;
 		}
@@ -562,7 +566,7 @@ VWB_ERROR LoadDPXML( VWB_WarpBlendSet& set, std::vector<std::filesystem::path> c
 				wb.directionalSz.cx = w;
 				wb.directionalSz.cy = h;
 				stbi_image_free( dirShadeData );
-				logStr( 2, "INFO: LoadDP: Directional-Shading file \"%s\" loaded.\n", paths[3].string().c_str() );
+				logStr( 2, "INFO: LoadDP: Directional-Shading file \"%s\" loaded.\n", paths[8].string().c_str() );
 			} else {
 				logStr( 1, "ERROR: LoadDP: Error loading Directional-Shading from \"%s\"\n", paths[8].string().c_str() );
 				DeleteVWF( wb );

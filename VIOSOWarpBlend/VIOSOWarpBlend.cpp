@@ -318,7 +318,8 @@ VWB_ERROR VWB_CreateU( void* pDxDevice, char8_t const* szConfigFile, char8_t con
 	else
 		g_logFilePath = "VIOSOWarpBlend";
 
-	g_logFilePath = MkPath( g_logFilePath, ".log" );
+	if( g_logFilePath != "CON" && g_logFilePath != "NUL" && g_logFilePath != "PRN" && g_logFilePath != "stdout" && g_logFilePath != "stderr")
+		g_logFilePath = MkPath( g_logFilePath, ".log" );
 
 	auto res = create( pDxDevice, (char const*)szChannelName, ppWarper );
 	if( VWB_ERROR_NONE != res )
@@ -360,7 +361,7 @@ VWB_ERROR VWB_CreateA( void* pDxDevice, char const* szConfigFile, char const* sz
 		g_logFilePath = "VIOSOWarpBlend";
 
 	if( g_logFilePath != "CON" && g_logFilePath != "NUL" && g_logFilePath != "PRN" && g_logFilePath != "stdout" && g_logFilePath != "stderr")
-	g_logFilePath = MkPath( g_logFilePath, ".log" );
+		g_logFilePath = MkPath( g_logFilePath, ".log" );
 
 	auto res = create( pDxDevice, (char const*)szChannelName, ppWarper );
 	if( VWB_ERROR_NONE != res )
@@ -509,7 +510,6 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet ) {
 			pp = MkPath( path.native().substr( sBegin, sEnd ), ".vwf", ((VWB_Warper_base*)pWarper)->getConfigPath() );
 
 			err = LoadVWF( set, pp, false, pWarper->calibIndex, g_cryptoKey, ((VWB_Warper_base*)pWarper)->isUTF8() );
-			set.back()->header.hMonitor = pWarper->hMonitor;
 
 			if( sEnd == std::filesystem::path::string_type::npos )
 				break;

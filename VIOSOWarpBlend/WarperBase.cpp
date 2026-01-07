@@ -54,6 +54,7 @@ VWB_Warper_base::VWB_Warper_base()
 	, m_bRH( true )
 	, m_mVP( VWB_MAT44f::I() )
 	, m_ep{}
+	, m_eye{}
 	, m_viewSizes( 1, 1, 1, 1 )
 	, m_blackBias( 0, 1, 1, 0 )
 	, m_hmEPP( 0 )

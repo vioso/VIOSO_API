@@ -40,7 +40,8 @@ protected:
 	VWB_MAT44f		m_mBaseI;				/// the inverted base transformation, calculated from trans
 	VWB_MAT44f		m_mViewIG;				/// the view matrix of the static frustum for the IG, this contains translation and rotation offsets
 	VWB_MAT44f		m_mVP;					/// the view-projection matrix to be put into the shader
-	EyePoint		m_ep;					/// the current eye
+	EyePoint		m_ep;					/// the current eye, maybe axis-swapped or negated
+	VWB_VEC3f		m_eye;					/// this is the effective eypoint in screen coordinates, this is used to find the direction for directional shading
 	VWB_VEC4f		m_viewSizes;			/// the calculated view size, x - left, y - top, z - right, w - bottom
 	VWB_VEC4f       m_blackBias;			/// the black bias values
 	/// [0] is black offset scale,

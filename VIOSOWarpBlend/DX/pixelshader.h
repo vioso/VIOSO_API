@@ -834,15 +834,16 @@ VS_OUTPUT VSMESH(in VS_INPUT In)
 		// projecting eye by tangent and bitangent effectively gives a perspective mapping
 		float2 dvec = float2( dot( dir, In.Tangent ), dot( dir, bitan ) );
 		// go from perspective to spherical mapping
-		dvec *= acos( clamp( dot( dir, In.Normal ), -1.0, 1.0 ) ) / 1.57079632679489661923;
-		Out.Tex2 = float2( ( dvec.x + 1.0 ) / 2.0, 1.0 - ( dvec.y + 1.0 ) / 2.0 );
+		//dvec *= acos( clamp( dot( dir, In.Normal ), -1.0, 1.0 ) ) / 1.57079632679489661923;
+		//Out.Tex2 = float2( ( dvec.x + 1.0 ) / 2.0, 1.0 - ( dvec.y + 1.0 ) / 2.0 );
+		Out.Tex2 = float2( ( dir.x + 1.0 ) / 2.0, 1.0 - ( dir.y + 1.0 ) / 2.0 );
 	} else {
 		Out.Tex2 = float2( 0.5, 0.5 ); // neutral direction
 	}
 	return Out;
 }
 
-PS_OUTPUT PSDP(in VS_OUTPUT In)
+PS_OUTPUT PSDP_(in VS_OUTPUT In)
 {
 	float3 gamma = float3(params[0], params[0], params[0]);
 	float3 inputGamma = float3(params[5], params[5], params[5]);
@@ -885,6 +886,14 @@ PS_OUTPUT PSDP(in VS_OUTPUT In)
 
 	PS_OUTPUT Out;
 	Out.Color = float4( pow( output, outputGamma ).rgb, 1.0 );
+	return Out;
+}
+
+PS_OUTPUT PSDP(in VS_OUTPUT In)
+{
+
+	PS_OUTPUT Out;
+	Out.Color = float4(  In.Tex2, 0.0, 1.0 );
 	return Out;
 }
 
