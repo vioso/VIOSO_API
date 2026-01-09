@@ -843,7 +843,7 @@ VS_OUTPUT VSMESH(in VS_INPUT In)
 	return Out;
 }
 
-PS_OUTPUT PSDP_(in VS_OUTPUT In)
+PS_OUTPUT PSDP(in VS_OUTPUT In)
 {
 	float3 gamma = float3(params[0], params[0], params[0]);
 	float3 inputGamma = float3(params[5], params[5], params[5]);
@@ -889,7 +889,7 @@ PS_OUTPUT PSDP_(in VS_OUTPUT In)
 	return Out;
 }
 
-PS_OUTPUT PSDP(in VS_OUTPUT In)
+PS_OUTPUT PSDP_DBG(in VS_OUTPUT In)
 {
 
 	PS_OUTPUT Out;
