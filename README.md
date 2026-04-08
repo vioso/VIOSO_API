@@ -4,23 +4,13 @@ This library is meant to be used in image generators, to do warping and blending
 to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
 It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamc eye warping.
 
-You need a vwf mapping to use. Please download a mapping package here:
+- You need a vwf mapping to use. This the native VIOSO Warp Format for calibration files. Please download a sample file from here:
+https://vioso-my.sharepoint.com/:f:/p/jerbi_ahmed/IgCYy0VoCTVzS53ECvtF8bvwAec5J1zaHThyrX7Npy1hT8k?e=h2gba5
+Or generate an export from our Calibration software:
+https://vioso.com/calibration-software/vioso6
 
-A simple distortion map
-https://vioso.sharepoint.com/:u:/g/EaWsoifHb-1JgadipyWWOIgB9bP3OwNHKRFluPWAaXlvvw?e=4BJQki
-
-cylinder 5x1 landscape
-https://vioso.sharepoint.com/:u:/g/EYC0Ko4UxHZPiZh43h5QNR4BgjN1EoV94UwPEW1M4xZbAw?e=8yVmc3
-
-curved 2x1 landscape
-https://vioso.sharepoint.com/:u:/g/EdZipE3afB5Io1kahdrrSbQBukJ8c2SUd6IFfmacX2_RPA?e=nbXGYV
-
-panadome 3x1 portrait
-https://vioso.sharepoint.com/:u:/g/Eeev8Gzt3EBNoXb-z_g3kscBHoF57Hzk_UbxHg9g4rg3Vg?e=Of4Z7b
-
-or create your own by using VIOSO Integrate plus as trial, download here:
-https://vioso.com/download/vioso-integrate-plus
-
+- You need a configuration (VIOSOWarpBlend.ini) to initialize the plugin. Reference and example here: https://docs.vioso.com/viosowarpblend.ini-reference
+  
 
 ## Usage 
 
@@ -170,4 +160,4 @@ void PostRender( TexHandle inTex )
 ```
 
 
-For configuring and usage see https://helpdesk.vioso.com/documentation/api/
+For configuring and usage see [https://helpdesk.vioso.com/documentation/api/](https://docs.vioso.com/vioso-warpblend-api)
