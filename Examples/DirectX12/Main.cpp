@@ -11,23 +11,28 @@
 
 #include "stdafx.h"
 #include "D3D12HelloTexture.h"
-#include "../../VIOSOWarpBlend/logging.h"
+
+// Errors go to stderr and to a message box, the window is not there yet or already gone.
+static int ReportFailure( char const* text )
+{
+	fprintf( stderr, "%s\n", text );
+	MessageBoxA( NULL, text, "VIOSO DirectX 12 example", MB_OK | MB_ICONERROR );
+	return 2;
+}
 
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-	strcpy_s( g_logFilePath, "D3D12Example.log" );
     try {
         D3D12HelloTexture sample( 1280, 720, L"Display1" );
         return Win32Application::Run( &sample, hInstance, nCmdShow );
 	} catch( const HrException& e ) {
-		logStr( 0, "Error: %s (HRESULT: 0x%08X)\n", e.what(), e.Error() );
-		return -1;
+		char msg[512];
+		sprintf_s( msg, "Direct3D 12 failed: %s (HRESULT: 0x%08X)", e.what(), (unsigned)e.Error() );
+		return ReportFailure( msg );
 	} catch( const std::exception& e ) {
-		logStr( 0, "Error: %s\n", e.what() );
-		return -1;
+		return ReportFailure( e.what() );
 	} catch( ... ) {
-		logStr( 0, "Unknown error occurred.\n" );
-		return -1;
+		return ReportFailure( "Unknown error occurred." );
 	}
 }

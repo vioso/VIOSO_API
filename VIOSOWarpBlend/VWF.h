@@ -23,11 +23,11 @@
 /// Optional values
 /// VWB_WarpFileHeader5.name = "channelName";
 /// VWB_WarpFileHeader5.primName = "screenName";
-/// VWB_WarpFileHeader5.hostName = "clientName";
+/// VWB_WarpFileHeader5.hostname = "clientName";
 /// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedLeft; // 0.4   for content rect
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedTop; // 0.1
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedRight; // 0.7
-/// VWB_WarpFileHeader5.vPartialCnt[0] = normalizedBottom; // 0.3
+/// VWB_WarpFileHeader5.vPartialCnt[1] = normalizedTop; // 0.1
+/// VWB_WarpFileHeader5.vPartialCnt[2] = normalizedRight; // 0.7
+/// VWB_WarpFileHeader5.vPartialCnt[3] = normalizedBottom; // 0.3
 /// next is binary warp data: VWB_WarpRecord[width x height] 
 ///  midle-of-pixel aligned normalized lookup. 
 ///  2D: VWB_WarpRecord.{x = u; y = v; z = valid ? 1 : 0; w = 0}
@@ -53,7 +53,13 @@
 /// (c) VIOSO GmbH 2011 - 2024
 
 #include "../Include/VWBTypes.h"
+#include <cmath>
 #include <iostream>
+
+/// @brief cut off to a whole number, but a value that float noise leaves just below a whole number counts as that number
+/// 1 / vCntDispPx[4] of a 1920 pixel wide content comes back as 1919.9999, a content size of 938.90 stays 938 (as in 1.6).
+/// The tolerance is 0.001 plus 2e-7 of the value, as the noise of a float grows with its size.
+inline VWB_int FloorWithNoise( double v ) { return ( VWB_int )floor( v + 1e-3 + 2e-7 * v ); }
 
 /// @brief free memory used by a VWB_WarpBlend structure
 /// @param wb [INOUT] the warp blend to free

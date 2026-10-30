@@ -2,11 +2,11 @@
 // Microsoft Visual C++ generated include file.
 // Used by VIOSOWarpBlend.rc
 #define VWB_Version_MAJ 1
-#define VWB_Version_MIN 6
-#define VWB_Version_MAI 42
-#define VWB_Version_REV 112
-#define VWB_Version_CUR 2025
-#define VWB_Version_DATE "2025/09/15 14:27:51"
+#define VWB_Version_MIN 7
+#define VWB_Version_MAI 0
+#define VWB_Version_REV 0
+#define VWB_Version_CUR 2026
+#define VWB_Version_DATE "2026/10/30 14:48:48"
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED

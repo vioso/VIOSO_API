@@ -7,6 +7,8 @@
 // https://opensource.org/license/bsd-2-clause
 
 #include "DX11Program.h"
+#include <commdlg.h>
+#include "WindowPlacement.h"
 
 #include "resource.h"
 #include "../../VIOSOWarpBlend/StringConversions.h"
@@ -32,23 +34,58 @@ public:
 
 ////< start VIOSO API code
 
+// default of --ini, contains characters that are not allowed in file names, so it can't collide with a user's choice
+static const wchar_t* const c_iniNotGiven = L"*default*";
+
+// asks for a .vwf file, returns an empty string, if cancelled
+static wstring askForVwf()
+{
+    wchar_t file[MAX_PATH]{};
+    OPENFILENAMEW ofn{ sizeof( ofn ) };
+    ofn.lpstrFilter = L"VIOSO warp files (*.vwf)\0*.vwf\0All files\0*.*\0";
+    ofn.lpstrFile = file;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrTitle = L"VIOSO VWF tester - select a .vwf file";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    return GetOpenFileNameW( &ofn ) ? wstring( file ) : wstring();
+}
+
+// ini and log are looked up relative to the folder of the loaded library, not the working directory
+static string libraryDir()
+{
+    char p[MAX_PATH]{};
+    if( HMODULE h = GetModuleHandleA( "ViosoWarpBlend64" ) )
+        if( GetModuleFileNameA( h, p, MAX_PATH ) )
+        {
+            string s( p );
+            return s.substr( 0, s.find_last_of( "\\/" ) );
+        }
+    return "(library not loaded)";
+}
+
+
 class VIOSOWarperWindow : public OutputWindow {
     unique_ptr<VWB> m_pWarper;
     unique_ptr<MyRenderToTexture> m_rtt;
+    string m_channel;
 public:
     VIOSOWarperWindow( LPCTSTR channelName, HINSTANCE hInstance, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags, bool withDepth, LPCTSTR iniFile = _T( "VIOSOWarpBlend.ini" ), VWB_int logLevel = 2, LPCTSTR logFile = nullptr )
     : OutputWindow( hInstance, channelName, x, y, width, height, nCmdShow, effect, bufferCount, createDeviceFlags, withDepth )
+    , m_channel( to_string( wstring( channelName ) ) )
     {
 
         try {
-            m_pWarper = make_unique<VWB>(nullptr, m_dev, iniFile, channelName, logLevel, logFile );
+            m_pWarper = make_unique<VWB>(nullptr, m_dev.Get(), iniFile, channelName, logLevel, logFile );
         }
         catch (VWB_ERROR& err)
         {
-            throw exception( (string( "Creating Warper failed with error ") + to_string( int(err)) ).c_str() );
+            throw exception( ( string( "Creating warper for channel \"" ) + to_string( wstring( channelName ) ) + "\" failed: " + VWB::GetErrorCStr( err ) + " (VWB_ERROR " + to_string( int( err ) ) + ").\n"
+                "Config file: " + ( iniFile && iniFile[0] ? to_string( wstring( iniFile ) ) : string( "(none)" ) ) + "\n"
+                "Relative paths (ini, log) are resolved against the library folder: " + libraryDir() + "\n"
+                "Details are in VIOSOWarpBlend.log there (set logLevel=3 in the .ini)." ).c_str() );
         }
 
-        m_rtt = make_unique< MyRenderToTexture >( m_dev, (int)m_vp.Width, (int)m_vp.Height, DXGI_FORMAT_R8G8B8A8_UNORM, true );
+        m_rtt = make_unique< MyRenderToTexture >( m_dev.Get(), (int)m_vp.Width, (int)m_vp.Height, DXGI_FORMAT_R8G8B8A8_UNORM, true );
     }
 
     virtual ~VIOSOWarperWindow()
@@ -57,9 +94,15 @@ public:
         m_rtt.reset();
     }
 
-    VWB_ERROR init() noexcept
+    VWB_ERROR init()
     {
-        return m_pWarper->Init();
+        VWB_ERROR err = m_pWarper->Init();
+        if( VWB_ERROR_NONE != err )
+            throw exception( ( string( "Init of channel \"" ) + m_channel + "\" failed: " + VWB::GetErrorCStr( err ) + " (VWB_ERROR " + to_string( int( err ) ) + ").\n"
+                "Calibration file as read: \"" + string( m_pWarper->get().calibFile ) + "\"\n"
+                "Relative paths (ini, log) are resolved against the library folder: " + libraryDir() + "\n"
+                "Details are in VIOSOWarpBlend.log there (set logLevel=3 in the .ini)." ).c_str() );
+        return err;
     }
 
     VWB& getWarper() {
@@ -128,7 +171,7 @@ public:
         __super::preRender(); 
 
         // this applies warp
-        m_pWarper->Render( m_rtt->getResource(), VWB_STATEMASK_STANDARD );
+        m_pWarper->Render( m_rtt->getResource().Get(), VWB_STATEMASK_STANDARD );
 
         __super::postRender();
     }
@@ -147,6 +190,24 @@ const UINT g_createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
 const UINT g_createDeviceFlags = 0;
 #endif
 
+// An unhandled exception is reported: message box, stderr and the library's log. Then the search goes on, so that Windows still writes its
+// "Application Error" entry (and WER may take a dump); the exit code is the exception code.
+static LONG WINAPI reportUnhandledException( EXCEPTION_POINTERS* ep )
+{
+    DWORD code = ep && ep->ExceptionRecord ? ep->ExceptionRecord->ExceptionCode : 0;
+    void* addr = ep && ep->ExceptionRecord ? ep->ExceptionRecord->ExceptionAddress : nullptr;
+    char module[MAX_PATH] = "unknown module";
+    HMODULE h = nullptr;
+    if( GetModuleHandleExA( GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)addr, &h ) && h )
+        GetModuleFileNameA( h, module, MAX_PATH );
+    char msg[MAX_PATH + 128];
+    snprintf( msg, sizeof( msg ), "VWF tester: unhandled exception 0x%08lX at address 0x%p in %s (offset 0x%llX)", code, addr, module, h ? (unsigned long long)( (char*)addr - (char*)h ) : 0ULL );
+    fprintf( stderr, "%s\n", msg );
+    logToVioso( msg );
+    MessageBoxA( 0, msg, "VIOSO VWF tester - Unhandled exception", MB_OK | MB_ICONERROR );
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing 
 // loop. Idle time is used to render the scene.
@@ -162,13 +223,23 @@ int WINAPI wWinMain(
     UNREFERENCED_PARAMETER( hPrevInstance );
     UNREFERENCED_PARAMETER( nCmdShow );
 
+    SetUnhandledExceptionFilter( reportUnhandledException );
+
 	try {
-        g_params = ParamMap( lpCmdLine, {
+        // without arguments let the user pick a vwf, same as passing it as the only argument
+        wstring cmdLine = lpCmdLine ? lpCmdLine : L"";
+        if( wstring::npos == cmdLine.find_first_not_of( L" \t" ) )
+        {
+            wstring file = askForVwf();
+            if( !file.empty() )
+                cmdLine = L"\"" + file + L"\"";
+        }
+        g_params = ParamMap( cmdLine.data(), {
             false, L'F',
             { // define parameters with their defaults
                 { L"help", {} }, // help is a flag
                 { L"render", { -1, true, { L"cubes" } } }, // render needs at least one argument, is mandatory but initialized with { L"cubes" }
-                { L"ini", { 1, true, { L"VIOSOWarpBlend.ini" } } }, // ini needs one argument
+                { L"ini", { 1, true, { c_iniNotGiven } } }, // ini needs one argument, if not given, VIOSOWarpBlend.ini is used except in --mode file
                 { L"nowarp", {} },
                 { L"small", {} },
                 { L"mode", { -1, true, { L"monitor", L"Display1", L"0" } } },
@@ -193,9 +264,10 @@ int WINAPI wWinMain(
         {
             auto msg = R"END(VIOSO VWF tester
 Usage:
-  VWFTester [-s] [--option]
+  VWFTesterDX11 [-s] [--option]
   to show a vwf file with cubes just call
-  VWFTester file.vwf
+  VWFTesterDX11 file.vwf
+  or drop the file on the executable. Without any argument a file dialog opens.
   Switches:
     -h or --help: show help
 
@@ -226,28 +298,34 @@ Usage:
             bool noWarp = g_params.is( L"nowarp" );
             bool preview = g_params.is( L"small" );
             wstring ini = g_params[L"ini"].empty() ? L"" : g_params[L"ini"][0];
+            bool iniGiven = ini != c_iniNotGiven;
+            if( !iniGiven )
+                ini = L"VIOSOWarpBlend.ini";
             if( g_params[L"mode"][0] == L"inifile" && 1 < g_params[L"mode"].size() )
+            {
                 ini = g_params[L"mode"][1];
+                iniGiven = true;
+            }
             if( mode[0] == L"file" )
             {
+                // channels, files and indices come from the vwf, so we don't need an ini, unless asked for
+                if( !iniGiven )
+                    ini.clear();
                 // analyze vwf
                 VWB::loadDll();
                 VWB::SetCryptoKey( (uint8_t*)"blalaberbla" );
                 string accu = accumulate( mode.begin() + 2, mode.end(), to_string( mode[1] ), []( string s, wstring const& o ) { return move(s) + ',' + to_string( o ); } );
 
                 std::vector<VWB_WarpBlendHeader> set = VWB::VwfInfo( accu.c_str() );
+                if( set.empty() )
+                    throw invalid_argument( string( "Could not read any channel from " ) + accu + ".\nIs the file missing or not a .vwf? Relative paths are resolved against the library folder: " + libraryDir() );
+                Placement placement( set, preview );
                 for( size_t i = 0; i != set.size(); i++ )
                 {
                     auto const& h = set[i]; 
                     wstring chName = h.header.name[0] ? to_wstring( h.header.name ) : wstring( _T("Display") ) + to_wstring( i );
-                    int l = ( int )h.header.offsetX, t = ( int )h.header.offsetY, wi = h.header.width, hi = h.header.height;
-                    if( preview )
-                    {
-                        l /= 4;
-                        t /= 4;
-                        hi /= 4;
-                        wi /= 4;
-                    }
+                    RECT rc = placement.rect( h );
+                    int l = rc.left, t = rc.top, wi = rc.right - rc.left, hi = rc.bottom - rc.top;
                     if( noWarp )
                         g_windows.emplace_back( make_shared<OutputWindow>( hInstance, chName.c_str(), l, t, wi, hi, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, g_createDeviceFlags, false));
                     else
@@ -265,6 +343,8 @@ Usage:
                         g_windows.push_back( ptr );
                     }
                 }
+				for( auto& w : g_windows )
+				    w->appendTitle( placement.note );
 				VWB::unloadDll();
             }
             else if( mode[0] == L"inifile" )
@@ -273,18 +353,13 @@ Usage:
                 auto set = VWB::VwfInfo( vwb.get().calibFile );
                 if( set.empty() )
                     throw invalid_argument( string( "Could not find vwf file " ) + vwb.get().calibFile + " from default section in " + to_string(ini));
+                Placement placement( set, preview );
                 for( size_t i = 0; i != set.size(); i++ )
                 {
                     auto const& h = set[i];
                     tstring chName = h.header.name[0] ? to_wstring( h.header.name ) : wstring( _T( "Display" ) ) + to_wstring( i );
-                    int l = ( int )h.header.offsetX, t = ( int )h.header.offsetY, wi = h.header.width, hi = h.header.height;
-                    if( preview )
-                    {
-                        l /= 4;
-                        t /= 4;
-                        hi /= 4;
-                        wi /= 4;
-                    }
+                    RECT rc = placement.rect( h );
+                    int l = rc.left, t = rc.top, wi = rc.right - rc.left, hi = rc.bottom - rc.top;
                     if( noWarp )
                         g_windows.emplace_back( make_shared<OutputWindow>( hInstance, chName.c_str(), l, t, wi, hi, SW_SHOW, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, 2, g_createDeviceFlags, false ) );
                     else
@@ -302,6 +377,8 @@ Usage:
                         g_windows.push_back( ptr );
                     }
                 }
+                for( auto& w : g_windows )
+                    w->appendTitle( placement.note );
             }
             else if( mode[0] == L"monitor" )
             {
@@ -438,7 +515,7 @@ Usage:
             {
                 for( auto& wnd : g_windows )
                 {
-                    wnd->addRenderer( make_shared< CubesRenderer >( wnd->getDevice() ) );
+                    wnd->addRenderer( make_shared< CubesRenderer >( wnd->getDevice().Get() ) );
                 }
             }
             else if( render[0] == L"model" )
@@ -448,7 +525,7 @@ Usage:
                 for( auto& wnd : g_windows )
                 {
                     for( auto s = render.begin() + 1; s != render.end(); s++ )
-                        wnd->addRenderer( make_shared< AssimpRenderer >( wnd->getDevice(), *s ) );
+                        wnd->addRenderer( make_shared< AssimpRenderer >( wnd->getDevice().Get(), *s ) );
                 }
             }
             else if( render[0] == L"image" )
@@ -459,7 +536,7 @@ Usage:
                 for( auto& wnd : g_windows )
                 {
                     for( auto s = render.begin() + 1; s != render.end(); s++ )
-                        wnd->addRenderer( make_shared< ImageRenderer >( wnd->getDevice(), to_string( *s ).c_str() ) );
+                        wnd->addRenderer( make_shared< ImageRenderer >( wnd->getDevice().Get(), to_string( *s ).c_str() ) );
                 }
             }
             else if( render[0] == L"imageROI" )
@@ -507,17 +584,22 @@ Usage:
         return ( int )msg.wParam;
     }
     catch( VWB_ERROR e ) {
-        MessageBoxA( 0, ( std::string("VWB ERROR: ") + VWB::GetErrorCStr(e) + "\nFor help use -h or --help." ).c_str(), "Library Parameters", MB_OK );
+        std::string msg = std::string( "VWB ERROR: " ) + VWB::GetErrorCStr( e ) + " (" + std::to_string( int( e ) ) + ").\nRelative paths (ini, log) are resolved against the library folder: " + libraryDir() + "\nDetails are in VIOSOWarpBlend.log there.\nFor help use -h or --help.";
+        fprintf( stderr, "%s\n", msg.c_str() );
+        MessageBoxA( 0, msg.c_str(), "VIOSO VWF tester - Library error", MB_OK | MB_ICONERROR );
         return -3;
     }
 	catch( std::invalid_argument& e )
 	{
-		MessageBoxA( 0, ( std::string(e.what()) + "\nFor help use -h or --help." ).c_str(), "Invalid Parameters", MB_OK );
+		std::string msg = std::string( e.what() ) + "\nFor help use -h or --help.";
+		fprintf( stderr, "%s\n", msg.c_str() );
+		MessageBoxA( 0, msg.c_str(), "VIOSO VWF tester - Invalid parameters", MB_OK | MB_ICONERROR );
 		return -2;
 	}
     catch( std::exception& e )
     {
-        MessageBoxA( 0, e.what(), "Exception", MB_OK );
+        fprintf( stderr, "%s\n", e.what() );
+        MessageBoxA( 0, e.what(), "VIOSO VWF tester - Error", MB_OK | MB_ICONERROR );
         return -1;
     }
 }

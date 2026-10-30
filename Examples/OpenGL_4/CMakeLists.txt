@@ -1,24 +1,18 @@
-cmake_minimum_required(VERSION 3.5)
-
-project(OpenGL_4 DESCRIPTION "VIOSOWarpBlend OpenGL Example")
-
-set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
-include_directories(${OpenGL_INCLUDE_DIRS})
-add_definitions(${OpenGL_DEFINITIONS})
-if(NOT OPENGL_FOUND)
-  message(ERROR "OPENGL not found!")
-endif(NOT OPENGL_FOUND)
 
-add_executable(OpenGL_4 gl3_2.cpp)
-set_property(TARGET OpenGL_4 PROPERTY CXX_STANDARD 20)
+add_executable(OpenGLExample WIN32 gl3_2.cpp)
+target_include_directories(OpenGLExample PRIVATE "${PROJECT_SOURCE_DIR}/Include")
 
-IF(WIN32)
-target_link_libraries(OpenGL_4 opengl32 glu32)
-ELSE()
-target_link_libraries(OpenGL_4 X11 GL GLU libdl.so)
-ENDIF()
-include_directories(${CMAKE_SOURCE_DIR}/Include)
-install(TARGETS OpenGL_4
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+# The library is loaded at runtime, but has to be built first
+add_dependencies(OpenGLExample VIOSOWarpBlend SampleData)
+
+if(WIN32)
+    target_compile_definitions(OpenGLExample PRIVATE WIN32 _WINDOWS)
+    target_link_libraries(OpenGLExample PRIVATE opengl32 glu32)
+else()
+    find_package(X11 REQUIRED)
+    target_link_libraries(OpenGLExample PRIVATE X11::X11 OpenGL::GL ${CMAKE_DL_LIBS})
+    if(TARGET OpenGL::GLU)
+        target_link_libraries(OpenGLExample PRIVATE OpenGL::GLU)
+    endif()
+endif()

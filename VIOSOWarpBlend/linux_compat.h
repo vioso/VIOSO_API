@@ -12,6 +12,7 @@
 #include <stdarg.h>
 #include <stdlib.h> // contains various _s functions, if still missing force C++11 or higher
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string>

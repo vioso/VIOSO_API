@@ -1,43 +1,50 @@
-cmake_minimum_required(VERSION 3.9)
+# The bundled third-party binaries (assimp, libpng, zlib) are x64 MSVC builds.
+if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "DirectX11 example skipped: needs MSVC and x64")
+    return()
+endif()
 
-project(Example_DirectX11 VERSION 1.2.4 DESCRIPTION "VIOSOWarpBlend OpenGL Example")
+add_executable(DirectX11Example WIN32
+    DX11Example.cpp
+    DX11Program.cpp
+    AssimpRenderer.cpp
+    DX11Example.rc
+    DX11Example.manifest
+)
+set_target_properties(DirectX11Example PROPERTIES OUTPUT_NAME VWFTesterDX11)
 
-set(THIRD_PARTY ${CMAKE_SOURCE_DIR}/VIOSOWarpBlend/3rdparty)
-
-set(CMAKE_CXX_STANDARD 17)
-set(DEFAULT_FLAGS "-Wall -Werror -Wno-unused-result -Wno-unknown-pragmas")
-
-file(GLOB_RECURSE SOURCES "*.cpp")
-
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
-target_link_libraries(${PROJECT_NAME} VIOSOWarpBlend)
-
-include_directories(${CMAKE_SOURCE_DIR}/Include)
-
-if(WIN32)
-	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-	    set(ARCH_POSTFIX "")
-		set(LIB_ARCH_PATH "Win32")
-	else()
-		set(ARCH_POSTFIX 64)
-		set(LIB_ARCH_PATH "x64")
-	endif()
-endif(WIN32)
-
-
-#d3dx
-include_directories(${THIRD_PARTY}/d3dX/include/)
-#target_link_libraries (${PROJECT_NAME} ${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/d3dx9.lib)
-#target_link_libraries (${PROJECT_NAME} ${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/d3dx10.lib)
-target_link_libraries (${PROJECT_NAME}
-	${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/dxerr.lib
-	VIOSOWarpBlend
-	)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD 
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/debug/VIOSOWarpBlend.ini ${CMAKE_CURRENT_BINARY_DIR}
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/data/vioso2d.vwf $<TARGET_FILE_DIR:${PROJECT_NAME}>
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/data/vioso3D.vwf $<TARGET_FILE_DIR:${PROJECT_NAME}>
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/VIOSOWarpBlend.dll ${CMAKE_CURRENT_BINARY_DIR}/.
+target_compile_definitions(DirectX11Example PRIVATE WIN32 _WINDOWS UNICODE _UNICODE)
+target_include_directories(DirectX11Example PRIVATE
+    "${PROJECT_SOURCE_DIR}/Include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assimp/include"
+)
+target_link_libraries(DirectX11Example PRIVATE
+    d3d11 dxgi d3dcompiler comdlg32
+    "${CMAKE_CURRENT_SOURCE_DIR}/assimp/lib/assimp-vc142-mt.lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lpng16/libpng16_static.lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/zlib/zlibstatic.lib"
 )
 
+# The library is loaded at runtime, but has to be built first
+add_dependencies(DirectX11Example VIOSOWarpBlend SampleData)
+
+add_custom_command(TARGET DirectX11Example POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/assimp/bin/assimp-vc142-mt.dll"
+            "$<TARGET_FILE_DIR:DirectX11Example>"
+)
+
+# The media server example: several outputs on one device, one warper per channel. Does not need assimp.
+add_executable(MediaServerExample
+    MediaServerExample.cpp
+    DX11Program.cpp
+)
+set_target_properties(MediaServerExample PROPERTIES OUTPUT_NAME MediaServerExampleDX11)
+target_compile_definitions(MediaServerExample PRIVATE WIN32 _WINDOWS UNICODE _UNICODE)
+target_include_directories(MediaServerExample PRIVATE "${PROJECT_SOURCE_DIR}/Include")
+target_link_libraries(MediaServerExample PRIVATE
+    d3d11 dxgi d3dcompiler
+    "${CMAKE_CURRENT_SOURCE_DIR}/lpng16/libpng16_static.lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/zlib/zlibstatic.lib"
+)
+add_dependencies(MediaServerExample VIOSOWarpBlend SampleData)

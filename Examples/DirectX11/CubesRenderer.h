@@ -12,19 +12,19 @@ class CubesRenderer : public Renderer
     static const int s_nCubes = 9;
     static const int s_nnCubes = 2 * s_nCubes * s_nCubes + 2 * s_nCubes * ( s_nCubes - 2 ) + 2 * ( s_nCubes - 2 ) * ( s_nCubes - 2 );
     static const char s_szShader[];
-    CComPtr< ID3D11VertexShader > m_vs;
-    CComPtr< ID3D11PixelShader > m_ps;
-    CComPtr< ID3D11InputLayout > m_layout;
-    CComPtr< ID3D11Buffer > m_vb;
-    CComPtr< ID3D11Buffer > m_cb;
+    ComPtr< ID3D11VertexShader > m_vs;
+    ComPtr< ID3D11PixelShader > m_ps;
+    ComPtr< ID3D11InputLayout > m_layout;
+    ComPtr< ID3D11Buffer > m_vb;
+    ComPtr< ID3D11Buffer > m_cb;
     VSConstantBufferA m_vsConstants;
 
 public:
     CubesRenderer( ID3D11Device* dev )
     {
         // Compile the vertex shader
-        CComPtr< ID3DBlob > codeBlob;
-        CComPtr< ID3DBlob > errBlob;
+        ComPtr< ID3DBlob > codeBlob;
+        ComPtr< ID3DBlob > errBlob;
         HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "cubes vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
             throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
@@ -43,8 +43,8 @@ public:
             throw std::exception( "failed to create input layout" );
 
         // Compile the pixel shader
-        codeBlob.Release();
-        errBlob.Release();
+        codeBlob.Reset();
+        errBlob.Reset();
         hr = D3DCompile( s_szShader, strlen( s_szShader ), "cubes pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
             throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
@@ -53,8 +53,8 @@ public:
         hr = dev->CreatePixelShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_ps );
         if( FAILED( hr ) )
             throw std::exception( "failed to create pixel shader" );
-        codeBlob.Release();
-        errBlob.Release();
+        codeBlob.Reset();
+        errBlob.Reset();
 
         // render some cubes around 0,0,0
         static const float sz = 10.0f / ( 3 * s_nCubes - 1 );
@@ -171,12 +171,12 @@ public:
     {
 
         // Set the input layout
-        ctx->IASetInputLayout( m_layout );
+        ctx->IASetInputLayout( m_layout.Get() );
 
         // Set vertex buffer
         UINT stride = sizeof( SimpleVertex );
         UINT offset = 0;
-        ctx->IASetVertexBuffers( 0, 1, &m_vb.p, &stride, &offset );
+        ctx->IASetVertexBuffers( 0, 1, m_vb.GetAddressOf(), &stride, &offset );
 
         // Set primitive topology
         ctx->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
@@ -185,12 +185,12 @@ public:
         m_vsConstants.mWorld = XMMatrixTranspose( world );
         m_vsConstants.mView = XMMatrixTranspose( view );
         m_vsConstants.mProjection = XMMatrixTranspose( projection );
-        ctx->UpdateSubresource( m_cb, 0, NULL, &m_vsConstants, 0, 0 );
-        ctx->VSSetConstantBuffers( 0, 1, &m_cb.p );
+        ctx->UpdateSubresource( m_cb.Get(), 0, NULL, &m_vsConstants, 0, 0 );
+        ctx->VSSetConstantBuffers( 0, 1, m_cb.GetAddressOf() );
 
         // set shader
-        ctx->VSSetShader( m_vs, NULL, 0 );
-        ctx->PSSetShader( m_ps, NULL, 0 );
+        ctx->VSSetShader( m_vs.Get(), NULL, 0 );
+        ctx->PSSetShader( m_ps.Get(), NULL, 0 );
 
         // draw
         ctx->Draw( s_nnCubes * 36, 0 );

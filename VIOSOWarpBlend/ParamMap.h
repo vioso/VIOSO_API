@@ -108,7 +108,12 @@ namespace VWBUtil
                         continue;
                     }
                 }
+                // a flag (attribute without arguments) does not take the next word, it goes to the default command
+                bool lastIsFlag = false;
                 if( arguments != params.end() )
+                    if( auto ii = init.attributes.find( arguments->first ); init.attributes.end() != ii && 0 == ii->second.numArguments )
+                        lastIsFlag = true;
+                if( arguments != params.end() && !lastIsFlag )
                 { // this is an attribute
                     if( arguments->second.empty() )
                         arguments->second.emplace_back( p );

@@ -35,6 +35,35 @@ HMODULE g_hModDll = NULL;
 #include "../../Include/VIOSOWarpBlend.h"
 #endif //def USE_VIOSO_API
 
+static std::string narrow( std::wstring const& w )
+{
+    std::string s( w.size() * 4 + 1, 0 );
+    int len = WideCharToMultiByte( CP_UTF8, 0, w.c_str(), -1, &s[0], (int)s.size(), nullptr, nullptr );
+    s.resize( len > 0 ? len - 1 : 0 );
+    return s;
+}
+
+static char const* VwbErrorText( VWB_ERROR err )
+{
+    switch( err )
+    {
+    case VWB_ERROR_NONE: return "no error";
+    case VWB_ERROR_GENERIC: return "generic error (library not found or incomplete?)";
+    case VWB_ERROR_PARAMETER: return "invalid parameter";
+    case VWB_ERROR_INI_LOAD: return ".ini file could not be loaded";
+    case VWB_ERROR_BLEND: return "blend map invalid or could not be loaded to the GPU";
+    case VWB_ERROR_WARP: return "warp map invalid or could not be loaded to the GPU";
+    case VWB_ERROR_SHADER: return "shader failed to compile (GPU or driver not supported?)";
+    case VWB_ERROR_VWF_LOAD: return "calibration file (.vwf) is broken or has the wrong version";
+    case VWB_ERROR_VWF_FILE_NOT_FOUND: return "calibration file (.vwf) not found";
+    case VWB_ERROR_NOT_IMPLEMENTED: return "not implemented";
+    case VWB_ERROR_NETWORK: return "network could not be initialized";
+    case VWB_ERROR_NDI: return "NDI could not be initialized";
+    case VWB_ERROR_FALSE: return "nothing done";
+    }
+    return "unknown error";
+}
+
 D3D12HelloTexture::D3D12HelloTexture(UINT width, UINT height, std::wstring name) :
     DXSample( RECT{ 0,0,(int)width, (int)height }, name ),
     m_viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)),
@@ -88,18 +117,36 @@ void D3D12HelloTexture::OnInit()
     #define VIOSOWARPBLEND_FILE m_dllPath.c_str()
 	#include "../../Include/VIOSOWarpBlend.h"
 
-    if( nullptr != VWB_Create &&
-        nullptr != VWB_Init ) {
-        if( VWB_ERROR_NONE == VWB_Create( m_commandQueue.Get(), m_iniPath.c_str(), m_channelName.c_str(), &m_warper, 0, NULL ) ) {
-            if( VWB_ERROR_NONE != VWB_Init( m_warper ) ) {
-                throw std::runtime_error( "Failed to initialize VIOSO Warper" );
+    if( nullptr == VWB_Create || nullptr == VWB_Init )
+        throw std::runtime_error( "Failed to load the VIOSO library \"" + m_dllPath + "\".\n"
+            "It has to be in the folder of this program or in the DLL search path." );
+
+    // ini and log are looked up relative to the folder of the library, not the working directory
+    auto const fail = [this]( char const* what, VWB_ERROR err, bool calibRead ) {
+        std::string dir( "(library not loaded)" );
+        char p[MAX_PATH]{};
+        if( HMODULE h = GetModuleHandleA( m_dllPath.c_str() ) )
+            if( GetModuleFileNameA( h, p, MAX_PATH ) ) {
+                dir = p;
+                dir.resize( dir.find_last_of( "\\/" ) );
             }
-        } else {
-            throw std::runtime_error( "Failed to create VIOSO Warper" );
-        }
-    }
-    else
-        throw std::runtime_error( ( std::string( "Failed to load VIOSO Warper from \"" ) + m_dllPath.c_str() + "\"" ).c_str() );
+        return std::runtime_error( std::string( what ) + " for channel \"" + narrow( m_channelName ) + "\" failed: " + VwbErrorText( err ) +
+            " (VWB_ERROR " + std::to_string( (int)err ) + ").\n"
+            "Config file: " + narrow( m_iniPath ) + "\n" +
+            ( calibRead ? "Calibration file as read: \"" + std::string( m_warper->calibFile ) + "\"\n" : std::string() ) +
+            "Relative paths (ini, log) are resolved against the library folder: " + dir + "\n"
+            "Details are in VIOSOWarpBlend.log there (set logLevel=3 in the .ini)." );
+    };
+
+    if( VWB_ERROR err = VWB_Create( m_commandQueue.Get(), m_iniPath.c_str(), m_channelName.c_str(), &m_warper, 0, NULL ); VWB_ERROR_NONE != err )
+        throw fail( "Create", err, false );
+    if( VWB_ERROR err = VWB_Init( m_warper ); VWB_ERROR_NONE != err )
+        throw fail( "Init", err, true );
+
+    // the same call is made every frame, so a failure here would not go away
+    float eye[3] = {}, rot[3] = {}, view[16], proj[16];
+    if( VWB_ERROR err = VWB_getViewProj( m_warper, eye, rot, view, proj ); VWB_ERROR_NONE != err )
+        throw fail( "VWB_getViewProj", err, true );
 #endif //def USE_VIOSO_API
 }
 

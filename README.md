@@ -1,163 +1,155 @@
-﻿# VIOSO WarpBlend API
+# VIOSO WarpBlend API
 
 This library is meant to be used in image generators, to do warping and blending. It takes a VIOSO Warp File (.vwf) export and a texture buffer 
 to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
-It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamc eye warping.
+It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamic eye warping.
 
-- You need a vwf mapping to use. This the native VIOSO Warp Format for calibration files. Please download a sample file from here:
+- You need a vwf mapping to use. This is the native VIOSO Warp Format for calibration files. Example calibrations (.vwf) to download:
 https://vioso-my.sharepoint.com/:f:/p/jerbi_ahmed/IgCYy0VoCTVzS53ECvtF8bvwAec5J1zaHThyrX7Npy1hT8k?e=h2gba5
 Or generate an export from our Calibration software:
-https://vioso.com/calibration-software/vioso6
+https://vioso.com/calibration-software/vioso7/
 
-- You need a configuration (VIOSOWarpBlend.ini) to initialize the plugin. Reference and example here: https://docs.vioso.com/viosowarpblend.ini-reference
+- You need a configuration (VIOSOWarpBlend.ini) to initialize the plugin. The online documentation describes the .ini: https://docs.vioso.com/viosowarpblend.ini-reference
+  [docs/ini-reference.md](docs/ini-reference.md) is the same reference, in the package, matching this version.
   
 
-## Usage 
+## Quickstart
 
-### 1 Static binding
-having VIOSOWarpBlend next to your executable or in added to %path%,
-link against VIOSOWarpBlend.lib and, in your header.
-```
+1. **Get the programs**, in one of two ways:
+   - **The release package** (`VIOSO_API-<version>-win-x64.zip`): unpack it and start `bin\VWFTesterDX11.exe`. The sample calibration `2D_plane_FHD.vwf`
+     and the sample `.ini` files are in the same folder.
+   - **Build from the sources** (Windows, Visual Studio 2022 or 2026 and CMake): see [Build](#build). The build copies the sample calibration and
+     the sample configuration next to the executables.
+2. **See a picture.** Start `VWFTesterDX11.exe` without arguments and choose a .vwf file (or drop the file on the executable, or
+   `VWFTesterDX11.exe file.vwf`). It opens every channel of the file in its original place, or as a preview that fits on your desktop, and shows a test scene through the warp.
+   `VWFTesterDX11.exe file.vwf -p picture.png` shows a picture instead. `MediaServerExampleDX11.exe file.vwf --list` lists the channels of a file. All examples, their arguments and keys: [docs/examples.md](docs/examples.md).
+3. **Put it into your application.** The short version, Direct3D 11, without an .ini file:
+
+   ```cpp
+   #include "VIOSOWarpBlend.hpp"                       // loads the library at runtime
+
+   // bind your output's render target, then:
+   VWB warper( nullptr, d3d11Device, nullptr, "Display1" );   // throws VWB_ERROR
+   VWB_Warper& w = warper.get();
+   strcpy_s( w.calibFile, "2D_plane_FHD.vwf" );
+   w.calibIndex = 0;                                          // data set in the file
+   float const lh[16]{ 1,0,0,0, 0,1,0,0, 0,0,-1,0, 0,0,0,1 };
+   memcpy( w.trans, lh, sizeof( lh ) );                       // left handed, Direct3D
+   warper.Init();
+
+   // every frame: render your content into a texture, bind the output's render target, then
+   warper.Render( contentTexture, VWB_STATEMASK_DEFAULT | VWB_STATEMASK_VIEWPORT );
+   ```
+
+   OpenGL: create the warper with the OpenGL context current, `base` is the identity matrix (right handed), and
+   `warper.Render( VWB_UNDEFINED_GL_TEXTURE, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE )` after your scene. See
+   the [integration guide](docs/integration-guide.md), which also lists the pitfalls: **set `base` always**, relative paths are relative to the library folder, and more.
+
+More: [integration guide](docs/integration-guide.md), [.ini reference](docs/ini-reference.md), [.vwf format](docs/vwf-format.md),
+[examples](docs/examples.md), [eye point provider](docs/eyepoint-provider.md).
+
+## Binding the library
+
+Use the wrapper class `VWB` (see the quickstart), or the C functions of `VIOSOWarpBlend.h`, linked statically or loaded at run time. The calls and their
+order are described in the [integration guide](docs/integration-guide.md).
+
+### Static binding
+
+Link against `VIOSOWarpBlend64.lib` and have `VIOSOWarpBlend64.dll` next to your executable or in the `PATH`.
+
+```cpp
 #include "VIOSOWarpBlend.h"
-```
 
-### 2 Dynamic binding  
-
-### 2a use wrapper from VIOSOWarpBlend
-declaration:
-
-```
-#include "../../Include/VIOSOWarpBlend.hpp"
-const char* s_configFile = "VIOSOWarpBlendGL.ini";
-std::shared_ptr<VWB> pWarper;
-```
-
-initialization: (where channel is a string containing the channel name)
-```
-try {
-	pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
-}
-catch( VWB_ERROR )
+VWB_Warper* warper = nullptr;
+if( VWB_ERROR_NONE != VWB_CreateA( device, "VIOSOWarpBlend.ini", "Display1", &warper, 0, nullptr ) ||
+    VWB_ERROR_NONE != VWB_Init( warper ) )
 {
-	return FALSE;
+    /* report the error, look into VIOSOWarpBlend.log */
 }
-if( VWB_ERROR_NONE != pWarper->Init() )
-	return FALSE;
+
+// every frame, with the output's render target bound
+// (3D maps: call VWB_getViewProj( warper, eye, rot, view, proj ) first)
+VWB_render( warper, (VWB_param)contentTexture, VWB_STATEMASK_DEFAULT | VWB_STATEMASK_VIEWPORT );
+
+VWB_Destroy( warper );   // before you release the device
 ```
 
-pre-render:
-```	
-float view[16], proj[16];
-	float eye[3] = { 0,0,0 };
-	float rot[3] = { 0,0,0 };
- 
-	pWarper->GetViewProj( eye, rot, view, proj ); // call some of the get frustum functions there are others serving clip coordinates or angles
-```
+`VWB_Create` is `VWB_CreateW` in a Unicode build; `VWB_CreateA` takes `char` strings in any build.
 
-render:
-    render your scene into FBO / Offscreen RT, attached to texUnwarped
-    
-post-render:
-```	
-pWarper->Render( texUnwarped, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
-```
+### Dynamic binding
 
+The header can declare the function pointers and load the library for you. Have your platform headers (`windows.h`, `d3d11.h` ...) included before.
 
-### 2b via [precompiled] header:
-
-in header declare functions and types:
-```
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE
+```cpp
+#include <windows.h>
+#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT   // declares and defines the function pointers
 #include "VIOSOWarpBlend.h"
-```
-in one file on top, to implement the actual functions/objects
-```
-#define VIOSOWARPBLEND_DYNAMIC_IMPLEMENT
-#include "VIOSOWarpBlend.h"
-```
-in module initialization, this loads function pointers from library
-```
-#define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-#include "VIOSOWarpBlend.h"
-```
-### 2c Single file:
 
-in file on top, to declare and implement functions/objects,
-```
-#define VIOSOWARPBLEND_DYNAMIC_DEFINE_IMPLEMENT
-#include "VIOSOWarpBlend.h"
-```
-in module initialization, this loads function pointers from library
-```
-#define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-#include "VIOSOWarpBlend.h"
-```
-Always make sure to have your platform headers loaded before!
-
-## Build on Windows
-Clone the repositiory, use MS Visual Studio(R) and include VIOSOWarpBlend/VIOSOWarpBlend.vcxproj project file to your solution. Compile along with your projects.
-
-## Build on Linux:
-There is a separate linux branch which is work in progress. Master branch is constantly converging, worth a try.
-Check it out via the command 
- ```git clone -b linux_test https://bitbucket.org/VIOSO/VIOSO_api.git```
- ```git clone -b master https://bitbucket.org/VIOSO/VIOSO_api.git```
-(be sure to have installed git lfs or do ```sudo apt-get install git-lfs```  if you get an error related to extracting vioso2d.zip or vioso3D.zip you may have force a git lfs checkout: ```git lfs pull```)
-
-Build it (as a shared library) using cmake: in the root folder execute the follwing command (having cmake installed - sudo apt-get install cmake):
-```mkdir build && cd build && cmake .. && make```
-and
-```make install``` 
-to make it available system wide.
-
-Link it the usual way:  
-```g++  ... -L/usr/local/lib -lVIOSOWarpBlend``` 
-(adjust -L/usr/local/lib to the place you installed it to)
-
-In order to build the example project you'll need glfw + dependencies. use this command: ```sudo apt-get install libglfw3-dev libxcursor-dev libxi-dev libxinerama-dev freeglut3-dev```
-
-Use dynamic load or dynamic linked lirary like this:
-```
-#define VIOSOWARPBLEND_DYNAMIC_IMPLEMENT
-#include "../../Include/VIOSOWarpBlend.h"
-LPCTSTR s_configFile = _T( "VIOSOWarpBlend.ini" );
-LPCTSTR s_channel = _T( "IG1" );
 VWB_Warper* g_warper = nullptr;
 
-void Init()
+bool Init( void* device )
 {
-    #define VIOSOWARPBLEND_DYNAMIC_INITIALIZE
-	#include "../../Include/VIOSOWarpBlend.h"
+#define VIOSOWARPBLEND_DYNAMIC_INITIALIZE         // loads the library and the functions
+#include "VIOSOWarpBlend.h"
+    return nullptr != VWB_CreateA && nullptr != VWB_Init && nullptr != VWB_render && nullptr != VWB_Destroy &&
+        VWB_ERROR_NONE == VWB_CreateA( device, "VIOSOWarpBlend.ini", "Display1", &g_warper, 0, nullptr ) &&
+        VWB_ERROR_NONE == VWB_Init( g_warper );
+}
 
-    if(
-        nullptr == VWB_Create ||
-        nullptr == VWB_Init ||
-        VWB_ERROR_NONE != VWB_Create( device, s_configFile, s_channel, &g_warper, 0, NULL ) ||
-        VWB_ERROR_NONE != VWB_Init( g_warper )
-        )
-        throw std::runtime_error( "Failed to initialize VIOSO Warper" );
+void Render( void* contentTexture )
+{
+    VWB_render( g_warper, (VWB_param)contentTexture, VWB_STATEMASK_DEFAULT | VWB_STATEMASK_VIEWPORT );
 }
 
 void Destroy()
 {
-    if( nullptr != VWB_Destroy && )
+    if( g_warper )
         VWB_Destroy( g_warper );
-}
-
-void PreRender( float* trackerPos, float* trackerDir, float* mView, float* mProjection )
-{
-    // NOTE: VWB_getViewClip or VWB_getPosDirClip can also be used to request optimal frustum
-    //       This step is mandatory to update the warper's data
-    if( nullptr != VWB_getViewProj )
-       VWB_getViewProj( m_warper, trackerPos, trackerDir, mView, mProjection );
-}
-
-void PostRender( TexHandle inTex )
-{
-    if( nullptr != VWB_render )
-        VWB_render( m_warper, (VWB_param)inTex, VWB_STATEMASK_STANDARD )
+    g_warper = nullptr;
+#define VIOSOWARPBLEND_DYNAMIC_UNINITIALIZE       // sets the pointers to NULL and frees the library
+#include "VIOSOWarpBlend.h"
 }
 ```
 
+The library is loaded as `ViosoWarpBlend64` from the folder of your executable (the usual DLL search); define `VIOSOWARPBLEND_FILE` before the `INITIALIZE` include to name another file.
+To keep the declarations in a header, use `VIOSOWARPBLEND_DYNAMIC_DEFINE` there and `VIOSOWARPBLEND_DYNAMIC_IMPLEMENT` in exactly one source file instead of `..._DEFINE_IMPLEMENT`.
 
-For configuring and usage see [https://helpdesk.vioso.com/documentation/api/](https://docs.vioso.com/vioso-warpblend-api)
+## Examples
+The build produces these examples (Windows unless noted), all loading the library at runtime. Arguments, keys and what you should see: [docs/examples.md](docs/examples.md).
+
+- `VWFTesterDX11` (Direct3D 11): shows the outputs of one or more .vwf files, in their original places or as a preview; start it without arguments to choose a file.
+- `MediaServerExampleDX11` (Direct3D 11): several outputs on one device, content as one image, optionally only the part each channel needs (`--partial`).
+- `D3D12Example` (Direct3D 12): a scene rendered through the warper, starts with the sample calibration.
+- `OpenGLExample` (OpenGL 4, Windows and Linux).
+- `EyePointProvider`: a plugin for eye points, see [docs/eyepoint-provider.md](docs/eyepoint-provider.md).
+
+`Include/VIOSOWarpBlend.cs` is a C# wrapper (not built here). The Direct3D 9, 9Ex and 10 render paths are still in the library; the
+former DirectX 9, Mesh, OpenGL 1, Vulkan, `OpenGL_4_vwfInfo`, `MapingLoader`, `TrackerSim` and `Test` example projects have been removed.
+
+## Build
+The build uses CMake (3.21 or newer) only. Presets for Windows x64 and Linux are in [`CMakePresets.json`](https://github.com/vioso/VIOSO_API/blob/v1.7.0/CMakePresets.json).
+
+Windows (Visual Studio 2022 or 2026, workload "Desktop development with C++"; no ATL needed):
+open the repository folder in Visual Studio ("Open a local folder") and pick a preset, or from a Developer Command Prompt
+
+```
+cmake --preset windows-x64-release
+cmake --build --preset windows-x64-release
+```
+
+Linux (tested with GCC 13 on Ubuntu 24.04):
+
+```
+sudo apt-get install cmake ninja-build g++ libgl-dev libglu1-mesa-dev libx11-dev
+cmake --preset linux-release
+cmake --build --preset linux-release
+```
+
+The binaries end up in `out/build/<preset>/bin`: `VIOSOWarpBlend64.dll` (Windows) or `libVIOSOWarpBlend.so` (Linux),
+the EyePointProvider plugin and the examples. The examples load the library at runtime from their own directory.
+The build copies the sample configuration files (`VIOSOWarpBlend.ini`, `VIOSOWarpBlendGL.ini`, from [`data/`](https://github.com/vioso/VIOSO_API/tree/v1.7.0/data)) and the sample calibration
+`2D_plane_FHD.vwf` next to the example executables, unless files of these names are already there. Relative paths in the .ini
+file (calibration file, log file) are resolved against the folder of the VIOSOWarpBlend library on Windows (the working directory on Linux).
+More example calibration files (.vwf) are available via the download link at the top.
+
+Online documentation (configuring and usage): [https://docs.vioso.com/vioso-warpblend-api](https://docs.vioso.com/vioso-warpblend-api)

@@ -10,9 +10,15 @@
 
 #include "../Include/VWBTypes.h"
 extern VWB_int g_logLevel;
-extern char g_logFilePath[260];
+extern char g_logFilePath[MAX_PATH];
 
-int logStr( VWB_int level, char const* format, ... ); // log someting, ALWAYS returns 0!
+#if defined(__GNUC__)
+#define VWB_PRINTF_FORMAT( fmtIdx, argIdx ) __attribute__(( format( printf, fmtIdx, argIdx ) ))
+#else
+#define VWB_PRINTF_FORMAT( fmtIdx, argIdx )
+#endif
+
+int logStr( VWB_int level, char const* format, ... ) VWB_PRINTF_FORMAT( 2, 3 ); // log someting, ALWAYS returns 0!
 void logClear(); // backup and purge logfile
 
 #endif //ndef VWB_LOGGING_HPP

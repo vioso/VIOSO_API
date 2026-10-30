@@ -1,44 +1,27 @@
-cmake_minimum_required(VERSION 3.9)
+# Direct3D 12 example: a textured scene warped by VWB_render. Starts with the sample data next to the executable.
+if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "DirectX12 example skipped: needs MSVC and x64")
+    return()
+endif()
 
-project(Example_DirectX12 VERSION 1.2.4 DESCRIPTION "VIOSOWarpBlend OpenGL Example")
+add_executable(DirectX12Example WIN32
+    D3D12HelloTexture.cpp
+    DXSample.cpp
+    Main.cpp
+    Win32Application.cpp
+)
+set_target_properties(DirectX12Example PROPERTIES OUTPUT_NAME D3D12Example)
 
-set(THIRD_PARTY ${CMAKE_SOURCE_DIR}/VIOSOWarpBlend/3rdparty)
-set(CMAKE_CXX_STANDARD 11)
-set(DEFAULT_FLAGS "-Wall -Werror -Wno-unused-result -Wno-unknown-pragmas")
+target_compile_definitions(DirectX12Example PRIVATE WIN32 _WINDOWS UNICODE _UNICODE)
+target_include_directories(DirectX12Example PRIVATE "${PROJECT_SOURCE_DIR}/Include")
+target_link_libraries(DirectX12Example PRIVATE d3d12 dxgi d3dcompiler)
 
-add_definitions(-DUNICODE)
-add_definitions(-D_UNICODE)
+# The library is loaded at runtime, but has to be built first
+add_dependencies(DirectX12Example VIOSOWarpBlend SampleData)
 
-file(GLOB SOURCES
-	"D3D12HelloTexture.cpp"
-	"DXSample.cpp"
-	"Main.cpp"
-	"Win32Application.cpp"
-	)
-
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
-target_link_libraries(${PROJECT_NAME} VIOSOWarpBlend)
-
-include_directories(${CMAKE_SOURCE_DIR}/Include)
-
-if(WIN32)
-	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-	    set(ARCH_POSTFIX "")
-		set(LIB_ARCH_PATH "Win32")
-	else()
-		set(ARCH_POSTFIX 64)
-		set(LIB_ARCH_PATH "x64")
-	endif()
-endif(WIN32)
-
-
-#d3dx
-include_directories(${THIRD_PARTY}/d3dX/include/)
-target_link_libraries (${PROJECT_NAME} 
-	d3d12 dxgi d3dcompiler
-	${THIRD_PARTY}/d3dX/lib/${LIB_ARCH_PATH}/dxerr.lib
-	)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD 
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/VIOSOWarpBlend.dll ${CMAKE_CURRENT_BINARY_DIR}/.
+# The shaders are compiled at start from the executable's folder
+add_custom_command(TARGET DirectX12Example POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders.hlsl"
+            "$<TARGET_FILE_DIR:DirectX12Example>"
 )

@@ -94,8 +94,11 @@ struct VWB_Warper
 	/// this is the path to the warp map, a .vwf file, it defaults to "vioso.vwf"
 	char	calibFile[12 * MAX_PATH];
 	
-	/// the calibration index in mapping file, defaults to 0,
-	/// you also might set this to negated display number, to search for a certain display:
+	/// the calibration index in the mapping file(s): the running index of all data sets of all files in calibFile, starting with 0.
+	/// Defaults to -1 without an .ini file. You also might set this to the negated display number, to search for a certain
+	/// display by the name of the data set ("D<n> ..."): -1 searches D1, -2 searches D2 and so on. If there is no such display,
+	/// VWB_Init fails and the log lists the names found. In the .ini file use calibAdapterOrdinal=<n> for the search.
+	/// NOTE: with an .ini file, a missing calibIndex or calibIndex=-1 yields 0.
 	VWB_int		calibIndex;
 
 	/// set to true to make the world turn and move with view direction and eye position, this is the case if the viewer gets
@@ -114,12 +117,12 @@ struct VWB_Warper
 	VWB_float   eye[3];
 
 	/// the near plane distance
-	/// NOTE: the corresponding .ini-value is "near", defaults to 0.1
+	/// NOTE: the corresponding .ini-value is "near", defaults to 0.125
 	VWB_float	nearDist;
 
 	/// the far plane distance, note: these values are used to create the projection matrix
 	/// farDist/nearDist should be as small as possible, to have a good z-buffer resolution
-	/// defaults to 200.0
+	/// defaults to 20000.0
 	/// NOTE: the corresponding .ini-value is "far"
 	VWB_float	farDist;
 
@@ -135,8 +138,12 @@ struct VWB_Warper
 	///				0x01000000 change sign of z movement, 0x02000000 use input x as z, 0x04000000 use input y as z
 	VWB_int		splice;
 
-	/// the transformation matrix to go from VIOSO coordinates to IG coordinates, defaults to indentity
+	/// the transformation matrix to go from VIOSO coordinates to IG coordinates, defaults to identity
 	/// note VIOSO maps are always right-handed, to use with a left-handed world like DirectX, invert the z!
+	/// The handedness of this matrix decides, which projection VWB_getViewProj etc. return. Always set it
+	/// (in the .ini: base=[...], or trans=[...], which is not transposed like base).
+	/// If the matrix is degenerate (e.g. all zero, as it is when an .ini has neither base nor trans), VWB_Init replaces it with
+	/// [1,0,0,0; 0,1,0,0; 0,0,-1,0; 0,0,0,1] (left-handed) and warns. This overwrites this field.
 	VWB_float	trans[16];
 
 	/// set a gamma correction value. This is only useful, if you changed the projector's gamma setting after calibration,
@@ -149,7 +156,7 @@ struct VWB_Warper
 	/// Check borderFit in log: 1 means all points stay on unwidened viewplane, 2 means, we had to double it.
 	VWB_float	autoViewC;
 
-	/// set to true to calculate view parameters while creating warper, defaults to false
+	/// set to true to calculate view parameters while creating warper, defaults to true
 	/// All further values are calculated/overwritten, if bAutoView is set.
 	bool		bAutoView;
 
@@ -187,7 +194,7 @@ struct VWB_Warper
 	/// defaults to 0
 	VWB_int		mouseMode;
 
-	/// set to true to flip directX 11 texture v, defaults to false
+	/// set to true to flip directX 11 and 12 texture v, defaults to false; there is no .ini key for it
 	bool		bFlipDXVs;
 
 	/// set to true to disable black level offset, defaults to false
@@ -403,8 +410,8 @@ public:
 	///<   [1] => minimum covered display pixel row     (t)
 	///<   [2] => maximum covered display pixel column  (r)
 	///<   [3] => maximum covered display pixel row     (b)
-	///<   [4] => content to display pixel ratio in x direction
-	///<   [5] => content to display pixel ratio in y direction
+	///<   [4] => normalised content extent per display pixel in x direction; 1/value is the content width in pixels, at which a display pixel covers one content pixel (optimalRes)
+	///<   [5] => normalised content extent per display pixel in y direction; 1/value is the content height in pixels, at which a display pixel covers one content pixel (optimalRes)
 	///<   [6] => quantum of used display pixel
 	VWB_float                               vPartialCnt[9];							
 	///<   [0] => minimum relative content position in x direction (l)
@@ -474,8 +481,8 @@ public:
 	///<   [1] => minimum covered display pixel row     (t)
 	///<   [2] => maximum covered display pixel column  (r)
 	///<   [3] => maximum covered display pixel row     (b)
-	///<   [4] => content to display pixel ratio in x direction
-	///<   [5] => content to display pixel ratio in y direction
+	///<   [4] => normalised content extent per display pixel in x direction; 1/value is the content width in pixels, at which a display pixel covers one content pixel (optimalRes)
+	///<   [5] => normalised content extent per display pixel in y direction; 1/value is the content height in pixels, at which a display pixel covers one content pixel (optimalRes)
 	///<   [6] => quantum of used display pixel
 	VWB_float                           vPartialCnt[9];							
 	///<   [0] => minimum relative content position in x direction (l)
@@ -544,8 +551,8 @@ public:
 	///<   [1] => minimum covered display pixel row     (t)
 	///<   [2] => maximum covered display pixel column  (r)
 	///<   [3] => maximum covered display pixel row     (b)
-	///<   [4] => content to display pixel ratio in x direction
-	///<   [5] => content to display pixel ratio in y direction
+	///<   [4] => normalised content extent per display pixel in x direction; 1/value is the content width in pixels, at which a display pixel covers one content pixel (optimalRes)
+	///<   [5] => normalised content extent per display pixel in y direction; 1/value is the content height in pixels, at which a display pixel covers one content pixel (optimalRes)
 	///<   [6] => quantum of used display pixel
 	VWB_float                           vPartialCnt[9];
 	///<   [0] => minimum relative content position in x direction (l)
@@ -730,7 +737,7 @@ typedef struct VWB_D3D12_RENDERINPUT
 	IUnknown* textureResource; // ID3D12Resource*, if NULL we use rendertarget as source and issue a copy, must be in D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE state
 	IUnknown* renderTarget; // ID3D12Resource* must be set to add a barrier to command list or to use as copy source, must be in D3D12_RESOURCE_STATE_RENDER_TARGET state
 	UINT64    rtvHandlePtr; // ptr value from D3D12_CPU_DESCRIPTOR_HANDLE of render target descriptor heap
-	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftX, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
+	VWB_float viewport[6];  // set viewport; this is igored if Width or Height is 0 and full size is used; viewport[0] = D3D12_VIEWPORT.TopLeftX, viewport[1] = .TopLeftY, viewport[2] = .Width, viewport[3] = .Height, viewport[4] = .MinDepth, viewport[5] = .MaxDepth;
 	IUnknown* commandList;  // optional ID3D12GraphicsCommandList* to use, instead of the created one by VIOSO API
 } VWB_D3D12_RENDERINPUT;
 

@@ -51,7 +51,17 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
         pSample);
 
     // Initialize the sample. OnInit is defined in each child-implementation of DXSample.
-    pSample->OnInit();
+    try {
+        pSample->OnInit();
+    } catch( ... ) {
+        // The sample is destroyed while the exception leaves, the window must not outlive it: the caller shows
+        // a message box, whose message loop would call the window procedure with a pointer to the destroyed sample.
+        DestroyWindow(m_hwnd);
+        m_hwnd = nullptr;
+        MSG quit;
+        while( PeekMessage(&quit, NULL, WM_QUIT, WM_QUIT, PM_REMOVE) ) {} // WM_DESTROY posted one, it would end the message box
+        throw;
+    }
 
     ShowWindow(m_hwnd, nCmdShow);
 

@@ -45,6 +45,21 @@ VWB_size _size0 = { 0,0 };
 bool g_bFirstInstance = true;
 uint8_t const* g_cryptoKey = nullptr;
 
+// vCntDispPx[4|5] is the normalised content extent of one display pixel; its inverse is the content size in pixels. It is cut off
+// as before, but float noise must not cost a pixel: 1/1920 comes back as 1919.9999, that is 1920. 0 if there is no extent.
+static VWB_int ContentSizeFromExtent( float extent )
+{
+	if( !( extent > 0 ) )
+		return 0;
+	return FloorWithNoise( 1.0 / double( extent ) );
+}
+
+// The rect holds the pixels the sampling needs: left and top inclusive, right and bottom exclusive. The bounds (vPartialCnt) are
+// positions of pixel centers, so round outwards; a cast cut off the last pixel at the right and bottom. The tolerance keeps
+// float noise from adding a pixel, if a bound is exactly on a pixel border.
+static VWB_int RectLowerFromNorm( float u, VWB_int res ) { return ( VWB_int )floor( double( u ) * res + 1e-3 ); }
+static VWB_int RectUpperFromNorm( float u, VWB_int res ) { return ( VWB_int )ceil( double( u ) * res - 1e-3 ); }
+
 #ifdef WIN32
 HMODULE g_hModDll = 0;
 VWB_int g_error = 0;
@@ -82,7 +97,7 @@ VWB_ERROR VWB_Warper_base::ReadIniFile( char const* szConfigFile, char const* sz
 			fclose(f);
 		else
 		{
-			logStr(0, "Error open \"%s\"", path);
+			logStr(0, "Error open \"%s\" (the .ini file as given is \"%s\")\n", path, szConfigFile);
 			return VWB_ERROR_INI_LOAD;
 		}
 
@@ -594,7 +609,9 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 	else
 	{
 		VWB_WarpBlendSet set;
-		err = LoadVWF( set, ( (VWB_Warper_base*)pWarper )->calibFile, false, pWarper->calibIndex, g_cryptoKey );
+		// a negative calibIndex asks for a search by display (-1 for D1, -2 for D2, ...) after loading, so load everything
+		VWB_int const loadIndex = 0 > pWarper->calibIndex ? -1 : pWarper->calibIndex;
+		err = LoadVWF( set, ( (VWB_Warper_base*)pWarper )->calibFile, false, loadIndex, g_cryptoKey );
 		//if( ( VWB_ERROR_VWF_LOAD == err ) ||
 		//	( VWB_ERROR_VWF_FILE_NOT_FOUND == err && VWB_ERROR_NONE != CreateDummyVWF( set, ((VWB_Warper_base*)pWarper)->calibFile ) ) ||
 		//    ( VWB_ERROR_NONE == err  && !VerifySet( set ) ) )
@@ -604,7 +621,7 @@ VWB_ERROR VWB_InitExt( VWB_Warper* pWarper, VWB_WarpBlendSet* extSet )
 			logStr(0, "ERROR: LoadVWF: Failed to load set.\n");
 			return err;
 		}
-		if (!VerifySet(set, pWarper->calibIndex) )
+		if (!VerifySet(set, loadIndex) )
 		{
 			logStr(0, "ERROR: LoadVWF: Failed to verify set.\n");
 			return VWB_ERROR_GENERIC;
@@ -723,7 +740,7 @@ VWB_ERROR VWB_getPosDirClip( VWB_Warper* pWarper, VWB_float* pEye, VWB_float* pR
 					"      clip: (%f, %f, %f, %f, %f, %f)\n"
 					, pPos[0], pPos[1], pPos[2]
 					, pDir[0], pDir[1], pDir[2]
-					, pClip[0], pClip[1], pClip[2], pClip[3]
+					, pClip[0], pClip[1], pClip[2], pClip[3], pClip[4], pClip[5]
 			);
 		}
 		return err;
@@ -788,7 +805,15 @@ VWB_ERROR VWB__logString( VWB_int level, char const* str )
 {
 	if( NULL == str || 0 == str[0] )
 		return VWB_ERROR_PARAMETER;
+	// str is used as the format on purpose, see integration-guide.md, pitfall 12
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
 	logStr( level, str );
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	return VWB_ERROR_NONE;
 }
 
@@ -933,7 +958,18 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 		}
 		if( i == (int)wbs.size() )
 		{
-			logStr( 0, "ERROR: Could not find mapping of display D%u.", iScreen );
+			// no fallback to another mapping: guessing wrong with many projectors is worse than a clear message
+			std::string names;
+			for( auto const* w : wbs )
+			{
+				if( !names.empty() )
+					names += ", ";
+				names += '"';
+				names += w->header.name;
+				names += '"';
+			}
+			logStr( 0, "ERROR: Could not find mapping of display D%u (a name starting with \"D%u \"). The calibration file(s) contain %u mapping(s): %s.\n",
+					iScreen, iScreen, (VWB_uint)wbs.size(), names.c_str() );
 			return VWB_ERROR_GENERIC;
 		}
 	}
@@ -955,14 +991,14 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 	VWB_WarpBlend& wb = *wbs[calibIndex];
 	int oRes[2] = {
-		int( 1.0f / wb.header.vCntDispPx[4] ),
-		int( 1.0f / wb.header.vCntDispPx[5] )
+		ContentSizeFromExtent( wb.header.vCntDispPx[4] ),
+		ContentSizeFromExtent( wb.header.vCntDispPx[5] )
 	};
 	int oRect[4] = {
-		int( wb.header.vPartialCnt[0] * oRes[0] ),
-		int( wb.header.vPartialCnt[1] * oRes[1] ),
-		int( wb.header.vPartialCnt[2] * oRes[0] ),
-		int( wb.header.vPartialCnt[3] * oRes[1] )
+		RectLowerFromNorm( wb.header.vPartialCnt[0], oRes[0] ),
+		RectLowerFromNorm( wb.header.vPartialCnt[1], oRes[1] ),
+		RectUpperFromNorm( wb.header.vPartialCnt[2], oRes[0] ),
+		RectUpperFromNorm( wb.header.vPartialCnt[3], oRes[1] )
 	};
 
 	if( 0 >= oRect[2] - oRect[0] ||
@@ -982,7 +1018,7 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			" optimalRect: [%d,%d,%d,%d]\n",
 			wb.header.hostname,
 			wb.header.name,
-			wb.header.splitColumnIndex, wb.header.splitRowIndex, wb.header.splitColumns, wb.header.splitRows,
+			(int)wb.header.splitColumnIndex, (int)wb.header.splitRowIndex, (int)wb.header.splitColumns, (int)wb.header.splitRows,
 			wb.header.width, wb.header.height,
 			(int)wb.header.offsetX, (int)wb.header.offsetY,
 			oRes[0], oRes[1],
@@ -1026,9 +1062,21 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 	m_blackBias.z = wbs[calibIndex]->header.blackBright;
 
 	VWB_MAT44f B( trans );
+	auto baseHandedness = VWB_VEC3f(B.Z()).dot( VWB_VEC3f(B.X()) * VWB_VEC3f(B.Y()) );
+	if( 0 == baseHandedness )
+	{
+		// A missing base or trans in the .ini leaves a zero matrix. Its inverse is all NaN, which breaks the view
+		// calculation (3D) and the shader matrix. Use the base for a left-handed system, that is what 2D mappings got so far.
+		static const VWB_float c_defaultBase[16] = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, -1, 0,  0, 0, 0, 1 };
+		memcpy( trans, c_defaultBase, sizeof( trans ) );
+		B = VWB_MAT44f( trans );
+		baseHandedness = VWB_VEC3f(B.Z()).dot( VWB_VEC3f(B.X()) * VWB_VEC3f(B.Y()) );
+		logStr( 0, "WARNING: The base/trans matrix is degenerate (all zero, if base=[...] is missing in the .ini).\n"
+				"  Using base=[1,0,0,0; 0,1,0,0; 0,0,-1,0; 0,0,0,1], so the coordinate system is left-handed (Direct3D).\n"
+				"  Set base to the identity for right-handed (OpenGL) or set it to z=-1 explicitly to silence this.\n" );
+	}
 	m_mBaseI = B.Inverted();
-
-	m_bRH = 0 < VWB_VEC3f(B.Z()).dot( VWB_VEC3f(B.X()) * VWB_VEC3f(B.Y()) );
+	m_bRH = 0 < baseHandedness;
 	logStr( 2, "%s-handedness detected.\n", m_bRH ? "right" : "left" );
 
 	ret = PrepareForUse( wb, gamma );
@@ -1167,8 +1215,8 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 
 			if( 0 != wb.header.vCntDispPx[4] && 0 != wb.header.vCntDispPx[5] )
 			{
-				optimalRes.cx = ( VWB_int )( 1.0f / wb.header.vCntDispPx[4] );
-				optimalRes.cy = ( VWB_int )( 1.0f / wb.header.vCntDispPx[5] );
+				optimalRes.cx = ContentSizeFromExtent( wb.header.vCntDispPx[4] );
+				optimalRes.cy = ContentSizeFromExtent( wb.header.vCntDispPx[5] );
 			}
 			else
 			{
@@ -1179,10 +1227,10 @@ VWB_ERROR VWB_Warper_base::Init( VWB_WarpBlendSet& wbs )
 			if( 0 != ( wb.header.vPartialCnt[2] - wb.header.vPartialCnt[0] ) &&
 				0 != ( wb.header.vPartialCnt[3] - wb.header.vPartialCnt[1] ) )
 			{
-				optimalRect.left = ( VWB_int )( wb.header.vPartialCnt[0] * optimalRes.cx );
-				optimalRect.top = ( VWB_int )( wb.header.vPartialCnt[1] * optimalRes.cy );
-				optimalRect.right = ( VWB_int )( wb.header.vPartialCnt[2] * optimalRes.cx );
-				optimalRect.bottom = ( VWB_int )( wb.header.vPartialCnt[3] * optimalRes.cy );
+				optimalRect.left = RectLowerFromNorm( wb.header.vPartialCnt[0], optimalRes.cx );
+				optimalRect.top = RectLowerFromNorm( wb.header.vPartialCnt[1], optimalRes.cy );
+				optimalRect.right = RectUpperFromNorm( wb.header.vPartialCnt[2], optimalRes.cx );
+				optimalRect.bottom = RectUpperFromNorm( wb.header.vPartialCnt[3], optimalRes.cy );
 			}
 			else
 			{
@@ -1698,7 +1746,7 @@ VWB_ERROR VWB_Warper_base::AutoView( VWB_WarpBlend const& wb )
 
 		optimalRes.cx = VWB_int( ceil( ( maxR - maxL ) / minX ) );
 		optimalRes.cy = VWB_int( ceil( ( maxT - maxB ) / minY ) );
-		logStr( 1, "INFO: AutoView optimal resolution coverage is %i%%x%i%%.", 100 - droppedX * 100 / wb.header.height / wb.header.width, 100 - droppedY * 100 / wb.header.height / wb.header.width );
+		logStr( 1, "INFO: AutoView optimal resolution coverage is %i%%x%i%%.", (int)( 100 - droppedX * 100 / wb.header.height / wb.header.width ), (int)( 100 - droppedY * 100 / wb.header.height / wb.header.width ) );
 	}
 
 	optimalRect.left = 0;
@@ -1818,7 +1866,7 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 		return VWB_ERROR_NONE;
 	}
 
-	logStr( 2, "NOTE: FixWraparound found %d regions. Wrapping UVs.\n", qRgn );
+	logStr( 2, "NOTE: FixWraparound found %ld regions. Wrapping UVs.\n", qRgn );
 	for( i = 1; i <= qRgn; i++ )
 		lCand[i].x = 0;
 
@@ -1913,7 +1961,7 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 		if( minU != FLT_MAX && minV != FLT_MAX &&
 			maxU != -FLT_MAX && maxV != -FLT_MAX )
 		{
-			if( wb.header.vCntDispPx[4] || wb.header.vCntDispPx[4] ) { // if we got a content size, we keep it. Just recalculating the partial rect
+			if( wb.header.vCntDispPx[4] && wb.header.vCntDispPx[5] ) { // if we got a content size, we keep it. Just recalculating the partial rect
 				auto fX = 1.0f / ( wb.header.vCntDispPx[4] * wb.header.width * ( maxU - minU ) );
 				auto fY = 1.0f / ( wb.header.vCntDispPx[5] * wb.header.height * ( maxV - minV ) );
 				wb.header.vPartialCnt[0] = minU * fX;
@@ -1929,7 +1977,7 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 				wb.header.vPartialCnt[3] = maxV;
 				logStr( 2, "FixWraparound calculated new content size in wrap mode:\n"
 						"  optimalRes: [%d,%d]\n",
-						int( 1.0f / wb.header.vCntDispPx[4] ), int( 1.0f / wb.header.vCntDispPx[4] ) );
+						ContentSizeFromExtent( wb.header.vCntDispPx[4] ), ContentSizeFromExtent( wb.header.vCntDispPx[5] ) );
 			}
 		}
 		else
@@ -1941,10 +1989,10 @@ VWB_ERROR VWB_Warper_base::FixWraparound( VWB_WarpBlend& wb )
 
 	logStr( 2, "FixWraparound calculated new bounds in wrap mode:\n"
 			" optimalRect: [%d,%d,%d,%d]\n",
-			int( wb.header.vPartialCnt[0] / wb.header.vCntDispPx[4] ),
-			int( wb.header.vPartialCnt[1] / wb.header.vCntDispPx[5] ),
-			int( wb.header.vPartialCnt[2] / wb.header.vCntDispPx[4] ),
-			int( wb.header.vPartialCnt[3] / wb.header.vCntDispPx[5] )
+			RectLowerFromNorm( wb.header.vPartialCnt[0], ContentSizeFromExtent( wb.header.vCntDispPx[4] ) ),
+			RectLowerFromNorm( wb.header.vPartialCnt[1], ContentSizeFromExtent( wb.header.vCntDispPx[5] ) ),
+			RectUpperFromNorm( wb.header.vPartialCnt[2], ContentSizeFromExtent( wb.header.vCntDispPx[4] ) ),
+			RectUpperFromNorm( wb.header.vPartialCnt[3], ContentSizeFromExtent( wb.header.vCntDispPx[5] ) )
 	);
 
 	return VWB_ERROR_NONE;
@@ -3126,10 +3174,10 @@ bool fixSeam( std::vector<TP>& vertices, std::vector<TI>& indices, long dim )
 			const float r = 1.0f - 0.5f / dim;
 			// we need 4 new vertices, 2 on each edge on the same XY but with 1 and 0 as U
 			//           p               p     
-			//          / \        	    /1\    
+			//          / \        	    /1\.
 			//         /   \       	  v1---v3  
 			//        /     \		 v2-----v4
-			//       /       \		 / 2  \3 \
+			//       /       \		 / 2  \3 \.
 			//      p1--------p2    p1--------p2
 
 			TI iv[4]; // the assigned indices

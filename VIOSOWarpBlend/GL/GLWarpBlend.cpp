@@ -482,7 +482,7 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
-			logStr( 3, "WARINIG: No blend texture present.", err );
+			logStr( 3, "WARINIG: No blend texture present." );
 			bDoNotBlend = true;
 		}
 
@@ -506,7 +506,7 @@ VWB_ERROR GLWarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
-			logStr( 3, "WARINIG: No blacklevel texture present.", err );
+			logStr( 3, "WARINIG: No blacklevel texture present." );
 			bDoNoBlack = true;
 		}
 

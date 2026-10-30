@@ -288,7 +288,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			(UINT)m_sizeMap.cy,//UINT Height;
 			1,//UINT MipLevels;
 			1,//UINT ArraySize;
-			0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R16G16_UNORM,//DXGI_FORMAT Format;
+			0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R32G32_FLOAT,//DXGI_FORMAT Format;
 			{1,0},//DXGI_SAMPLE_DESC SampleDesc;
 			D3D10_USAGE_DEFAULT,//D3D11_USAGE Usage;
 			D3D10_BIND_SHADER_RESOURCE,//UINT BindFlags;
@@ -339,16 +339,18 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		}
 		else
 		{
+			// 2D: float, not 16 bit normalised. The records are normalised to the whole content space, so with a content space of
+			// some 100000 pixels one 16 bit step is more than two pixels. Still clamped to [0,1] as before.
 			UINT sz = 2 * m_sizeMap.cx;
-			dataWarp.SysMemPitch = sizeof( unsigned short ) * sz;
+			dataWarp.SysMemPitch = sizeof( float ) * sz;
 			sz *= m_sizeMap.cy;
-			dataWarp.SysMemSlicePitch = sizeof( unsigned short ) * sz;
-			dataWarp.pSysMem = new unsigned short[sz];
-			unsigned short* d = (unsigned short*)dataWarp.pSysMem;
+			dataWarp.SysMemSlicePitch = sizeof( float ) * sz;
+			dataWarp.pSysMem = new float[sz];
+			float* d = (float*)dataWarp.pSysMem;
 			for( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + (ptrdiff_t)m_sizeMap.cx * (ptrdiff_t)m_sizeMap.cy; s != sE; d += 2, s++ )
 			{
-				d[0] = (unsigned short)( 65535.0f * MIN( 1.0f, MAX( 0.0f, s->x ) ) );
-				d[1] = (unsigned short)( 65535.0f * MIN( 1.0f, MAX( 0.0f, s->y ) ) );
+				d[0] = MIN( 1.0f, MAX( 0.0f, s->x ) );
+				d[1] = MIN( 1.0f, MAX( 0.0f, s->y ) );
 			}
 		}
 
@@ -365,7 +367,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		};
 
 		D3D10_SHADER_RESOURCE_VIEW_DESC descSRVW;
-		descSRVW.Format = ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R16G16_UNORM;
+		descSRVW.Format = ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R32G32_FLOAT;
 		descSRVW.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D;
 		descSRVW.Texture2D.MipLevels = 1;
 		descSRVW.Texture2D.MostDetailedMip = 0;
@@ -390,10 +392,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			SAFERELEASE( pTexBlack );
 			if( dataWarp.pSysMem )
 			{
-				if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
-					delete[]( float* ) dataWarp.pSysMem;
-				else
-					delete[]( unsigned short* ) dataWarp.pSysMem;
+				delete[]( float* ) dataWarp.pSysMem;
 			}
 			return VWB_ERROR_SHADER;
 		}
@@ -402,10 +401,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		SAFERELEASE( pTexBlack );
 		if( dataWarp.pSysMem )
 		{
-			if( wb.header.flags & FLAG_WARPFILE_HEADER_3D )
-				delete[]( float* ) dataWarp.pSysMem;
-			else
-				delete[]( unsigned short* ) dataWarp.pSysMem;
+			delete[]( float* ) dataWarp.pSysMem;
 		}
 
 		ID3DBlob* pVSBlob = NULL;

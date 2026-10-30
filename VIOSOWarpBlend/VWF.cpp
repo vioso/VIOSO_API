@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <fstream>
 #include <math.h>
+#include <float.h>
 
 const uint8_t _iv[]{ 0xd7, 0x04, 0xa7, 0x9f, 0xad, 0x4a, 0x48, 0xb6, 0x1f, 0x3e, 0x55, 0x30, 0x46, 0x6a, 0xa1, 0x2d };
 
@@ -333,6 +334,8 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 			strncpy_s( pp, pP, pP2 - pP );
 		else
 			strcpy_s( pp, pP );
+		char raw[MAX_PATH]; // the entry exactly as given, to show it, if it can't be opened
+		strcpy_s( raw, pp );
 		MkPath( pp, MAX_PATH, ".vwf" );
 
 		logStr( 2, "Open \"%s\"...\n", pp );
@@ -534,7 +537,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 									}
 									else
 									{
-										logStr( 0, "ERROR: Blend map size mismatch: is %dx%d should be.\n", pBmi->bmiHeader.biWidth, abs(pBmi->bmiHeader.biWidth), set.back()->header.width, set.back()->header.height );
+										logStr( 0, "ERROR: Blend map size mismatch: is %dx%d, should be %dx%d.\n", pBmi->bmiHeader.biWidth, abs(pBmi->bmiHeader.biHeight), set.back()->header.width, set.back()->header.height );
 									}
 									if( pData )
 										delete[] pData;
@@ -551,7 +554,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 							}
 						}
 						else
-							logStr( 0, "ERROR: Unknown file type \"%2c\" at %s(%u). Operation canceled.\n", h0.magicNumber, pp, (ptrdiff_t)ifs.tellg() - sizeof( VWB_WarpSetFileHeader ) );
+							logStr( 0, "ERROR: Unknown file type \"%.4s\" at %s(%lld). Operation canceled.\n", h0.magicNumber, pp, (long long)( (ptrdiff_t)ifs.tellg() - (ptrdiff_t)sizeof( VWB_WarpSetFileHeader ) ) );
 						ret = VWB_ERROR_VWF_LOAD;
 						nSets = 0;
 						break;
@@ -565,7 +568,7 @@ VWB_ERROR LoadVWF( VWB_WarpBlendSet& set, char const* path, bool bScanOnly, int 
 		}
 		else
 		{
-			logStr( 0, "ERROR: LoadVWF: Error opening \"%s\". Missing file?\n", pp );
+			logStr( 0, "ERROR: LoadVWF: Error opening \"%s\". Missing file? The calibFile entry as read is \"%s\".\n", pp, raw );
 			ret = VWB_ERROR_VWF_FILE_NOT_FOUND;
 			break;
 		}
@@ -1395,12 +1398,15 @@ VWB_ERROR CalculateBounds( VWB_WarpBlend const& wb, int& resX, int& resY, int& m
 		logStr( 0, "ERROR: Warp texture is empty. Can't calculate bounds on that\n" );
 		return VWB_ERROR_WARP;
 	}
-	resX = int( 0.99f + VWB_float( wb.header.width ) / ( maxXf - minXf ) );
-	resY = int( 0.99f + VWB_float( wb.header.height ) / ( maxYf - minYf ) );
-	minX = int( minXf * resX );
-	minY = int( minYf * resY );
-	maxX = int( 0.99f + ( maxXf * resX ) );
-	maxY = int( 0.99f + ( maxYf * resY ) );
+	// The records are positions of pixel centers, so n pixels span n - 1 steps: with the content size N a row of
+	// width w covers (w - 1) / N. Cut off like optimalRes, but float noise must not cost a pixel (before: w / span,
+	// one pixel more). The rect is rounded outwards like optimalRect.
+	resX = FloorWithNoise( double( ( std::max )( wb.header.width - 1, 1 ) ) / double( maxXf - minXf ) );
+	resY = FloorWithNoise( double( ( std::max )( wb.header.height - 1, 1 ) ) / double( maxYf - minYf ) );
+	minX = int( floor( double( minXf ) * resX + 1e-3 ) );
+	minY = int( floor( double( minYf ) * resY + 1e-3 ) );
+	maxX = int( ceil( double( maxXf ) * resX - 1e-3 ) );
+	maxY = int( ceil( double( maxYf ) * resY - 1e-3 ) );
 	return VWB_ERROR_NONE;
 }
 

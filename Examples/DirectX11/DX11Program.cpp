@@ -41,23 +41,23 @@ const FLOAT RenderTarget::s_sky[4] = { 0.59f, 0.86f, 1.0f, 1.0f };
 
 void RenderTarget::setAsRTto( ID3D11DeviceContext* ctx )
 {
-    ctx->OMSetRenderTargets( 1, &m_rtv.p, m_dsv );
+    ctx->OMSetRenderTargets( 1, m_rtv.GetAddressOf(), m_dsv.Get() );
 }
 
 void RenderTarget::clear( ID3D11DeviceContext* ctx )
 {
-    ctx->ClearRenderTargetView( m_rtv, m_clearColor );
+    ctx->ClearRenderTargetView( m_rtv.Get(), m_clearColor );
     if( m_dsv )
-        ctx->ClearDepthStencilView( m_dsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0 );
+        ctx->ClearDepthStencilView( m_dsv.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0 );
 }
 
 D3D11_VIEWPORT RenderTarget::getFullViewport() const
 {
     D3D11_VIEWPORT vp = { 0 };
-    CComPtr<ID3D11Resource> res;
+    ComPtr<ID3D11Resource> res;
     m_rtv->GetResource( &res );
-    CComPtr<ID3D11Texture2D> tex;
-    if( SUCCEEDED( res->QueryInterface< ID3D11Texture2D>( &tex ) ) )
+    ComPtr<ID3D11Texture2D> tex;
+    if( SUCCEEDED( res.As( &tex ) ) )
     {
         D3D11_TEXTURE2D_DESC desc = { 0 };
         tex->GetDesc( &desc );
@@ -81,13 +81,13 @@ void BackBuffer::initBuffers( ID3D11Device* dev, IDXGISwapChain* sc, bool withDe
     if( nullptr == sc )
         throw std::exception( "sc parameter must not be NULL" );
     D3D11_TEXTURE2D_DESC desc = { 0 };
-    CComPtr<ID3D11Texture2D> res;
-    if( FAILED( sc->GetBuffer( 0, __uuidof( res ), (void**)( ID3D11Texture2D** )&res ) ) )
+    ComPtr<ID3D11Texture2D> res;
+    if( FAILED( sc->GetBuffer( 0, IID_PPV_ARGS( &res ) ) ) )
         throw exception( "failed to get buffer from swapchain" );
 
     res->GetDesc( &desc );
 
-    if( FAILED( dev->CreateRenderTargetView( res, nullptr, &m_rtv ) ) )
+    if( FAILED( dev->CreateRenderTargetView( res.Get(), nullptr, &m_rtv ) ) )
         throw std::exception( "failed to create render target view for render texture" );
 
     // Create the depth stencil view if specified
@@ -102,10 +102,10 @@ void BackBuffer::initBuffers( ID3D11Device* dev, IDXGISwapChain* sc, bool withDe
         desc.CPUAccessFlags = 0;
         desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
         desc.MiscFlags = 0;
-        CComPtr< ID3D11Texture2D > ds;
+        ComPtr< ID3D11Texture2D > ds;
         if( FAILED( dev->CreateTexture2D( &desc, NULL, &ds ) ) )
             throw std::exception( "failed to create depth stencil texture" );
-        if( FAILED( dev->CreateDepthStencilView( ds, nullptr, &m_dsv ) ) )
+        if( FAILED( dev->CreateDepthStencilView( ds.Get(), nullptr, &m_dsv ) ) )
             throw std::exception( "failed to create depth stencil view" );
     }
 }
@@ -117,7 +117,7 @@ BackBuffer::BackBuffer( ID3D11Device* dev, IDXGISwapChain* sc, bool withDepth )
 
 void BackBuffer::resize( ID3D11Device* dev, IDXGISwapChain* sc )
 {
-    m_rtv.Release();
+    m_rtv.Reset();
     bool withDepth = nullptr != m_dsv;
     sc->ResizeBuffers( 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0 );
     initBuffers( dev, sc, withDepth );
@@ -145,7 +145,7 @@ RenderTexture::RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FOR
 	if( FAILED( dev->CreateTexture2D( &desc, nullptr, &m_tex ) ) )
 		throw std::exception( "failed to create render texture" );
 
-	if( FAILED( dev->CreateRenderTargetView( m_tex, nullptr, &m_rtv ) ) )
+	if( FAILED( dev->CreateRenderTargetView( m_tex.Get(), nullptr, &m_rtv ) ) )
 		throw std::exception( "failed to create render target view for render texture" );
 
     D3D11_SHADER_RESOURCE_VIEW_DESC srDesc{};
@@ -154,7 +154,7 @@ RenderTexture::RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FOR
     srDesc.Texture2D.MipLevels = 1;
     srDesc.Texture2D.MostDetailedMip = 0;
 
-    if( FAILED( dev->CreateShaderResourceView( m_tex, &srDesc, &m_srv ) ) )
+    if( FAILED( dev->CreateShaderResourceView( m_tex.Get(), &srDesc, &m_srv ) ) )
         throw exception( "failed to create shader resource view" );
 
     // Create the depth stencil view if specified
@@ -162,11 +162,11 @@ RenderTexture::RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FOR
     {
 		desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-		CComPtr< ID3D11Texture2D > ds;
+		ComPtr< ID3D11Texture2D > ds;
 		if( FAILED( dev->CreateTexture2D( &desc, NULL, &ds ) ) )
 			throw std::exception( "failed to create depth stencil texture" );
 
-		if( FAILED( dev->CreateDepthStencilView( ds, nullptr, &m_dsv ) ) )
+		if( FAILED( dev->CreateDepthStencilView( ds.Get(), nullptr, &m_dsv ) ) )
 			throw std::exception( "failed to create depth stencil texture" );
     }
 }
@@ -201,9 +201,9 @@ const D3D11_RASTERIZER_DESC GFXPipeline::s_rasterDescSolidNoCull{
 const D3D11_BLEND_DESC GFXPipeline::s_blendDescStd{ FALSE, FALSE, {{ FALSE, D3D11_BLEND_ONE, D3D11_BLEND_ZERO, D3D11_BLEND_OP_ADD, D3D11_BLEND_ONE, D3D11_BLEND_ZERO, D3D11_BLEND_OP_ADD, 0xF }} };
 
 
-CComPtr<ID3D11Device> GFXPipeline::createDevice( int createDeviceFlags )
+ComPtr<ID3D11Device> GFXPipeline::createDevice( int createDeviceFlags )
 {
-    CComPtr<ID3D11Device> dev;
+    ComPtr<ID3D11Device> dev;
     D3D_DRIVER_TYPE const driverTypes[] =
     {
         D3D_DRIVER_TYPE_HARDWARE,
@@ -259,14 +259,14 @@ GFXPipeline::~GFXPipeline()
 {
     m_rt.reset();
     m_renderers.clear();
-    m_rs.Release();
-    m_bs.Release();
-    m_ic.Release();
-    m_dev.Release();
+    m_rs.Reset();
+    m_bs.Reset();
+    m_ic.Reset();
+    m_dev.Reset();
 }
 
 GFXPipeline::GFXPipeline( int createDeviceFlags, D3D11_RASTERIZER_DESC const& rd, D3D11_BLEND_DESC const& bd )
-    :GFXPipeline( createDevice( createDeviceFlags ), rd, bd )
+    :GFXPipeline( createDevice( createDeviceFlags ).Get(), rd, bd )
 {
 }
 
@@ -311,13 +311,13 @@ bool GFXPipeline::SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR pa
     desc.Usage = D3D11_USAGE_STAGING;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
 
-    CComPtr<ID3D11Texture2D> pTexMem = NULL;
+    ComPtr<ID3D11Texture2D> pTexMem;
     HRESULT hr = dev->CreateTexture2D( &desc, NULL, &pTexMem );
     if( SUCCEEDED( hr ) )
     {
-        dc->CopyResource( pTexMem, tex );
+        dc->CopyResource( pTexMem.Get(), tex );
         D3D11_MAPPED_SUBRESOURCE res = { 0 };
-        if( SUCCEEDED( dc->Map( pTexMem, 0, D3D11_MAP_READ, 0, &res ) ) )
+        if( SUCCEEDED( dc->Map( pTexMem.Get(), 0, D3D11_MAP_READ, 0, &res ) ) )
         {
             if( DXGI_FORMAT_R8G8B8A8_UNORM == desc.Format ||
                 DXGI_FORMAT_R8G8B8A8_TYPELESS == desc.Format ||
@@ -430,7 +430,7 @@ bool GFXPipeline::SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR pa
             {
                 fprintf( stdout, "Could not dump texture unknown format %i.", desc.Format );
             }
-            dc->Unmap( pTexMem, 0 );
+            dc->Unmap( pTexMem.Get(), 0 );
         }
         else
         {
@@ -451,17 +451,17 @@ void GFXPipeline::addRenderer( std::shared_ptr<Renderer> renderer )
 
 void GFXPipeline::preRender()
 {
-    m_rt->setAsRTto( m_ic );
-    m_rt->clear( m_ic );
+    m_rt->setAsRTto( m_ic.Get() );
+    m_rt->clear( m_ic.Get() );
     m_ic->RSSetViewports( 1, &m_vp );
-    m_ic->RSSetState( m_rs );
-    m_ic->OMSetBlendState( m_bs, {}, 0xffffffff );
+    m_ic->RSSetState( m_rs.Get() );
+    m_ic->OMSetBlendState( m_bs.Get(), {}, 0xffffffff );
 }
 
 void GFXPipeline::render( XMMATRIX const& world )
 {
     for( auto& renderer : m_renderers )
-        renderer->render( m_ic, world, m_mView, m_mProjection );
+        renderer->render( m_ic.Get(), world, m_mView, m_mProjection );
 }
 
 void GFXPipeline::postRender()
@@ -473,6 +473,29 @@ void GFXPipeline::postRender()
 // OutputWindow
 //--------------------------------------------------------------------------------------
 ATOM OutputWindow::s_wndclass = 0;
+
+void logToVioso( char const* text )
+{
+    if( HMODULE h = GetModuleHandleA( "ViosoWarpBlend64" ) )
+        if( auto fn = ( int ( * )( int, char const* ) )GetProcAddress( h, "VWB__logString" ) )
+        {
+            // the library uses the text as a format string
+            std::string s;
+            for( char const* c = text; *c; c++ )
+                s += *c == '%' ? "%%" : std::string( 1, *c );
+            fn( 1, s.c_str() );
+        }
+}
+
+void logEnd( char const* reason )
+{
+    static bool done = false;
+    if( !done )
+    {
+        done = true;
+        logToVioso( reason );
+    }
+}
 
 LRESULT CALLBACK  OutputWindow::WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 {
@@ -495,6 +518,7 @@ LRESULT OutputWindow::wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
         break;
 
     case WM_DESTROY:
+        logEnd( "VWF tester: ended, window closed" );
         PostQuitMessage( 0 );
         break;
 
@@ -502,6 +526,7 @@ LRESULT OutputWindow::wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
         switch( wParam )
         {
         case 27:
+            logEnd( "VWF tester: ended by Esc" );
             PostQuitMessage( 0 );
             break;
         default:
@@ -510,7 +535,7 @@ LRESULT OutputWindow::wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
         break;
     case WM_SIZE:
         if( m_dev && m_sc )
-            m_rt->resize( m_dev, m_sc );
+            m_rt->resize( m_dev.Get(), m_sc.Get() );
         break;
     default:
         return DefWindowProc( hWnd, msg, wParam, lParam );
@@ -676,18 +701,18 @@ OutputWindow::OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int 
     sd.Windowed = TRUE;
     sd.SwapEffect = effect;
 
-    CComPtr<IDXGIFactory> fac;
-    HRESULT hr = CreateDXGIFactory( __uuidof( IDXGIFactory), (void**)( IDXGIFactory **)&fac );
+    ComPtr<IDXGIFactory> fac;
+    HRESULT hr = CreateDXGIFactory( IID_PPV_ARGS( &fac ) );
     
     if( FAILED( hr ) )
         throw exception( "failed to create factory", hr );
 
-    hr = fac->CreateSwapChain( m_dev, &sd, &m_sc );
+    hr = fac->CreateSwapChain( m_dev.Get(), &sd, &m_sc );
 
     if( FAILED( hr ) )
         throw exception( "failed to create swapchain", hr );
 
-    m_rt = make_shared<BackBuffer>( m_dev, m_sc, withDepth );
+    m_rt = make_shared<BackBuffer>( m_dev.Get(), m_sc.Get(), withDepth );
     m_vp = m_rt->getFullViewport();
 }
 
@@ -779,7 +804,7 @@ size_t RenderToTexture::copyToBuffer( void* buff, size_t nBytes, D3D11_TEXTURE2D
     if( SUCCEEDED( hr ) )
     {
         // map texture
-        m_ic->CopyResource( pTexMem, tex );
+        m_ic->CopyResource( pTexMem, tex.Get() );
         D3D11_MAPPED_SUBRESOURCE res = { 0 };
         if( SUCCEEDED( m_ic->Map( pTexMem, 0, D3D11_MAP_READ, 0, &res ) ) )
         {

@@ -110,7 +110,7 @@ private:
             if( NULL == dllPath || 0 == dllPath[0] )
 			{
                 getcwd( str, MAX_PATH);
-                strcat( str, "/libViosoWarpBlend.so");
+                strcat( str, "/libVIOSOWarpBlend.so");
                 dllPath = str;
 			}
 

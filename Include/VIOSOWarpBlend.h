@@ -126,7 +126,14 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
     * @param [IN,OPT]		pSrc    the source texture, a IDirect3DTexture9*, ID3D10Texture2D*, ID3D11Texture2D*, VWB_D3D12_RENDERINPUT* or a GLint texture index; 
 	* if current backbuffer must be read, set to NULL in any DX mode except 12 or to -1 in OpenGL mode
 	* in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter.
-	* @param [IN,OPT]		stateMask @see VWB_STATEMASK enumeration, default is 0 to restore usual stuff
+	* @param [IN,OPT]		stateMask @see VWB_STATEMASK enumeration, default is 0 to restore usual stuff:
+	* 0 is VWB_STATEMASK_DEFAULT, that is vertex buffer, input layout, primitive topology and raster state (rasterizer, blend and
+	* depth-stencil state) are restored after the call (DirectX 10 and 11). Shaders, shader resources, samplers and constant buffers are NOT
+	* restored unless you set their flags, VWB_STATEMASK_ALL restores everything, VWB_STATEMASK_NONE nothing.
+	* The warper renders into the currently bound render target and does not touch the viewport, unless VWB_STATEMASK_VIEWPORT is set.
+	* Then it sets the viewport to the render target size and restores the previous one afterwards. Without that flag the viewport
+	* must already cover the output.
+	* With pSrc = NULL (DirectX) or -1 (OpenGL) the backbuffer is copied first. In DirectX 10 and 11 it is cleared before the warped image is drawn.
 	* In D3D12 all flags except VWB_STATEMASK_CLEARBACKBUFFER are ignored.
 	* The application is required to set inputs and shader in each term anyway.
 	* @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise */

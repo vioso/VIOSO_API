@@ -11,7 +11,9 @@
 
 
 #include "pixelshader.h"
-#include "atlbase.h"
+#include <wrl/client.h>
+
+using Microsoft::WRL::ComPtr;
 //#pragma comment( lib, "d3d12.lib" )
 
 extern "C" HRESULT WINAPI D3D12SerializeVersionedRootSignature(
@@ -93,7 +95,7 @@ DX12WarpBlend::~DX12WarpBlend(void)
 }
 
 
-HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, D3D12_RESOURCE_DESC const& desc, D3D12_SUBRESOURCE_DATA& data, ID3D12Resource*& tex, std::vector< CComPtr< ID3D12Resource > >& sts, LPCWSTR name = L"" )
+HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, D3D12_RESOURCE_DESC const& desc, D3D12_SUBRESOURCE_DATA& data, ID3D12Resource*& tex, std::vector< ComPtr< ID3D12Resource > >& sts, LPCWSTR name = L"" )
 {
 	CD3DX12_HEAP_PROPERTIES hp( D3D12_HEAP_TYPE_DEFAULT );
 	HRESULT hr = dev->CreateCommittedResource(
@@ -108,7 +110,7 @@ HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, 
 	UINT64 uploadBufferSize = 0;
 	dev->GetCopyableFootprints( &desc, 0, 1, 0, nullptr, nullptr, nullptr, &uploadBufferSize );
 
-	CComPtr<ID3D12Resource> uploadHeapTex;
+	ComPtr<ID3D12Resource> uploadHeapTex;
 	// Create the GPU upload buffer.
 	hp.Type = D3D12_HEAP_TYPE_UPLOAD;
 	CD3DX12_RESOURCE_DESC rd = CD3DX12_RESOURCE_DESC::Buffer( uploadBufferSize );
@@ -122,7 +124,7 @@ HRESULT CreateAndFillTexture( ID3D12Device* dev, ID3D12GraphicsCommandList* cl, 
 		nullptr,
 		IID_PPV_ARGS( &uploadHeapTex ) );
 
-	hr = uploadBufferSize == UpdateSubresources( cl, tex, uploadHeapTex, 0, 0, 1, &data ) ? S_OK : E_FAIL;
+	hr = uploadBufferSize == UpdateSubresources( cl, tex, uploadHeapTex.Get(), 0, 0, 1, &data ) ? S_OK : E_FAIL;
 	if( SUCCEEDED( hr ) )
 	{
 		sts.push_back( uploadHeapTex );
@@ -219,8 +221,8 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
 			rootSignatureDesc.Init_1_1( _countof( rootParameters ), rootParameters, _countof( samplers ), samplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT );
-			CComPtr< ID3DBlob > signature;
-			CComPtr< ID3DBlob > error;
+			ComPtr< ID3DBlob > signature;
+			ComPtr< ID3DBlob > error;
 
 			if( FAILED( D3D12SerializeVersionedRootSignature( &rootSignatureDesc, &signature, &error ) ) )
 			{
@@ -252,9 +254,9 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			#else
 				UINT compileFlags = 0;
 			#endif
-			CComPtr< ID3DBlob > errBlob;
-			CComPtr< ID3DBlob > vsBlob;
-			CComPtr< ID3DBlob > psBlob;
+			ComPtr< ID3DBlob > errBlob;
+			ComPtr< ID3DBlob > vsBlob;
+			ComPtr< ID3DBlob > psBlob;
 			if( bFlipDXVs )
 			{
 				hr = D3DCompile( s_pixelShaderDX4_vFlip, sizeof( s_pixelShaderDX4_vFlip ), NULL, NULL, NULL, "VS", "vs_5_0", compileFlags, 0, &vsBlob, &errBlob );
@@ -298,8 +300,8 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			D3D12_GRAPHICS_PIPELINE_STATE_DESC psDesc = {};
 			psDesc.InputLayout = { layout, _countof( layout ) };
 			psDesc.pRootSignature = m_rootSignature;
-			psDesc.VS = CD3DX12_SHADER_BYTECODE( vsBlob );
-			psDesc.PS = CD3DX12_SHADER_BYTECODE( psBlob );
+			psDesc.VS = CD3DX12_SHADER_BYTECODE( vsBlob.Get() );
+			psDesc.PS = CD3DX12_SHADER_BYTECODE( psBlob.Get() );
 			psDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
 			psDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
 			psDesc.DepthStencilState.DepthEnable = FALSE;
@@ -412,7 +414,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 
 		// create and fill textures, the staging textures are needed to be copied over to 
 		// the static GPU-only-access textures. We can release after executing the initialisation queue
-		std::vector<CComPtr<ID3D12Resource>> stagingTexs;
+		std::vector<ComPtr<ID3D12Resource>> stagingTexs;
 		{
 			VWB_WarpBlend& wb = *wbs[calibIndex];
 
@@ -425,7 +427,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				(UINT64)m_sizeMap.cy,//UINT Height;
 				1,//UINT16 DepthOrArraySize;
 				1,//UINT16 MipLevels;
-				0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R16G16_UNORM,//DXGI_FORMAT Format;
+				0 != ( wb.header.flags & FLAG_WARPFILE_HEADER_3D ) ? DXGI_FORMAT_R32G32B32_FLOAT : DXGI_FORMAT_R32G32_FLOAT,//DXGI_FORMAT Format;
 				{1,0},//DXGI_SAMPLE_DESC SampleDesc;
 				D3D12_TEXTURE_LAYOUT_UNKNOWN,// D3D12_TEXTURE_LAYOUT Layout;
 				D3D12_RESOURCE_FLAG_NONE,// D3D12_RESOURCE_FLAGS Flags;
@@ -449,16 +451,17 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			}
 			else
 			{
+				// 2D: float, not 16 bit normalised, see DX11WarpBlend.cpp
 				UINT sz = 2 * m_sizeMap.cx;
-				data.RowPitch = sizeof( unsigned short ) * sz;
+				data.RowPitch = sizeof( float ) * sz;
 				sz *= m_sizeMap.cy;
-				data.SlicePitch = sizeof( unsigned short ) * sz;
-				data.pData = new unsigned short[sz];
-				unsigned short* d = (unsigned short*)data.pData;
+				data.SlicePitch = sizeof( float ) * sz;
+				data.pData = new float[sz];
+				float* d = (float*)data.pData;
 				for( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + (ptrdiff_t)m_sizeMap.cx * (ptrdiff_t)m_sizeMap.cy; s != sE; d += 2, s++ )
 				{
-					d[0] = (unsigned short)( 65535.0f * MIN( 1.0f, MAX( 0.0f, s->x ) ) );
-					d[1] = (unsigned short)( 65535.0f * MIN( 1.0f, MAX( 0.0f, s->y ) ) );
+					d[0] = MIN( 1.0f, MAX( 0.0f, s->x ) );
+					d[1] = MIN( 1.0f, MAX( 0.0f, s->y ) );
 				}
 			}
 
@@ -596,14 +599,14 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				return VWB_ERROR_SHADER;
 			}
 			// Create synchronization objects and wait until assets have been uploaded to the GPU.
-			CComPtr<ID3D12Fence> fence;
+			ComPtr<ID3D12Fence> fence;
 			hr = m_device->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &fence ) );
 			if( FAILED( hr ) )
 			{
 				logStr( 0, "ERROR: Could not create fence: %08X\n", hr );
 				return VWB_ERROR_SHADER;
 			}
-			hr = m_cq->Signal( fence, 0 );
+			hr = m_cq->Signal( fence.Get(), 0 );
 			if( FAILED( hr ) )
 			{
 				logStr( 0, "ERROR: Could not set signal: %08X\n", hr );
@@ -622,7 +625,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			// run list
 			m_cq->ExecuteCommandLists( 1, (ID3D12CommandList*const*)&m_cl );
 
-			hr = m_cq->Signal( fence, ++last );
+			hr = m_cq->Signal( fence.Get(), ++last );
 			UINT64 current = fence->GetCompletedValue();
 			if( current < last )
 			{

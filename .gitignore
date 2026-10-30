@@ -1,77 +1,18 @@
-﻿################################################################################
-# Diese .gitignore-Datei wurde von Microsoft(R) Visual Studio automatisch erstellt.
-################################################################################
+# Build output
+/out/
+/build*/
+/cmake-build-*/
 
-/.vs
-/Debug
-/EyePointProvider/x64/Debug
-/out
-/TrackerSim/x64/Debug
-/VIOSOWarpBlend/x64/Debug
-/EyePointProvider/EyePointProvider.vcxproj.user
-/TrackerSim/TrackerSim.vcxproj.user
-/VIOSOWarpBlend/VIOSOWarpBlend.vcxproj.user
-/Examples/DirectX11/x64/Debug
-/Examples/DirectX12/obj/x64/Debug
-/Examples/OpenGL_4/x64/Debug
-/Examples/OpenGL_4/OpenGL_3.2.vcxproj.user
-/Examples/DirectX9_render/x64/Debug
-/Examples/OpenGL_4/VIOSOWarpBlend.log
-/Examples/DirectX9Ex/Debug/DirectX9.9D0BEE81.tlog
-/Examples/DirectX9Ex/Debug
-/Examples/DirectX9/Debug
-/Examples/DirectX11/DX11Example.vcxproj.user
-/Examples/DirectX12/D3D12HelloTexture.vcxproj.user
-/Examples/DirectX9Ex/DirectX9ExExample.vcxproj.user
-/data/vioso2d.vwf
-/data/vioso3D.vwf
-/EyePointProvider/Debug
-/TrackerSim/Debug/TrackerSim.tlog
-/TrackerSim/Debug
-/Examples/DirectX9/DirectX9Example.vcxproj.user
-/Examples/DirectX9_render/Debug/DirectX9Example2.tlog
-/Examples/DirectX9_render/Debug
-/Examples/DirectX9_render/Matrices_2010.vcxproj.user
-/Examples/OpenGL_4/Debug/OpenGLExample.tlog
-/Examples/OpenGL_4/Debug
-/VIOSOWarpBlend/Debug/VIOSOWarpBlend.tlog
-/VIOSOWarpBlend/Debug
-/.idea
-/Examples/DirectX11/Debug/DirectX11Example.tlog
-*.aps
-/Examples/DirectX12/obj/Win32/Debug
-/Examples/DirectX11/Debug
-/VIOSOWarpBlend/x64/Debug Unity/VIOSOWarpBlend.tlog
-/VIOSOWarpBlend/x64/Debug Unity
-/bin/VIOSOWarpBlend64.pdb
-/bin/VIOSOWarpBlend64.ipdb
-/bin/VIOSOWarpBlend64.iobj
-/bin/VIOSOWarpBlend.pdb
-/bin/VIOSOWarpBlend.ipdb
-/bin/VIOSOWarpBlend.iobj
-/Examples/DirectX11/x64/Release
-/Examples/DirectX12/obj/x64/Release
-/Examples/DirectX9/Release
-/Examples/DirectX9Ex/Release
-/Examples/DirectX9_render/x64/Release
-/Examples/OpenGL_4/x64/Release
-/EyePointProvider/x64/Release
-/lib/VIOSOWarpBlend.exp
-/lib/VIOSOWarpBlend64.exp
-/Release
-/TrackerSim/x64/Release
-/VIOSOWarpBlend/Release
-/VIOSOWarpBlend/x64/Release
-/x64/Release
-/bin/bin.rar
-/Examples/DirectX11/VIOSOWarpBlend.log
-/Examples/Mesh/x64/Debug/MeshExample.tlog
-/Examples/Mesh/x64/Debug
-/Examples/Mesh/MeshExample.vcxproj.user
-/VIOSOWarpBlend/x64/Debug vvvv
-Release
-/bin/VIOSOWarpBlend64.pdb
-/bin/DirectX11Example64.exe
-/bin/DirectX11Example64.pdb
-/bin/VIOSOWarpBlend.log
-/cmake-build-debug/
+# IDE settings (CMakePresets.json is the shared configuration)
+.vs/
+.idea/
+.vscode/
+CMakeUserPresets.json
+
+# Sample calibration files, downloaded separately - except the one the quickstart uses
+/data/*.vwf
+!/data/2D_plane_FHD.vwf
+
+# Runtime logs
+*.log
+*.log.bak

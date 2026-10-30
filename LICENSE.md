@@ -1,6 +1,6 @@
 #BSD 2-Clause License
 
-Copyright (c) 2024, VIOSO GmbH @jkrahmann
+Copyright (c) 2015-2026, VIOSO GmbH
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:

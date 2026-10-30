@@ -16,8 +16,6 @@
 #include <memory>
 #include <filesystem>
 
-#pragma comment( lib, "assimp/lib/assimp-vc142-mt")
-
 using namespace Assimp;
 using namespace std;
 
@@ -104,8 +102,8 @@ float4 PS( PS_INPUT input) : SV_Target
 AssimpRenderer::AssimpRenderer( ID3D11Device* dev, std::filesystem::path const& path )
 {
 	// Compile the vertex shader
-	CComPtr< ID3DBlob > codeBlob;
-	CComPtr< ID3DBlob > errBlob;
+	ComPtr< ID3DBlob > codeBlob;
+	ComPtr< ID3DBlob > errBlob;
 	HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "assimp vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
 	if( FAILED( hr ) )
 		throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
@@ -124,8 +122,8 @@ AssimpRenderer::AssimpRenderer( ID3D11Device* dev, std::filesystem::path const& 
 		throw exception( "failed to create input layout" );
 
 	// Compile the pixel shader
-	codeBlob.Release();
-	errBlob.Release();
+	codeBlob.Reset();
+	errBlob.Reset();
 	hr = D3DCompile( s_szShader, strlen( s_szShader ), "assimp pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
 	if( FAILED( hr ) )
 		throw exception( ( string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
@@ -134,8 +132,8 @@ AssimpRenderer::AssimpRenderer( ID3D11Device* dev, std::filesystem::path const& 
 	hr = dev->CreatePixelShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_ps );
 	if( FAILED( hr ) )
 		throw exception( "failed to create pixel shader" );
-	codeBlob.Release();
-	errBlob.Release();
+	codeBlob.Reset();
+	errBlob.Reset();
 
 	D3D11_BUFFER_DESC bd{};
 	bd.Usage = D3D11_USAGE_DEFAULT;
@@ -381,7 +379,7 @@ HRESULT AssimpRenderer::Load( filesystem::path const& path, ID3D11Device* dev )
 							aiMaterial& material = *scene.mMaterials[mesh.texIndex];
 							aiString texPath = getTexNameFrom( material );
 
-							CComPtr<ID3D11Texture2D> tex;
+							ComPtr<ID3D11Texture2D> tex;
 							sd.pSysMem = nullptr;
 
 							if( texPath.data[0] == '*' ) // there is a texture index
@@ -484,7 +482,7 @@ HRESULT AssimpRenderer::Load( filesystem::path const& path, ID3D11Device* dev )
 							if( tex )
 							{
 								srDesc.Format = texDesc.Format;
-								hr = dev->CreateShaderResourceView( tex, &srDesc, &m_textures[mesh.texIndex] );
+								hr = dev->CreateShaderResourceView( tex.Get(), &srDesc, &m_textures[mesh.texIndex] );
 								if( FAILED( hr ) )
 									throw exception( "failed to create shader resource view" );
 							}
@@ -594,10 +592,10 @@ HRESULT AssimpRenderer::LoadQuad( ID3D11Device* dev )
 void AssimpRenderer::render( ID3D11DeviceContext* ctx, XMMATRIX const& world, XMMATRIX const& view, XMMATRIX const& projection )
 {
 	// Set the input layout
-	ctx->IASetInputLayout( m_layout );
+	ctx->IASetInputLayout( m_layout.Get() );
 
 	// set sampler state
-	ctx->PSSetSamplers( 0, 1, &m_ss.p );
+	ctx->PSSetSamplers( 0, 1, m_ss.GetAddressOf() );
 
 	// update and set constant buffer
 	m_vsConstants.mWorld = XMMatrixTranspose( world );
@@ -606,31 +604,31 @@ void AssimpRenderer::render( ID3D11DeviceContext* ctx, XMMATRIX const& world, XM
 	m_vsConstants.mModel = XMMatrixSet( 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ); // reset to make the loop update the CB
 
 	// set shader
-	ctx->VSSetShader( m_vs, NULL, 0 );
-	ctx->PSSetShader( m_ps, NULL, 0 );
+	ctx->VSSetShader( m_vs.Get(), NULL, 0 );
+	ctx->PSSetShader( m_ps.Get(), NULL, 0 );
 
 	// draw
 	for( auto& mesh : m_meshes )
 	{
 		// Set vertex buffer
-		ctx->IASetVertexBuffers( 0, 1, &mesh.vb.p, &SimpleVertexTex::stride, &mesh.vertexOffset );
+		ctx->IASetVertexBuffers( 0, 1, mesh.vb.GetAddressOf(), &SimpleVertexTex::stride, &mesh.vertexOffset );
 		// set index buffer
-		ctx->IASetIndexBuffer( mesh.ib, DXGI_FORMAT_R32_UINT, 0 );
+		ctx->IASetIndexBuffer( mesh.ib.Get(), DXGI_FORMAT_R32_UINT, 0 );
 		// Set primitive topology
 		ctx->IASetPrimitiveTopology( mesh.topo );
 
 		ID3D11ShaderResourceView * const _empty = nullptr;
 		// set texture
 		if( UINT_MAX != mesh.texIndex && !m_textures.empty() && m_textures[mesh.texIndex] )
-			ctx->PSSetShaderResources( 0, 1, &m_textures[mesh.texIndex].p );
+			ctx->PSSetShaderResources( 0, 1, m_textures[mesh.texIndex].GetAddressOf() );
 		else
 			ctx->PSSetShaderResources( 0, 1, &_empty );
 
 		if( memcmp( m_vsConstants.mModel.r, mesh.modelViewT.r, sizeof( m_vsConstants.mModel ) ) )
 		{
 			m_vsConstants.mModel = mesh.modelViewT;
-			ctx->UpdateSubresource( m_cb, 0, NULL, &m_vsConstants, 0, 0 );
-			ctx->VSSetConstantBuffers( 0, 1, &m_cb.p );
+			ctx->UpdateSubresource( m_cb.Get(), 0, NULL, &m_vsConstants, 0, 0 );
+			ctx->VSSetConstantBuffers( 0, 1, m_cb.GetAddressOf() );
 		}
 
 		ctx->DrawIndexed( mesh.numIndices, mesh.indexOffset, mesh.vertexOffset );

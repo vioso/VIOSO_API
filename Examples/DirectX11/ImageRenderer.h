@@ -12,16 +12,16 @@
 class ImageRenderer : public Renderer
 {
     static const char s_szShader[];
-    CComPtr< ID3D11VertexShader > m_vs;
-    CComPtr< ID3D11PixelShader > m_ps;
-    CComPtr< ID3D11SamplerState > m_ss;
-    CComPtr< ID3D11ShaderResourceView > m_tex;
+    ComPtr< ID3D11VertexShader > m_vs;
+    ComPtr< ID3D11PixelShader > m_ps;
+    ComPtr< ID3D11SamplerState > m_ss;
+    ComPtr< ID3D11ShaderResourceView > m_tex;
 public:	
 	ImageRenderer( ID3D11Device* dev, char const* path )
     {
         // Compile the vertex shader
-        CComPtr< ID3DBlob > codeBlob;
-        CComPtr< ID3DBlob > errBlob;
+        ComPtr< ID3DBlob > codeBlob;
+        ComPtr< ID3DBlob > errBlob;
         HRESULT hr = D3DCompile( s_szShader, strlen( s_szShader ), "image vertex shader", NULL, NULL, "VS", "vs_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
             throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
@@ -32,8 +32,8 @@ public:
             throw std::exception( "failed to create shader" );
 
         // Compile the pixel shader
-        codeBlob.Release();
-        errBlob.Release();
+        codeBlob.Reset();
+        errBlob.Reset();
         hr = D3DCompile( s_szShader, strlen( s_szShader ), "image pixel shader", NULL, NULL, "PS", "ps_4_0", 0, 0, &codeBlob, &errBlob );
         if( FAILED( hr ) )
             throw std::exception( ( std::string( "failed to compile shader" ) + (char*)errBlob->GetBufferPointer() ).c_str() );
@@ -42,8 +42,8 @@ public:
         hr = dev->CreatePixelShader( codeBlob->GetBufferPointer(), codeBlob->GetBufferSize(), NULL, &m_ps );
         if( FAILED( hr ) )
             throw std::exception( "failed to create pixel shader" );
-        codeBlob.Release();
-        errBlob.Release();
+        codeBlob.Reset();
+        errBlob.Reset();
 
         // create sampler state
         D3D11_SAMPLER_DESC sd{
@@ -116,7 +116,7 @@ public:
             4 * texDesc.Width * texDesc.Height
         };
 
-        CComPtr<ID3D11Texture2D> tex;
+        ComPtr<ID3D11Texture2D> tex;
         hr = dev->CreateTexture2D( &texDesc, &sbd, &tex );
         if( FAILED( hr ) )
             throw std::exception( "failed to create texture" );
@@ -127,7 +127,7 @@ public:
         srDesc.Texture2D.MipLevels = 1;
         srDesc.Texture2D.MostDetailedMip = 0;
 
-        hr = dev->CreateShaderResourceView( tex, &srDesc, &m_tex );
+        hr = dev->CreateShaderResourceView( tex.Get(), &srDesc, &m_tex );
         if( FAILED( hr ) )
             throw std::exception( "failed to create shader resource view" );
     }
@@ -139,14 +139,14 @@ public:
         ctx->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP );
 
         // set shader
-        ctx->VSSetShader( m_vs, NULL, 0 );
-        ctx->PSSetShader( m_ps, NULL, 0 );
+        ctx->VSSetShader( m_vs.Get(), NULL, 0 );
+        ctx->PSSetShader( m_ps.Get(), NULL, 0 );
 
         // set sampler state
-        ctx->PSSetSamplers( 0, 1, &m_ss.p );
+        ctx->PSSetSamplers( 0, 1, m_ss.GetAddressOf() );
 
         // set texture resource
-        ctx->PSSetShaderResources( 0, 1, &m_tex.p );
+        ctx->PSSetShaderResources( 0, 1, m_tex.GetAddressOf() );
 
         // draw
         ctx->Draw( 4, 0 );

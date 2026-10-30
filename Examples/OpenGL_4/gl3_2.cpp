@@ -45,6 +45,62 @@ const int c_numTri = 30;
 
 const char* s_configFile = "VIOSOWarpBlendGL.ini";
 std::shared_ptr<VWB> pWarper;
+
+// Reports a failure on stderr and, on Windows, in a message box. The API's own details go to the log file.
+static char const* VwbErrorText( VWB_ERROR err )
+{
+	switch( err )
+	{
+	case VWB_ERROR_NONE: return "no error";
+	case VWB_ERROR_GENERIC: return "generic error (library not found or incomplete?)";
+	case VWB_ERROR_PARAMETER: return "invalid parameter";
+	case VWB_ERROR_INI_LOAD: return ".ini file could not be loaded";
+	case VWB_ERROR_BLEND: return "blend map invalid or could not be loaded to the GPU";
+	case VWB_ERROR_WARP: return "warp map invalid or could not be loaded to the GPU";
+	case VWB_ERROR_SHADER: return "shader failed to compile (GPU or driver not supported?)";
+	case VWB_ERROR_VWF_LOAD: return "calibration file (.vwf) is broken or has the wrong version";
+	case VWB_ERROR_VWF_FILE_NOT_FOUND: return "calibration file (.vwf) not found";
+	case VWB_ERROR_NOT_IMPLEMENTED: return "not implemented";
+	case VWB_ERROR_NETWORK: return "network could not be initialized";
+	case VWB_ERROR_NDI: return "NDI could not be initialized";
+	case VWB_ERROR_FALSE: return "nothing done";
+	}
+	return "unknown error";
+}
+
+// ini and log are looked up relative to the folder of the library on Windows, in the working directory on Linux
+static std::string LibraryDir()
+{
+#ifdef WIN32
+	char p[MAX_PATH]{};
+	if( HMODULE h = GetModuleHandleA( "ViosoWarpBlend64" ) )
+		if( GetModuleFileNameA( h, p, MAX_PATH ) )
+		{
+			std::string s( p );
+			return s.substr( 0, s.find_last_of( "\\/" ) );
+		}
+	return "(library not loaded)";
+#else
+	return "the working directory";
+#endif
+}
+
+static void ReportFailure( char const* what, VWB_ERROR err, char const* config, char const* channel, char const* calibFile = nullptr )
+{
+	char msg[1024];
+	snprintf( msg, sizeof( msg ),
+		"%s failed: %s (VWB_ERROR %d).\n"
+		"Config file: %s\n"
+		"Relative paths (ini, log) are resolved against: %s\n"
+		"Channel: %s\n"
+		"Calibration file as read: \"%s\"\n"
+		"Details are in VIOSOWarpBlend.log there (set logLevel=3 in the .ini).",
+		what, VwbErrorText( err ), (int)err, config, LibraryDir().c_str(), channel, calibFile ? calibFile : "(not read yet)" );
+	fprintf( stderr, "%s\n", msg );
+#ifdef WIN32
+	MessageBoxA( NULL, msg, "VIOSO OpenGL example", MB_OK | MB_ICONERROR );
+#endif
+}
 #endif //USE_VIOSO_API
 
 typedef char GLchar;
@@ -360,7 +416,7 @@ bool DrawGLScene()
 	//#ifdef WIN32
 	//OutputDebugStringA( "." );
 	//#endif
-	glm::mat4x4 view, proj;
+	glm::mat4x4 view( 1.0f ), proj( 1.0f );
 
 	#ifdef USE_VIOSO_API
 	//< start VIOSO API code
@@ -369,37 +425,13 @@ bool DrawGLScene()
 
 	if( pWarper )
 	{
-		static int c = 0;
-		if( 0 == c )
+		// View and projection for this display, for the handedness set by "base" in the .ini: right handed (identity),
+		// as OpenGL has it. With a left handed base the projection is mirrored in z and the scene is not visible.
+		VWB_ERROR err = pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), glm::value_ptr( proj ) );
+		if( VWB_ERROR_NONE != err )
 		{
-			// either use this
-			pWarper->GetViewProj( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), glm::value_ptr( proj ) );
-			c=1;
-		}
-		else if( 1 == c )
-		{
-			// or use this, which yields exact same result
-			GLfloat clip[6];
-			pWarper->GetViewClip( glm::value_ptr( eye ), glm::value_ptr( rot ), glm::value_ptr( view ), clip );
-			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			c = 2;
-		}
-		else
-		{
-			// or use this, which yields also exact same result
-			GLfloat clip[6];
-			GLfloat pos[3];
-			GLfloat dir[3];
-
-			pWarper->GetPosDirClip( &eye.x, &rot.x, pos, dir, clip );
-			view = glm::transpose(
-				glm::yawPitchRoll( -dir[1], dir[0], -dir[2] )
-			);
-			view[0].w = pos[0];
-			view[1].w = pos[1];
-			view[2].w = pos[2];
-			proj = glm::frustumRH( -clip[0], clip[2], -clip[3], clip[1], clip[4], clip[5] );
-			c = 0;
+			ReportFailure( "VWB_getViewProj", err, s_configFile, pWarper->get().channel );
+			return false;
 		}
 	}
 	//< end VIOSO API code
@@ -722,19 +754,26 @@ int WINAPI WinMain( HINSTANCE	hInstance,			// Instance
 	// Create Our OpenGL Window
 	if( !CreateGLWindow( "NeHe's Solid Object Tutorial", x, y, w, h, 32 ) )
 	{
-		return 0;									// Quit If Window Was Not Created	
+		return 2;									// Quit If Window Was Not Created	
 	}
 
 	#ifdef USE_VIOSO_API
 	try {
 		pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
 	}
-	catch( VWB_ERROR )
+	catch( VWB_ERROR err )
 	{
-		return FALSE;
+		ReportFailure( "VWB_Create", err, s_configFile, channel.c_str() );
+		return 3;
 	}
-	if( VWB_ERROR_NONE != pWarper->Init() )
-		return FALSE;
+	{
+		VWB_ERROR err = pWarper->Init();
+		if( VWB_ERROR_NONE != err )
+		{
+			ReportFailure( "VWB_Init", err, s_configFile, channel.c_str(), pWarper->get().calibFile );
+			return 4;
+		}
+	}
 
 	float tl[3];
 	float tr[3];
@@ -877,12 +916,19 @@ int main( int argc, char* argv[] )
     try {
         pWarper = std::make_shared<VWB>( "", nullptr, s_configFile, channel.c_str(), 1, "" );
     }
-    catch( VWB_ERROR )
+    catch( VWB_ERROR err )
     {
-        return 0;
+        ReportFailure( "VWB_Create", err, s_configFile, channel.c_str() );
+        return 3;
     }
-    if( VWB_ERROR_NONE != pWarper->Init() )
-        return 0;
+    {
+        VWB_ERROR err = pWarper->Init();
+        if( VWB_ERROR_NONE != err )
+        {
+            ReportFailure( "VWB_Init", err, s_configFile, channel.c_str(), pWarper->get().calibFile );
+            return 4;
+        }
+    }
 
     float tl[3];
     float tr[3];

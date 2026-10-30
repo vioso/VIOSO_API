@@ -11,8 +11,8 @@
 #define NOMINMAX
 #include <tchar.h>
 #include <Windows.h>
-#include <atlcomcli.h>
-//#include "atlcomcli_mod.h"
+#include <wrl/client.h>
+using Microsoft::WRL::ComPtr;
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
@@ -25,6 +25,11 @@ using namespace DirectX;
 #ifdef _DEBUG
 #include <dxgidebug.h>
 #endif
+
+// writes a line into VIOSOWarpBlend.log through VWB__logString of the loaded library; nothing happens, if it is not loaded.
+void logToVioso( char const* text );
+// the first reason that ends the program is logged, the following ones are not
+void logEnd( char const* reason );
 
 //--------------------------------------------------------------------------------------
 // Structures
@@ -83,8 +88,8 @@ public:
     static const FLOAT s_black[4];
     static const FLOAT s_sky[4];
 protected:
-    CComPtr< ID3D11RenderTargetView > m_rtv;
-    CComPtr< ID3D11DepthStencilView > m_dsv;
+    ComPtr< ID3D11RenderTargetView > m_rtv;
+    ComPtr< ID3D11DepthStencilView > m_dsv;
     FLOAT m_clearColor[4] = { 0, 0, 0, 1 };
 public:
 
@@ -108,14 +113,14 @@ public:
 class RenderTexture : public RenderTarget
 {
 protected:
-    CComPtr< ID3D11Texture2D > m_tex;
-    CComPtr< ID3D11ShaderResourceView > m_srv;
+    ComPtr< ID3D11Texture2D > m_tex;
+    ComPtr< ID3D11ShaderResourceView > m_srv;
 public:
     RenderTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
 
-    CComPtr<ID3D11Resource> getResource() { return m_tex.p; /*upcast*/ }
-    CComPtr<ID3D11Texture2D> getTexture() { return m_tex; }
-    CComPtr<ID3D11ShaderResourceView> getView() { return m_srv; }
+    ComPtr<ID3D11Resource> getResource() { return m_tex.Get(); /*upcast*/ }
+    ComPtr<ID3D11Texture2D> getTexture() { return m_tex; }
+    ComPtr<ID3D11ShaderResourceView> getView() { return m_srv; }
 };
 
 class Renderer
@@ -139,12 +144,12 @@ public:
     static const D3D11_BLEND_DESC s_blendDescStd;
 
 protected:
-    CComPtr<ID3D11Device> m_dev;
-    CComPtr<ID3D11DeviceContext> m_ic;
+    ComPtr<ID3D11Device> m_dev;
+    ComPtr<ID3D11DeviceContext> m_ic;
 
     std::vector< std::shared_ptr< Renderer > > m_renderers;
-    CComPtr<ID3D11RasterizerState> m_rs;
-    CComPtr<ID3D11BlendState> m_bs;
+    ComPtr<ID3D11RasterizerState> m_rs;
+    ComPtr<ID3D11BlendState> m_bs;
     XMMATRIX m_mView;
     XMMATRIX m_mProjection;
 
@@ -153,7 +158,7 @@ protected:
 
 public:
     static bool SaveTex( ID3D11Device* dev, ID3D11DeviceContext* dc, LPCSTR path, ID3D11Texture2D* tex ) ;
-    static CComPtr<ID3D11Device> createDevice( int createDeviceFlags );
+    static ComPtr<ID3D11Device> createDevice( int createDeviceFlags );
 
     GFXPipeline( ID3D11Device* dev, D3D11_RASTERIZER_DESC const& rd = s_rasterDescSolid, D3D11_BLEND_DESC const& bd = s_blendDescStd );
     GFXPipeline( int createDeviceFlags, D3D11_RASTERIZER_DESC const& rd = s_rasterDescSolid, D3D11_BLEND_DESC const& bd = s_blendDescStd );
@@ -163,8 +168,8 @@ public:
     XMMATRIX const& getMView() const { return m_mView; }
     XMMATRIX& getMView() { return m_mView; }
 
-    CComPtr<ID3D11Device> getDevice() { return m_dev; }
-    CComPtr<ID3D11DeviceContext> getContext() { return m_ic; }
+    ComPtr<ID3D11Device> getDevice() { return m_dev; }
+    ComPtr<ID3D11DeviceContext> getContext() { return m_ic; }
 
     void setMProjection( XMMATRIX const& m ) { m_mProjection = m; }
     XMMATRIX const& getMProjection() const { return m_mProjection; }
@@ -180,12 +185,31 @@ public:
 };
 
 
+// Owns a window whose GWLP_USERDATA points to its owner. Detaches and destroys it, even if the owner's constructor throws
+class WindowHandle
+{
+    HWND m_h;
+public:
+    explicit WindowHandle( HWND h ) : m_h( h ) {}
+    WindowHandle( WindowHandle const& ) = delete;
+    WindowHandle& operator=( WindowHandle const& ) = delete;
+    ~WindowHandle()
+    {
+        if( m_h )
+        {
+            SetWindowLongPtr( m_h, GWLP_USERDATA, 0 );
+            DestroyWindow( m_h );
+        }
+    }
+    operator HWND() const { return m_h; }
+};
+
 class OutputWindow : public GFXPipeline
 {
 protected:
     static ATOM s_wndclass;
-    HWND m_hWnd;
-    CComPtr<IDXGISwapChain> m_sc;
+    WindowHandle m_hWnd;
+    ComPtr<IDXGISwapChain> m_sc;
 
     static HWND createWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height );
     static LRESULT CALLBACK  WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
@@ -194,6 +218,7 @@ public:
 public:
     OutputWindow( HINSTANCE hInstance, LPCTSTR windowName, int x, int y, int width, int height, int nCmdShow, DXGI_SWAP_EFFECT effect, int bufferCount, int createDeviceFlags = 0, bool withDepth = true );
 
+    void appendTitle( std::wstring const& s ) { if( s.empty() ) return; wchar_t t[256]{}; GetWindowTextW( m_hWnd, t, 256 ); SetWindowTextW( m_hWnd, ( std::wstring( t ) + s ).c_str() ); }
     virtual LRESULT wndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
     virtual void preRender() override;
@@ -208,9 +233,9 @@ class RenderToTexture : public GFXPipeline
 public:
     RenderToTexture( ID3D11Device* dev, int width, int height, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, bool withDepth = false );
     // gets the texture resource
-    CComPtr<ID3D11Resource> getResource() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource(); }
-    CComPtr<ID3D11Texture2D> getTexture() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getTexture(); }
-    CComPtr<ID3D11ShaderResourceView> getView() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getView(); }
+    ComPtr<ID3D11Resource> getResource() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getResource(); }
+    ComPtr<ID3D11Texture2D> getTexture() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getTexture(); }
+    ComPtr<ID3D11ShaderResourceView> getView() const { return dynamic_cast< RenderTexture* >( m_rt.get() )->getView(); }
     size_t copyToBuffer( void* buff, size_t nBytes, D3D11_TEXTURE2D_DESC* pDesc ) const;
 };
 

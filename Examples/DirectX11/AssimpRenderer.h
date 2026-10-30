@@ -21,20 +21,20 @@ public:
         UINT vertexOffset;
         D3D_PRIMITIVE_TOPOLOGY topo;
         UINT texIndex;
-        CComPtr< ID3D11Buffer > vb;
-        CComPtr< ID3D11Buffer > ib;
+        ComPtr< ID3D11Buffer > vb;
+        ComPtr< ID3D11Buffer > ib;
         MeshInfo() :modelViewT{}, numIndices{ 0U }, indexOffset{ 0 }, vertexOffset{ 0U }, topo{ D3D_PRIMITIVE_TOPOLOGY_UNDEFINED }, texIndex{ UINT_MAX } {}
     } MeshInfo;
     typedef std::vector<MeshInfo> MeshInfoList;
-    typedef std::vector< CComPtr< ID3D11ShaderResourceView >> TextureList;
+    typedef std::vector< ComPtr< ID3D11ShaderResourceView >> TextureList;
 
 protected:
     static const char s_szShader[];
-    CComPtr< ID3D11VertexShader > m_vs;
-    CComPtr< ID3D11PixelShader > m_ps;
-    CComPtr< ID3D11InputLayout > m_layout;
-    CComPtr< ID3D11Buffer > m_cb;
-    CComPtr< ID3D11SamplerState > m_ss;
+    ComPtr< ID3D11VertexShader > m_vs;
+    ComPtr< ID3D11PixelShader > m_ps;
+    ComPtr< ID3D11InputLayout > m_layout;
+    ComPtr< ID3D11Buffer > m_cb;
+    ComPtr< ID3D11SamplerState > m_ss;
     VSConstantBufferB m_vsConstants;
     MeshInfoList m_meshes;
     TextureList m_textures;
