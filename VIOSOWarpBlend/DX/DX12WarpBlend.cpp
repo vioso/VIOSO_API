@@ -61,9 +61,15 @@ DX12WarpBlend::DX12WarpBlend( ID3D12CommandQueue* pCQ )
 , m_texBlend( NULL )
 , m_texBlack( NULL )
 , m_texCur( NULL )
-, m_texBB( NULL )
 , m_cb( NULL )
 , m_cbMap( NULL )
+, m_cbStride( 0 )
+, m_fence( NULL )
+, m_fenceEvent( NULL )
+, m_fenceValue( 0 )
+, m_slotNext( 0 )
+, m_slotPending( -1 )
+, m_slot{}
 , m_vp{0,0,1,1,0,1}
 {
 	if( NULL == pCQ )
@@ -77,11 +83,29 @@ DX12WarpBlend::DX12WarpBlend( ID3D12CommandQueue* pCQ )
 
 DX12WarpBlend::~DX12WarpBlend(void)
 {
+	// wait until the GPU is done with everything submitted to the queue so far, including the lists of the caller
+	if( m_fence && m_fenceEvent && m_cq )
+	{
+		UINT64 last = ++m_fenceValue;
+		if( SUCCEEDED( m_cq->Signal( m_fence, last ) ) && m_fence->GetCompletedValue() < last )
+		{
+			if( SUCCEEDED( m_fence->SetEventOnCompletion( last, m_fenceEvent ) ) )
+			{
+				if( WAIT_OBJECT_0 != WaitForSingleObject( m_fenceEvent, 10000 ) )
+					logStr( 0, "ERROR: DX12-Warper: timeout waiting for the GPU on destruction.\n" );
+			}
+		}
+	}
+	for( UINT i = 0; i != FRAMES_IN_FLIGHT; i++ )
+	{
+		SAFERELEASE( m_slot[i].res );
+		SAFERELEASE( m_slot[i].cl );
+		SAFERELEASE( m_slot[i].ca );
+	}
 	SAFERELEASE( m_texWarp );
 	SAFERELEASE( m_texBlend );
 	SAFERELEASE( m_texBlack );
 	SAFERELEASE( m_texCur );
-	SAFERELEASE( m_texBB );
 	if( m_cb && m_cbMap )
 		m_cb->Unmap( 0, nullptr );
 	SAFERELEASE( m_cb );
@@ -89,8 +113,16 @@ DX12WarpBlend::~DX12WarpBlend(void)
 	SAFERELEASE( m_pipelineState );
 	SAFERELEASE( m_rootSignature );
 	SAFERELEASE( m_srvHeap );
-	SAFERELEASE( m_device );
 	SAFERELEASE( m_cl );
+	SAFERELEASE( m_ca );
+	SAFERELEASE( m_fence );
+	if( m_fenceEvent )
+	{
+		CloseHandle( m_fenceEvent );
+		m_fenceEvent = NULL;
+	}
+	SAFERELEASE( m_device );
+	SAFERELEASE( m_cq );
 	logStr( 1, "INFO: DX12-Warper destroyed.\n" );
 }
 
@@ -142,7 +174,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 	{
 		// Describe and create a shader resource view (SRV) heap for the texture.
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 5;
+		heapDesc.NumDescriptors = 4 + FRAMES_IN_FLIGHT; // 0..3 static textures, 4 + slot: content texture of the slot
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -163,12 +195,14 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				return VWB_ERROR_GENERIC;
 			}
 
+			// parameter 1: the four static textures t0..t3, parameter 2: the content texture t4, set to the descriptor of the slot
 			CD3DX12_DESCRIPTOR_RANGE1 ranges1[2] = {};
 			ranges1[0].Init( D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC, 0 );
-			ranges1[1].Init( D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE, 4 );
-			CD3DX12_ROOT_PARAMETER1 rootParameters[2] = {};
+			ranges1[1].Init( D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE, 0 );
+			CD3DX12_ROOT_PARAMETER1 rootParameters[3] = {};
 			rootParameters[0].InitAsConstantBufferView( 0 );
-			rootParameters[1].InitAsDescriptorTable( _countof( ranges1 ), ranges1, D3D12_SHADER_VISIBILITY_PIXEL );
+			rootParameters[1].InitAsDescriptorTable( 1, &ranges1[0], D3D12_SHADER_VISIBILITY_PIXEL );
+			rootParameters[2].InitAsDescriptorTable( 1, &ranges1[1], D3D12_SHADER_VISIBILITY_PIXEL );
 
 			D3D12_STATIC_SAMPLER_DESC samplers[] =
 			{
@@ -337,6 +371,22 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				return VWB_ERROR_SHADER;
 			}
 			m_cl->SetName( L"VWB_commandlist" );
+
+			// one allocator and list per slot, used when Render() gets no command list from the caller
+			for( UINT i = 0; i != FRAMES_IN_FLIGHT; i++ )
+			{
+				hr = m_device->CreateCommandAllocator( D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS( &m_slot[i].ca ) );
+				if( SUCCEEDED( hr ) )
+					hr = m_device->CreateCommandList( 0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_slot[i].ca, m_pipelineState, IID_PPV_ARGS( &m_slot[i].cl ) );
+				if( FAILED( hr ) )
+				{
+					logStr( 0, "ERROR: Could not create command allocator or list for slot %u: %08X\n", i, hr );
+					return VWB_ERROR_SHADER;
+				}
+				m_slot[i].cl->Close();
+				m_slot[i].ca->SetName( L"VWB_slotcommandallocator" );
+				m_slot[i].cl->SetName( L"VWB_slotcommandlist" );
+			}
 		}
 
 		// create and fill vertex buffer
@@ -383,7 +433,8 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		// Create the constant buffer
 		{
 			UINT szA = sizeof( ConstantBuffer );
-			UINT sz = ( ( szA + 255 ) / 256 ) * 256;
+			m_cbStride = ( ( szA + 255 ) / 256 ) * 256; // one range per slot, so a running list never reads what the CPU writes
+			UINT sz = m_cbStride * FRAMES_IN_FLIGHT;
 			CD3DX12_HEAP_PROPERTIES hp( D3D12_HEAP_TYPE_UPLOAD );
 			CD3DX12_RESOURCE_DESC rd = CD3DX12_RESOURCE_DESC::Buffer( sz );
 			hr = m_device->CreateCommittedResource(
@@ -401,7 +452,7 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				CD3DX12_RANGE readRange( 0, 0 );
 				m_cb->Map( 0, &readRange, &pData );
 				m_cbMap = pData;
-				memset( m_cbMap, 0, sizeof( ConstantBuffer ) );
+				memset( m_cbMap, 0, sz );
 			}
 			else
 			{
@@ -599,24 +650,17 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				return VWB_ERROR_SHADER;
 			}
 			// Create synchronization objects and wait until assets have been uploaded to the GPU.
-			ComPtr<ID3D12Fence> fence;
-			hr = m_device->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &fence ) );
+			// The fence stays: Render() uses it to know when the GPU is done with a slot.
+			hr = m_device->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &m_fence ) );
 			if( FAILED( hr ) )
 			{
 				logStr( 0, "ERROR: Could not create fence: %08X\n", hr );
 				return VWB_ERROR_SHADER;
 			}
-			hr = m_cq->Signal( fence.Get(), 0 );
-			if( FAILED( hr ) )
-			{
-				logStr( 0, "ERROR: Could not set signal: %08X\n", hr );
-				return VWB_ERROR_SHADER;
-			}
-			UINT64 last = fence->GetCompletedValue();
 
-			// Create an event handle to use for frame synchronization.
-			HANDLE fenceEvent = CreateEvent( nullptr, FALSE, FALSE, nullptr );
-			if( fenceEvent == nullptr )
+			// Create an event handle to use for synchronization.
+			m_fenceEvent = CreateEvent( nullptr, FALSE, FALSE, nullptr );
+			if( m_fenceEvent == nullptr )
 			{
 				logStr( 0, "ERROR: Could not create event: %08X\n", HRESULT_FROM_WIN32( GetLastError() ) );
 				return VWB_ERROR_GENERIC;
@@ -625,12 +669,16 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			// run list
 			m_cq->ExecuteCommandLists( 1, (ID3D12CommandList*const*)&m_cl );
 
-			hr = m_cq->Signal( fence.Get(), ++last );
-			UINT64 current = fence->GetCompletedValue();
-			if( current < last )
+			hr = m_cq->Signal( m_fence, ++m_fenceValue );
+			if( FAILED( hr ) )
 			{
-				hr = fence->SetEventOnCompletion( last, fenceEvent );
-				WaitForSingleObject( fenceEvent, INFINITE );
+				logStr( 0, "ERROR: Could not set signal: %08X\n", hr );
+				return VWB_ERROR_SHADER;
+			}
+			if( m_fence->GetCompletedValue() < m_fenceValue )
+			{
+				hr = m_fence->SetEventOnCompletion( m_fenceValue, m_fenceEvent );
+				WaitForSingleObject( m_fenceEvent, INFINITE );
 			}
 		}
 
@@ -650,7 +698,37 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	auto in = (VWB_D3D12_RENDERINPUT*)inputTexture;
 	if( nullptr == in || nullptr == in->renderTarget || 0 == in->rtvHandlePtr )
 		return VWB_ERROR_PARAMETER;
+	if( nullptr == m_fence || nullptr == m_fenceEvent )
+		return VWB_ERROR_GENERIC; // not initialized
 	HRESULT hr = S_OK;
+
+	// Frames in flight, see DX12WarpBlend.h. The signal covers everything submitted to the queue so far, that is the list
+	// of the previous Render() call if the caller passed its own command list.
+	hr = m_cq->Signal( m_fence, ++m_fenceValue );
+	if( FAILED( hr ) )
+	{
+		logStr( 0, "ERROR: DX12-Warper: could not signal the fence: %08X\n", hr );
+		return VWB_ERROR_GENERIC;
+	}
+	if( 0 <= m_slotPending )
+	{
+		m_slot[m_slotPending].fence = m_fenceValue;
+		m_slotPending = -1;
+	}
+
+	// take the next slot and wait until the GPU is done with its last use
+	const UINT si = m_slotNext;
+	m_slotNext = ( m_slotNext + 1 ) % FRAMES_IN_FLIGHT;
+	Slot& slot = m_slot[si];
+	if( slot.fence > m_fence->GetCompletedValue() )
+	{
+		hr = m_fence->SetEventOnCompletion( slot.fence, m_fenceEvent );
+		if( FAILED( hr ) || WAIT_OBJECT_0 != WaitForSingleObject( m_fenceEvent, 10000 ) )
+		{
+			logStr( 0, "ERROR: DX12-Warper: timeout waiting for the GPU to finish slot %u (%08X)\n", si, hr );
+			return VWB_ERROR_GENERIC;
+		}
+	}
 
 	ID3D12GraphicsCommandList* cl = nullptr;
 	if( in->commandList )
@@ -660,19 +738,29 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	}
 	else
 	{
-		hr = m_ca->Reset();
-		hr = m_cl->Reset( m_ca, m_pipelineState );
-		cl = m_cl;
+		hr = slot.ca->Reset();
+		if( SUCCEEDED( hr ) )
+			hr = slot.cl->Reset( slot.ca, m_pipelineState );
+		if( FAILED( hr ) )
+		{
+			logStr( 0, "ERROR: DX12-Warper: could not reset the command list of slot %u: %08X\n", si, hr );
+			return VWB_ERROR_GENERIC;
+		}
+		cl = slot.cl;
 	}
 
 	ID3D12Resource* rt = (ID3D12Resource*)in->renderTarget;
 	D3D12_RESOURCE_DESC descRT = rt->GetDesc();
+	const SIZE_T descSize = m_device->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV );
+	const D3D12_CPU_DESCRIPTOR_HANDLE srvCpu = { m_srvHeap->GetCPUDescriptorHandleForHeapStart().ptr + ( 4 + si ) * descSize };
 
 	if( nullptr == in->textureResource )
 	{
-
-		if( nullptr == m_texBB || descRT.Width != m_texBB->GetDesc().Width )
+		// copy the render target into a texture of this slot and use that as the content
+		if( nullptr == slot.res || !slot.resOwn || descRT.Width != slot.res->GetDesc().Width || descRT.Height != slot.res->GetDesc().Height )
 		{
+			SAFERELEASE( slot.res );
+			slot.resOwn = false;
 			// create tex#
 			CD3DX12_HEAP_PROPERTIES hd( D3D12_HEAP_TYPE_DEFAULT );
 			hr = m_device->CreateCommittedResource(
@@ -681,18 +769,19 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				&descRT,
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 				nullptr,
-				IID_PPV_ARGS( &m_texBB ) );
-			SIZE_T base = m_srvHeap->GetCPUDescriptorHandleForHeapStart().ptr;
-			SIZE_T ds = m_device->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV );
-			SIZE_T des = base + 4 * ds;
-			m_device->CreateShaderResourceView(
-				m_texBB,
-				nullptr,
-				{ des }
-			);
-			m_texBB->SetName( L"VWB_backbuffercopytexture" );
-			m_sizeIn.cx = (VWB_int)descRT.Width;
-			m_sizeIn.cy = (VWB_int)descRT.Height;
+				IID_PPV_ARGS( &slot.res ) );
+			if( FAILED( hr ) )
+			{
+				logStr( 0, "ERROR: DX12-Warper: could not create the back buffer copy texture: %08X\n", hr );
+				if( !in->commandList )
+					slot.cl->Close();
+				return VWB_ERROR_GENERIC;
+			}
+			slot.resOwn = true;
+			m_device->CreateShaderResourceView( slot.res, nullptr, srvCpu );
+			slot.res->SetName( L"VWB_backbuffercopytexture" );
+			slot.size.cx = (VWB_int)descRT.Width;
+			slot.size.cy = (VWB_int)descRT.Height;
 		}
 
 		// prepare pipeline for copy
@@ -712,7 +801,7 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 				D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
 				D3D12_RESOURCE_BARRIER_FLAG_NONE,
 				D3D12_RESOURCE_TRANSITION_BARRIER{
-					(ID3D12Resource*)m_texBB,
+					slot.res,
 					D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 					D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 					D3D12_RESOURCE_STATE_COPY_DEST
@@ -722,7 +811,7 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		cl->ResourceBarrier( _countof( rB ), rB );
 
 		// issue copy
-		cl->CopyResource( m_texBB, rt );
+		cl->CopyResource( slot.res, rt );
 
 		// make rt render target again
 		rB[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -733,33 +822,36 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	}
 	else
 	{
-		if( m_texBB != (ID3D12Resource*)in->textureResource )
+		// the caller's texture: write the descriptor of this slot only if the slot points to another texture
+		if( slot.res != (ID3D12Resource*)in->textureResource )
 		{
-			SAFERELEASE( m_texBB );
-			SIZE_T base = m_srvHeap->GetCPUDescriptorHandleForHeapStart().ptr;
-			SIZE_T ds = m_device->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV );
-			SIZE_T des = base + 4 * ds;
-			hr = in->textureResource->QueryInterface( &m_texBB );
+			SAFERELEASE( slot.res );
+			slot.resOwn = false;
+			hr = in->textureResource->QueryInterface( &slot.res );
 			if( SUCCEEDED( hr ) )
 			{
-				m_device->CreateShaderResourceView(
-					m_texBB,
-					nullptr,
-					{ des }
-				);
-				D3D12_RESOURCE_DESC descIn = m_texBB->GetDesc();
-				m_sizeIn.cx = (VWB_int)descIn.Width;
-				m_sizeIn.cy = (VWB_int)descIn.Height;
+				m_device->CreateShaderResourceView( slot.res, nullptr, srvCpu );
+				D3D12_RESOURCE_DESC descIn = slot.res->GetDesc();
+				slot.size.cx = (VWB_int)descIn.Width;
+				slot.size.cy = (VWB_int)descIn.Height;
+			}
+			else
+			{
+				slot.res = nullptr;
+				logStr( 0, "ERROR: DX12-Warper: textureResource is not an ID3D12Resource: %08X\n", hr );
+				if( !in->commandList )
+					slot.cl->Close();
+				return VWB_ERROR_PARAMETER;
 			}
 		}
 	}
+	m_sizeIn = slot.size;
 
-	// update constant buffer
+	// update the constant buffer range of this slot
 	if( m_cbMap )
 	{
-		// the constant buffer is still mapped
-		// to avoid pipeline stall, we must not read (or perform operations on) that memory range
-		ConstantBuffer& cb = *reinterpret_cast<ConstantBuffer*>(m_cbMap);
+		// the range belongs to this slot only, no running list reads it
+		ConstantBuffer& cb = *reinterpret_cast<ConstantBuffer*>( (BYTE*)m_cbMap + (size_t)si * m_cbStride );
 		memcpy( cb.matView, m_mVP.Transposed(), sizeof( cb.matView ) );
 		cb.border[0] = m_bBorder;
 		cb.border[1] = bDoNotBlend ? 0.0f : 1.0f;
@@ -786,7 +878,7 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		cb.blackBias[0] = m_blackBias.x * blackScale;
 		if( blackDarkAdjust <= 0.5f )
 			cb.blackBias[1] = blackDarkAdjust * 2.0f * m_blackBias.y;
-		else 
+		else
 			cb.blackBias[1] = m_blackBias.y + ( blackDarkAdjust - 0.5f ) * 2.0f * ( 1.0f - m_blackBias.y );
 		if( blackBrightAdjust <= 0.5f )
 			cb.blackBias[2] = blackBrightAdjust * 2.0f * m_blackBias.z;
@@ -801,8 +893,9 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap };
 	cl->SetDescriptorHeaps( _countof(ppHeaps) , ppHeaps );
 
-	cl->SetGraphicsRootConstantBufferView( 0, m_cb->GetGPUVirtualAddress() );
+	cl->SetGraphicsRootConstantBufferView( 0, m_cb->GetGPUVirtualAddress() + (UINT64)si * m_cbStride );
 	cl->SetGraphicsRootDescriptorTable( 1, m_srvHeap->GetGPUDescriptorHandleForHeapStart() );
+	cl->SetGraphicsRootDescriptorTable( 2, { m_srvHeap->GetGPUDescriptorHandleForHeapStart().ptr + ( 4 + si ) * descSize } );
 
 
 	D3D12_VIEWPORT vp;
@@ -846,8 +939,19 @@ VWB_ERROR DX12WarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( !in->commandList )
 	{
-		hr = m_cl->Close();
-		m_cq->ExecuteCommandLists( 1, ( ID3D12CommandList* const* )&m_cl );
+		// we run our own list and know when it is done
+		hr = slot.cl->Close();
+		if( SUCCEEDED( hr ) )
+		{
+			m_cq->ExecuteCommandLists( 1, ( ID3D12CommandList* const* )&slot.cl );
+			hr = m_cq->Signal( m_fence, ++m_fenceValue );
+			slot.fence = m_fenceValue;
+		}
+	}
+	else
+	{
+		// the caller submits its list after this call, the next Render() covers it with a signal
+		m_slotPending = (int)si;
 	}
 
 	return SUCCEEDED( hr ) ? VWB_ERROR_NONE : VWB_ERROR_GENERIC;

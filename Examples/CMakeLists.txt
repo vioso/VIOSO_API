@@ -3,7 +3,7 @@
 # are left alone (own changes, disk space).
 set(_sample_dir "$<TARGET_FILE_DIR:VIOSOWarpBlend>")
 set(_sample_cmds)
-foreach(_f VIOSOWarpBlend.ini VIOSOWarpBlendGL.ini 2D_plane_FHD.vwf)
+foreach(_f VIOSOWarpBlend.ini VIOSOWarpBlendGL.ini 2D_plane_FHD.vwf earth.png)
     list(APPEND _sample_cmds COMMAND "${CMAKE_COMMAND}"
          "-DSRC=${PROJECT_SOURCE_DIR}/data/${_f}" "-DDST=${_sample_dir}/${_f}"
          -P "${PROJECT_SOURCE_DIR}/cmake/CopyIfMissing.cmake")

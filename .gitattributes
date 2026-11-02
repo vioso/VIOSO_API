@@ -1,0 +1,12 @@
+# Line endings: no conversion, no normalization. The files are stored as they are; our own text files use CRLF.
+# Third-party code (glm, assimp, stb_image) keeps the line endings it came with.
+* -text
+
+# binary files
+*.dll binary
+*.lib binary
+*.ico binary
+*.jpg binary
+*.vwf binary
+# UTF-16 resource scripts
+*.rc binary

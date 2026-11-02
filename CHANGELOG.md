@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.7.1
+
+Drop-in replacement for 1.7.0: the interface, the ABI and the .vwf format are unchanged. Known limits: docs/integration-guide.md.
+
+### Fixed
+
+- Direct3D 12: several frames in flight no longer corrupt the output. `Render()` used one descriptor for the content texture, one constant buffer and, without a command list from the caller, one command allocator for all calls; a second call before the GPU had finished the first one showed the wrong texture or lost the draw commands (debug layer: `CreateShaderResourceView ... bound as STATIC`, `CommandAllocator::Reset ... being reset before previous executions ... have completed`). The warper now uses a ring of 3 slots (own descriptor for the content texture, own constant buffer range, own allocator and list), tracked by a fence on the command queue, and waits on that fence if a slot is still in use. Assumption: the caller submits the command list it passes in `VWB_D3D12_RENDERINPUT::commandList` to the queue before it calls `VWB_render` again for the same warper. Not supported: `VWB_render` of one warper from several threads at the same time.
+- Direct3D 12: the destructor waits for the GPU and releases the command allocator, the command queue reference and the synchronisation objects (they were leaked); the event of the upload fence is closed.
+
+### Changed
+
+- Direct3D 12: `Render()` holds up to three references to content textures (one per slot) until a slot gets another texture or the warper is destroyed. It can wait up to 10 seconds for the GPU; after that it logs an error and returns `VWB_ERROR_GENERIC`. A failing reset of the command list is logged and returned as `VWB_ERROR_GENERIC`, and `Render()` before `Init` returns `VWB_ERROR_GENERIC`.
+- Line endings: our own text files use CRLF; `.gitattributes` switches the conversion off (`* -text`), third-party code keeps its line endings.
+- Release package: `bin/` has the test picture `earth.png` and `view.export.template.viosoAPI.txt` (export template of the VIOSO Calibrator) as well; the build copies `earth.png` next to the executables like the other sample files.
+
+### Added
+
+- Documentation: integration guide pitfall 13 (Direct3D 12, frames in flight) and the section "A host without access to the device: texture interop" (tested with UNIGINE 2.20); the check with moving content and a frame counter in `docs/agent-integration.md`; the Calibrator export template in `docs/ini-reference.md`; `earth.png` as the picture to compare the tester and a host.
+
+### Removed
+
+- `data/aa.html` (an unused test form), `data/earth.jpg` (replaced by `data/earth.png`: the tester reads PNG only).
+
 ## 1.7.0
 
 Drop-in replacement for 1.6.x: the interface and the .vwf format are unchanged. Known limits: docs/integration-guide.md.

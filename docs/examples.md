@@ -8,6 +8,8 @@ example and the tester, which want a `.vwf` file.
 
 The sample calibration is a 2D map of one channel of 1920 x 1080. It bends the picture into a quadrilateral that is wider at the top than at the bottom, on black.
 
+`earth.png` (PNG, 2048 x 1025) is the test picture next to it: `VWFTesterDX11.exe 2D_plane_FHD.vwf -p earth.png` shows it through the warp, `D3D12Example.exe -image earth.png` too. Render the same picture as content in your host and compare it with the tester (`agent-integration.md`, "Check").
+
 | Program | Graphics API | Purpose |
 |---|---|---|
 | [`VWFTesterDX11.exe`](#vwftesterdx11exe) | Direct3D 11 | show all channels of one or more .vwf files, with a test scene or a picture |
@@ -129,7 +131,7 @@ whole monitor at the position `x y` (`0 0`: the primary monitor).
 ## MakeTestVwf.exe
 
 A tool, not an example of the API: it prints the headers of a .vwf file and writes synthetic 2D calibration files. It is in `bin/` of the release package (on Linux the program is called `MakeTestVwf`, without `.exe`). It does not load the library; it contains the
-reader and writer of the file format (`SaveVWF`, `ScanVWF`), so the files it writes follow the format by construction. Source: [`tools/MakeTestVwf.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.0/tools/MakeTestVwf.cpp).
+reader and writer of the file format (`SaveVWF`, `ScanVWF`), so the files it writes follow the format by construction. Source: [`tools/MakeTestVwf.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/MakeTestVwf.cpp).
 
 **Start**
 
@@ -160,7 +162,7 @@ The output name is a path; a relative path is relative to the working directory.
 - **Several channels and overlaps** without a calibration: `make wall.vwf --channels 2x1 --size 1920x1080 --overlap 200` (content space 3640 x 1080). Look at it with `MediaServerExampleDX11.exe wall.vwf --list`
   and in the tester. The tool writes a blend map with linear ramps inside the overlaps, so the blend is visible in the picture.
 - **A content space that is larger than a texture, with `bPartialInput`:** with `--content` and `--content-offset` one channel can describe a small part of a very wide content space, for example
-  `--size 3840x2160 --content 153600x2160`. This is the file that [`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.0/tools/WarpPrecision.cpp) measured with (vwf-format.md, "Precision"); `MediaServerExampleDX11.exe file.vwf --partial` shows such files, because the content space does not fit into one texture.
+  `--size 3840x2160 --content 153600x2160`. This is the file that [`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/WarpPrecision.cpp) measured with (vwf-format.md, "Precision"); `MediaServerExampleDX11.exe file.vwf --partial` shows such files, because the content space does not fit into one texture.
   With generated files of 10 channels and a content space of 19328 pixels the grid is continuous across the channels and the blend ramps are visible.
 - **The warp itself:** `--distort 20` bends the mapping by up to 20 content pixels.
 

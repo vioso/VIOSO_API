@@ -14,7 +14,7 @@ how to check. Read the pitfalls at the top of the integration guide before you w
 
 ## 1. What you need
 
-- The release archive (or a build of this repository): `VIOSOWarpBlend64.dll` (x64) and `Include/`. For a check also the tester `VWFTesterDX11.exe` and the sample calibration `2D_plane_FHD.vwf`.
+- The release archive (or a build of this repository): `VIOSOWarpBlend64.dll` (x64) and `Include/`. For a check also the tester `VWFTesterDX11.exe`, the sample calibration `2D_plane_FHD.vwf` and the test picture `earth.png`.
 - The calibration file (`.vwf`) of the installation, or the sample file for a first test.
 - The host project, to read and build.
 
@@ -27,6 +27,7 @@ Search the host for what it renders with, then take the matching example as a te
 | Direct3D 11 | the `ID3D11Device*` | `Examples/DirectX11/MediaServerExample.cpp` (several outputs), `Examples/DirectX11/DX11Example.cpp` |
 | Direct3D 12 | the `ID3D12CommandQueue*`; `VWB_render` gets a `VWB_D3D12_RENDERINPUT` | `Examples/DirectX12/D3D12HelloTexture.cpp` |
 | OpenGL | `nullptr`, with the context current | `Examples/OpenGL_4/gl3_2.cpp` |
+| Direct3D 12, but the host gives no device or queue (an engine such as UNIGINE) | the `ID3D12CommandQueue*` of a device **of your own** on the same adapter, with textures shared by the host | integration guide, "A host without access to the device: texture interop" |
 | Direct3D 9, 10 | the device | no example; the render paths exist, check on your side |
 | Vulkan, Metal, anything else | - | **not supported. Stop and tell the integrator.** |
 
@@ -61,13 +62,17 @@ On Windows build from a Developer Command Prompt, or run `vcvars64.bat` of Visua
 
 1. **Sizes and log, without comparing pictures.** Compare `optimalRes` and `optimalRect` that the warper of the host reports after `Init` with the `content size` column of
    `MediaServerExampleDX11.exe file.vwf --list` and, for `optimalRect`, with the `content WxH, rect [l,t,r,b]` line that `MediaServerExampleDX11.exe file.vwf` prints for the channel. The log (`VIOSOWarpBlend.log`) has no `ERROR` and no "Render target size does not match".
-2. **Against the tester, if you can look at the screen.** The tester is the reference: it uses the same library and the same file. Start `VWFTesterDX11.exe file.vwf -p picture.png` (or the OpenGL example) with the
-   **same `.vwf`**, and note what the channel looks like. Let the host render **the same picture** as content and compare the output of the same channel: position, scale, the edges of the picture, where the blend of
+2. **Against the tester, if you can look at the screen.** The tester is the reference: it uses the same library and the same file. Start `VWFTesterDX11.exe file.vwf -p earth.png` (or the OpenGL example; `earth.png` is in the archive next to the sample calibration, 2048 x 1025) with the
+   **same `.vwf`**, and note what the channel looks like. Let the host render **the same picture** (`earth.png`) as content and compare the output of the same channel: position, scale, the edges of the picture, where the blend of
    overlapping projectors starts. If the image is mirrored, flipped or distorted in 3D, look at `base` first.
    The tester also runs with one monitor and needs no extra argument: `VWFTesterDX11.exe file.vwf`. A channel whose position (`offsetX`, `offsetY` in the file; (1920,0) for the sample calibration) is not on the desktop
    is moved, or scaled if it does not fit, onto the primary monitor; the window title then ends with `(preview, moved to fit)` or `(preview, scaled to fit, N%)`. `-s` shows a quarter size. The preview on the primary monitor is intended: it is the comparison.
 3. **Blend and several channels.** The sample calibration does not test the blend: its blend map is 1.0 everywhere. A statement about the blend needs this test with two channels. `MakeTestVwf.exe make wall.vwf --channels 2x1 --size 1920x1080 --overlap 200` writes a calibration of two channels that overlap by 200 pixels (content space 3640 x 1080, with a
    blend ramp in the overlap). Run the host with it: the content has to continue across the channels without a jump, and the overlap has to blend (`docs/examples.md`, "MakeTestVwf.exe").
+4. **Several frames in flight (Direct3D 12) and texture interop.** A still picture hides the errors of this kind. Let the host render **moving content with a frame counter in the picture**
+   (for example the frame number as 16 bars of black and white in the top rows) and read back every output, a few frames later without waiting for the GPU. Each output has to show the counter of the content frame it was made from.
+   Run it with the Direct3D 12 debug layer on and with two or three frames in flight; the debug layer reports the overlap errors (integration guide, pitfall 13) only while the executions overlap, the readback finds the wrong picture. A host
+   with texture interop uses the same test to find the margin and the start-up skip of its ring.
 
 ## 7. Read the log
 
@@ -79,4 +84,4 @@ On Windows build from a Developer Command Prompt, or run `vcvars64.bat` of Visua
 
 Tell the integrator which API you used, which channel is on which output, the values of `optimalRes` and `optimalRect` you read, and what you compared with the tester. Report only what you checked.
 Put everything else in a separate list "Not checked", for example: the blend (the sample calibration cannot show it), the black level (the sample calibration holds a black level map whose parameters are 0, so it
-has no effect), 3D mappings and eye points, the Direct3D 10 path with `bPartialInput`.
+has no effect), 3D mappings and eye points, the Direct3D 10 path with `bPartialInput`, more than one frame in flight (step 4) and texture interop, if you did not run the frame counter test.

@@ -16,8 +16,8 @@ https://vioso.com/calibration-software/vioso7/
 ## Quickstart
 
 1. **Get the programs**, in one of two ways:
-   - **The release package** (`VIOSO_API-<version>-win-x64.zip`): unpack it and start `bin\VWFTesterDX11.exe`. The sample calibration `2D_plane_FHD.vwf`
-     and the sample `.ini` files are in the same folder.
+   - **The release package** (`VIOSO_API-<version>-win-x64.zip`): unpack it and start `bin\VWFTesterDX11.exe`. The sample calibration `2D_plane_FHD.vwf`,
+     the test picture `earth.png` and the sample `.ini` files are in the same folder.
    - **Build from the sources** (Windows, Visual Studio 2022 or 2026 and CMake): see [Build](#build). The build copies the sample calibration and
      the sample configuration next to the executables.
 2. **See a picture.** Start `VWFTesterDX11.exe` without arguments and choose a .vwf file (or drop the file on the executable, or
@@ -127,7 +127,7 @@ The build produces these examples (Windows unless noted), all loading the librar
 former DirectX 9, Mesh, OpenGL 1, Vulkan, `OpenGL_4_vwfInfo`, `MapingLoader`, `TrackerSim` and `Test` example projects have been removed.
 
 ## Build
-The build uses CMake (3.21 or newer) only. Presets for Windows x64 and Linux are in [`CMakePresets.json`](https://github.com/vioso/VIOSO_API/blob/v1.7.0/CMakePresets.json).
+The build uses CMake (3.21 or newer) only. Presets for Windows x64 and Linux are in [`CMakePresets.json`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/CMakePresets.json).
 
 Windows (Visual Studio 2022 or 2026, workload "Desktop development with C++"; no ATL needed):
 open the repository folder in Visual Studio ("Open a local folder") and pick a preset, or from a Developer Command Prompt
@@ -147,8 +147,8 @@ cmake --build --preset linux-release
 
 The binaries end up in `out/build/<preset>/bin`: `VIOSOWarpBlend64.dll` (Windows) or `libVIOSOWarpBlend.so` (Linux),
 the EyePointProvider plugin and the examples. The examples load the library at runtime from their own directory.
-The build copies the sample configuration files (`VIOSOWarpBlend.ini`, `VIOSOWarpBlendGL.ini`, from [`data/`](https://github.com/vioso/VIOSO_API/tree/v1.7.0/data)) and the sample calibration
-`2D_plane_FHD.vwf` next to the example executables, unless files of these names are already there. Relative paths in the .ini
+The build copies the sample configuration files (`VIOSOWarpBlend.ini`, `VIOSOWarpBlendGL.ini`, from [`data/`](https://github.com/vioso/VIOSO_API/tree/v1.7.1/data)) and the sample calibration
+`2D_plane_FHD.vwf` and the test picture `earth.png` next to the example executables, unless files of these names are already there. Relative paths in the .ini
 file (calibration file, log file) are resolved against the folder of the VIOSOWarpBlend library on Windows (the working directory on Linux).
 More example calibration files (.vwf) are available via the download link at the top.
 

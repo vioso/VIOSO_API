@@ -37,6 +37,11 @@ These cost the most time in integrations. Read them before you start.
     the pipeline is made for the render target format `D3D12RTVF` (default `R8G8B8A8_UNORM`).
 11. **The eye point provider's parameter string must stay valid while the receiver runs.** The library keeps it in `VWB_Warper::eyeProviderParam`; a host that writes its own plugin must not free it.
 12. **`VWB__logString` uses the text as a format string** (printf style). Double every `%` in text that you pass, for example a path or a message from the user: `%%`. Otherwise the text is interpreted (a `%s` reads an argument that was not passed).
+13. **Direct3D 12: several frames in flight.** From 1.7.1 the warper keeps a ring of three slots. Every `VWB_render` takes the next slot (its own descriptor for the content texture, its own range in the
+    constant buffer and, without your command list, its own allocator and list) and waits on a fence on the queue you gave `VWB_Create` if the GPU has not finished the render three calls ago. You may record and
+    submit up to three frames before the GPU is done; more costs a wait, not a wrong picture. Two rules. First, with your own command list in `VWB_D3D12_RENDERINPUT::commandList`, close it and submit it to that queue
+    before you call `VWB_render` for the same warper again; the warper counts on that. Second, call `VWB_render` of one warper from one thread at a time. Up to 1.7.0 the output was wrong with more than one frame in flight (see `CHANGELOG.md`, 1.7.1). The Direct3D 12 debug layer reports such errors (`CreateShaderResourceView ... bound as STATIC`, `CommandAllocator::Reset ... being reset before previous executions ... have completed`)
+    only while the executions overlap, so a test with one frame in flight finds nothing. Test with moving content and two or three frames in flight (agent integration, "Check", step 4).
 
 ## How it works
 
@@ -98,6 +103,27 @@ example (the OpenGL one and the Linux one are in the same file). The sample .ini
 `Examples/DirectX12/D3D12HelloTexture.cpp`: `VWB_Create` gets the command queue; `VWB_render` gets a `VWB_D3D12_RENDERINPUT` (source resource in `PIXEL_SHADER_RESOURCE` state,
 render target resource in `RENDER_TARGET` state, its descriptor handle, optionally your command list).
 
+## A host without access to the device: texture interop
+
+Some engines give a plug-in neither the graphics device nor the queue (tested: UNIGINE 2.20 with Direct3D 12). The warper can still run, on a device of your own on the same adapter, with textures that the engine shares:
+
+1. Create an `ID3D12Device` on the same adapter as the engine (compare the LUID, skip software adapters) and a direct queue. Pass that queue to `VWB_Create`.
+2. Let the engine create the content texture and the output texture as shared resources (UNIGINE: `Texture::FORMAT_USAGE_SHARED`, `getResourceExternalMemory()->getWin32Handle()`) and open them with
+   `ID3D12Device::OpenSharedHandle`. They start in state `COMMON`; transition them to what `VWB_render` needs and back to `COMMON`.
+3. Each frame, on your queue and in one command list of your own: copy the content into a texture of your own that never changes (the source of the warper), call `VWB_render` for every channel into the output
+   texture, submit. Use a command list and an allocator per frame slot and reset them only after the queue is done with them (pitfall 13).
+4. The engine shows the output texture itself. If the engine renders its own camera into the window as well, replace that render (UNIGINE: the custom render callback of the main window), or it costs most of the frame.
+
+**Synchronisation is the hard part.** If the engine can only signal a fence to the outside and cannot wait for a fence of yours, you cannot make the GPU work of the engine wait for the warper. UNIGINE's `ResourceFence` is of this kind:
+the engine signals it, `waitGPU()` is a wait of the CPU, and a value set from your queue neither makes the engine wait nor stall it. What works is a ring of several content and several output textures, with the fences only polled
+(`GetCompletedValue`), never waited for: the warper reads a content slot that the engine has finished, the engine shows the newest output that the warper has finished. The price is a delay of a few frames, because of the polling.
+The fences of an engine can be unreliable in two places: in the first frames after the start, and just after a signal (a value that is reached does not always mean that the copy before it is visible). The ring therefore needs a start-up period
+in which it does nothing, and a margin before it trusts a value. Both depend on the engine; find them for yours with the frame counter test (agent integration, "Check", step 4) and choose them generously: a value that is enough in one run can be
+too small in the next, for example after a slow start.
+
+More with UNIGINE: the engine pauses without keyboard focus (set the background update to "always render" before the world loads); render hooks also fire in the nested render of an offscreen viewport (do not draw your output there); switch on the
+Direct3D 12 debug layer before the engine creates its device, later it removes the device; an offscreen scene render with shadows and post effects is expensive, without them it is cheap.
+
 ## Choose the channel
 
 A file can hold many channels. Look into it first: `VWB_vwfInfo( path, &set )` (C++) or `VWB_vwfInfoC` fills the headers (`name`, `hostname`, `offsetX/Y`, size ...); release the
@@ -144,7 +170,7 @@ a projector whose gamma was changed after calibration; leave it at 1 otherwise. 
 ## Precision
 
 The 2D warp was a 16 bit normalised texture in Direct3D up to 1.6; one step was `content width / 65535` pixels: 2.3 pixels at a content width of 153600. It is float since 1.7. OpenGL was always float.
-Measurement and method: `vwf-format.md`, [`tools/WarpPrecision.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.0/tools/WarpPrecision.cpp). The float texture needs twice the memory (about 66 instead of 33 MB for a 4K channel).
+Measurement and method: `vwf-format.md`, [`tools/WarpPrecision.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/WarpPrecision.cpp). The float texture needs twice the memory (about 66 instead of 33 MB for a 4K channel).
 
 ## 3D mappings and eye points
 
@@ -168,8 +194,9 @@ The sample plugin for eye points is described in `eyepoint-provider.md`.
 
 ## Known limits of 1.7
 
-- Direct3D 10 with `bPartialInput`: with a very wide content space ([`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.0/tools/WarpPrecision.cpp): content space 153600 px, channel 3840 px) the output in Direct3D 10 is almost empty, while Direct3D 11, 12 and OpenGL are
+- Direct3D 10 with `bPartialInput`: with a very wide content space ([`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/WarpPrecision.cpp): content space 153600 px, channel 3840 px) the output in Direct3D 10 is almost empty, while Direct3D 11, 12 and OpenGL are
   correct; with a small file Direct3D 10 is correct. If you use Direct3D 10 with `bPartialInput`, check the output.
 - 3D mappings and eye points: unchanged in 1.7, without test data in this repository.
 - Linux: the OpenGL example builds and runs (a synthetic two-channel .vwf), so far under Xvfb with Mesa software rendering, not on graphics hardware. Windows is the main platform of 1.7.
+- Texture interop (above): the output arrives a few frames late because the fences are only polled, and the start-up period and the margin of the ring depend on the engine; tested with UNIGINE 2.20. Determine them again with the frame counter test for another engine or version.
 - The Direct3D 9 render paths are still in the library; the examples for them are gone.

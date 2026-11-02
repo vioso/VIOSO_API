@@ -61,6 +61,10 @@ This is the reference for the settings of `VIOSOWarpBlend.ini`, version 1.7.
 | `port`, `heartBeatPort`, `addr` | network control port, UDP heartbeat port, address to listen on | 0, 0, `0.0.0.0` |
 | `debugBreak` | Windows: show a message box at start, to attach a debugger | 0 |
 
+### Export template of the VIOSO Calibrator
+
+`view.export.template.viosoAPI.txt` (in `data/` of the repository and in `bin/` of the release package) is an export template of the VIOSO Calibrator for the views of a calibration. It is not read by the API: the Calibrator fills its placeholders (`${base}`, `${aX}`, `${fovL}` ...) when it exports views with it, and the result is an .ini file for this API with a section `[channel1]`: `base`, `eye`, `dir`, `fov`, `near`, `far`, `screen`, `bTurnWithView`, `calibFile`, `calibIndex` and the eye point provider entries. The first lines of the template set the export parameters: rotation order `YXZ`, left handed, scale 1000, angles in degrees. Check `calibFile` and `calibIndex` in the file it writes, and change `base` if your host is right handed. How to select a template is in the manual of the Calibrator.
+
 ### Degenerate base
 
 If an .ini file has neither `base` nor `trans`, the matrix is all zero (the reader overwrites it with zeros). The inverse of

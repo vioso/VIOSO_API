@@ -10,9 +10,22 @@
 #include "DXWarpBlend.h"
 #include <D3D12.h>
 
+// Frames in flight
+// ----------------
+// Render() uses a ring of FRAMES_IN_FLIGHT slots. Each slot has its own descriptor for the content texture (heap index 4 + slot,
+// root parameter 2), its own range in the constant buffer and, if the caller passes no command list, its own command allocator
+// and command list. A slot is reused only after the GPU has finished the work that used it; the warper waits on its own fence
+// on the command queue if that has not happened yet.
+//
+// Assumption: with VWB_D3D12_RENDERINPUT::commandList set, the caller submits that list to the command queue passed to
+// VWB_Create before it calls Render() for the same warper again (the usual way: record, close, ExecuteCommandLists, next frame).
+// The warper signals its fence at the begin of every Render(); that signal covers the list of the previous call.
+// Without commandList the warper executes its own list and signals right after it. Not supported: Render() of one warper from
+// several threads at the same time.
 class DX12WarpBlend : public DXWarpBlend
 {
 public:
+	static const UINT FRAMES_IN_FLIGHT = 3;	///< number of slots, see above
 
 protected:
 	ID3D12CommandQueue*			m_cq;				// the command queue
@@ -29,9 +42,24 @@ protected:
 	ID3D12Resource*				m_texBlend;
 	ID3D12Resource*				m_texBlack;
 	ID3D12Resource*				m_texCur;
-	ID3D12Resource*				m_texBB;
-	ID3D12Resource*				m_cb; // the constant buffer
+	ID3D12Resource*				m_cb; // the constant buffer, FRAMES_IN_FLIGHT ranges of m_cbStride bytes
 	void*						m_cbMap; // the constant buffer map address
+	UINT						m_cbStride; // size of one constant buffer range, a multiple of 256
+
+	ID3D12Fence*				m_fence;			// signals the end of the GPU work that used a slot
+	HANDLE						m_fenceEvent;		// to wait for m_fence
+	UINT64						m_fenceValue;		// last value signalled
+	UINT						m_slotNext;			// the slot of the next Render() call
+	int							m_slotPending;		// slot of the last Render() with a caller's command list, not yet covered by a signal, or -1
+	struct Slot
+	{
+		ID3D12Resource*				res;		// the texture the SRV of this slot points to (referenced)
+		bool						resOwn;		// res is a copy of the render target made by the warper
+		VWB_size					size;		// size of res
+		UINT64						fence;		// value of m_fence that is reached when the GPU is done with this slot
+		ID3D12CommandAllocator*		ca;			// used only without the caller's command list
+		ID3D12GraphicsCommandList*	cl;
+	} m_slot[FRAMES_IN_FLIGHT];
 	D3D12_VIEWPORT				m_vp;				// the viewport, if width and height is set, use it on begin of rendering
 
 public:
