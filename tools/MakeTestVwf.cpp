@@ -2,7 +2,7 @@
 // It is a development tool, not a part of the API, and no sample for integrators.
 // The files are written by the library's own SaveVWF(), so they follow the file format by construction.
 //
-//   MakeTestVwf make out.vwf [options]
+//   MakeTestVwf make out.vwf [options]     (a relative path is relative to the working directory, missing folders are created)
 //     --channels CxR       tiles of channels, columns x rows               (default 1x1)
 //     --size WxH           pixels (= warp records) of each channel         (default 256x144)
 //     --overlap N          overlap of neighbouring channels in pixels      (default 0)
@@ -11,6 +11,9 @@
 //                          content space in pixels                         (default 0,0)
 //     --screen-offset X,Y  desktop position of the first channel           (default 0,0)
 //     --distort A          sine distortion of the mapping, in content pixels, to see the warp (default 0)
+//     --edge N             soft edge of N pixels on all outer sides of the arrangement (default 0)
+//     --edge-left N, --edge-right N, --edge-top N, --edge-bottom N
+//                          soft edge of one outer side of the arrangement; the sides between channels have the overlap
 //     --name PREFIX        channel names are PREFIX_<column>_<row>         (default Test)
 //
 //   MakeTestVwf info file.vwf
@@ -25,6 +28,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -43,23 +47,38 @@ static bool parsePair( char const* s, double& a, double& b, char sep )
 	return e && 0 == *e;
 }
 
+// A relative path is relative to the working directory. The library would resolve it against the folder of the
+// executable, so the path is made absolute here before it is handed over. The extension .vwf is added like the library does.
+static std::string fullPath( char const* p )
+{
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	fs::path f( p );
+	if( !f.has_extension() )
+		f.replace_extension( ".vwf" );
+	fs::path a = fs::absolute( f, ec );
+	return ec ? f.string() : a.lexically_normal().string();
+}
+
 static int usage( char const* reason = nullptr )
 {
 	if( reason )
 		fprintf( stderr, "MakeTestVwf: %s\n\n", reason );
 	fprintf( stderr, "usage:\n  MakeTestVwf make out.vwf [--channels CxR] [--size WxH] [--overlap N] [--content WxH]\n"
 		"                           [--content-offset X,Y] [--screen-offset X,Y] [--distort A] [--name PREFIX]\n"
+		"                           [--edge N] [--edge-left N] [--edge-right N] [--edge-top N] [--edge-bottom N]\n"
 		"  MakeTestVwf info file.vwf\n" );
 	return 2;
 }
 
-static int info( char const* path )
+static int info( char const* arg )
 {
+	std::string path = fullPath( arg );
 	VWB_WarpBlendHeaderSet set;
-	VWB_ERROR err = ScanVWF( path, &set );
+	VWB_ERROR err = ScanVWF( path.c_str(), &set );
 	if( VWB_ERROR_NONE != err )
 	{
-		fprintf( stderr, "could not read %s (VWB_ERROR %d)\n", path, int( err ) );
+		fprintf( stderr, "could not read %s (VWB_ERROR %d)\n", path.c_str(), int( err ) );
 		return 1;
 	}
 	int i = 0;
@@ -81,9 +100,10 @@ static int make( int argc, char** argv )
 {
 	if( argc < 1 )
 		return usage( "no output file given" );
-	std::string out = argv[0];
+	std::string out = fullPath( argv[0] );
 	double cols = 1, rows = 1, w = 256, h = 144, overlap = 0, contentW = 0, contentH = 0, cox = 0, coy = 0, sox = 0, soy = 0, distort = 0;
 	std::string name = "Test";
+	double edge[4] = { 0, 0, 0, 0 }; // soft edges of the outer sides in pixels: left, top, right, bottom
 	for( int i = 1; i < argc; i++ )
 	{
 		std::string a = argv[i];
@@ -110,6 +130,16 @@ static int make( int argc, char** argv )
 			distort = atof( v );
 		else if( "--name" == a )
 			name = v;
+		else if( "--edge" == a )
+			edge[0] = edge[1] = edge[2] = edge[3] = atof( v );
+		else if( "--edge-left" == a )
+			edge[0] = atof( v );
+		else if( "--edge-top" == a )
+			edge[1] = atof( v );
+		else if( "--edge-right" == a )
+			edge[2] = atof( v );
+		else if( "--edge-bottom" == a )
+			edge[3] = atof( v );
 		else
 			ok = false;
 		if( !ok )
@@ -129,6 +159,18 @@ static int make( int argc, char** argv )
 		return usage( "--overlap must be smaller than the width of a channel when there are several columns" );
 	if( rows > 1 && overlap >= h )
 		return usage( "--overlap must be smaller than the height of a channel when there are several rows" );
+
+	for( int k = 0; k < 4; k++ )
+	{
+		char const* const sideName[4] = { "left", "top", "right", "bottom" };
+		if( edge[k] < 0 )
+			return usage( "an edge must not be negative" );
+		if( edge[k] >= ( 0 == k % 2 ? w : h ) )
+		{
+			fprintf( stderr, "MakeTestVwf: the %s edge must be smaller than the %s of a channel\n\n", sideName[k], 0 == k % 2 ? "width" : "height" );
+			return usage();
+		}
+	}
 
 	double const totalW = cols * ( w - overlap ) + overlap, totalH = rows * ( h - overlap ) + overlap;
 	if( contentW <= 0 || contentH <= 0 )
@@ -205,6 +247,15 @@ static int make( int argc, char** argv )
 						if( r + 1 < rows )
 							a *= ( std::min )( 1.0, ( h - y - 0.5 ) / overlap );
 					}
+					// soft edges of the outer sides of the arrangement, same ramp as the overlaps
+					if( 0 == c && edge[0] > 0 )
+						a *= ( std::min )( 1.0, ( x + 0.5 ) / edge[0] );
+					if( 0 == r && edge[1] > 0 )
+						a *= ( std::min )( 1.0, ( y + 0.5 ) / edge[1] );
+					if( c + 1 == int( cols ) && edge[2] > 0 )
+						a *= ( std::min )( 1.0, ( w - x - 0.5 ) / edge[2] );
+					if( r + 1 == int( rows ) && edge[3] > 0 )
+						a *= ( std::min )( 1.0, ( h - y - 0.5 ) / edge[3] );
 					auto g = VWB_byte( std::lround( 255 * std::pow( a, 1 / 2.2 ) ) );
 					wb->pBlend[size_t( y ) * W + x] = { g, g, g, 255 };
 				}
@@ -213,7 +264,10 @@ static int make( int argc, char** argv )
 		}
 	}
 
-	VWB_ERROR err = SaveVWF( set, out.c_str() );
+	// the library does not create folders
+	std::error_code ecDir;
+	std::filesystem::create_directories( std::filesystem::path( out ).parent_path(), ecDir );
+	VWB_ERROR err = ecDir ? VWB_ERROR_VWF_FILE_NOT_FOUND : SaveVWF( set, out.c_str() );
 	for( auto wb : set )
 	{
 		delete[] wb->pWarp;
@@ -222,7 +276,10 @@ static int make( int argc, char** argv )
 	}
 	if( VWB_ERROR_NONE != err )
 	{
-		fprintf( stderr, "writing %s failed (VWB_ERROR %d)\n", out.c_str(), int( err ) );
+		if( ecDir )
+			fprintf( stderr, "could not create the folder of %s: %s\n", out.c_str(), ecDir.message().c_str() );
+		else
+			fprintf( stderr, "writing %s failed (VWB_ERROR %d)\n", out.c_str(), int( err ) );
 		return 1;
 	}
 	printf( "wrote %s: %d channel(s) of %dx%d, content space %.0fx%.0f\n", out.c_str(), int( cols * rows ), int( w ), int( h ), contentW, contentH );

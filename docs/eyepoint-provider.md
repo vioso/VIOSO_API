@@ -14,7 +14,7 @@ eyePointProvider=EyePointProvider64
 eyePointProviderParam=listen 1919
 ```
 `.dll` (Windows) or `.so` (Linux) is appended to the name, a relative path is resolved against the folder of the VIOSOWarpBlend
-library. If the key is missing nothing is loaded and the eye comes from your calls. With a provider, `eye` and `rot` that you
+library on Windows and against the working directory on Linux. If the key is missing nothing is loaded and the eye comes from your calls. With a provider, `eye` and `rot` that you
 pass in are ignored.
 
 | `eyePointProviderParam` | Meaning |

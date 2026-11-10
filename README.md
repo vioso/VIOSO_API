@@ -1,7 +1,7 @@
 # VIOSO WarpBlend API
 
 This library is meant to be used in image generators, to do warping and blending. It takes a VIOSO Warp File (.vwf) export and a texture buffer 
-to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
+to sample from. If no texture buffer is given (NULL, in OpenGL -1), it uses a copy of the current back buffer. It will render to the currently set back buffer.
 It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamic eye warping.
 
 - You need a vwf mapping to use. This is the native VIOSO Warp Format for calibration files. Example calibrations (.vwf) to download:
@@ -127,7 +127,7 @@ The build produces these examples (Windows unless noted), all loading the librar
 former DirectX 9, Mesh, OpenGL 1, Vulkan, `OpenGL_4_vwfInfo`, `MapingLoader`, `TrackerSim` and `Test` example projects have been removed.
 
 ## Build
-The build uses CMake (3.21 or newer) only. Presets for Windows x64 and Linux are in [`CMakePresets.json`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/CMakePresets.json).
+The build uses CMake (3.21 or newer) only. Presets for Windows x64 and Linux are in [`CMakePresets.json`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/CMakePresets.json).
 
 Windows (Visual Studio 2022 or 2026, workload "Desktop development with C++"; no ATL needed):
 open the repository folder in Visual Studio ("Open a local folder") and pick a preset, or from a Developer Command Prompt
@@ -147,7 +147,7 @@ cmake --build --preset linux-release
 
 The binaries end up in `out/build/<preset>/bin`: `VIOSOWarpBlend64.dll` (Windows) or `libVIOSOWarpBlend.so` (Linux),
 the EyePointProvider plugin and the examples. The examples load the library at runtime from their own directory.
-The build copies the sample configuration files (`VIOSOWarpBlend.ini`, `VIOSOWarpBlendGL.ini`, from [`data/`](https://github.com/vioso/VIOSO_API/tree/v1.7.1/data)) and the sample calibration
+The build copies the sample configuration files (`VIOSOWarpBlend.ini`, `VIOSOWarpBlendGL.ini`, from [`data/`](https://github.com/vioso/VIOSO_API/tree/v1.7.2/data)) and the sample calibration
 `2D_plane_FHD.vwf` and the test picture `earth.png` next to the example executables, unless files of these names are already there. Relative paths in the .ini
 file (calibration file, log file) are resolved against the folder of the VIOSOWarpBlend library on Windows (the working directory on Linux).
 More example calibration files (.vwf) are available via the download link at the top.

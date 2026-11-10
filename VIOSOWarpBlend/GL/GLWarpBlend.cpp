@@ -406,15 +406,11 @@ VWB_ERROR GLWarpBlend::FillTexture( GLint internalFormat, GLsizei width, GLsizei
 		return VWB_ERROR_WARP;
 	}
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter );
-	err = ::glGetError();
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter );
-	err = ::glGetError();
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap );
-	err = ::glGetError();
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap );
-	err = ::glGetError();
 	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, colBlack );
-	err = ::glGetError();
+	err = ::glGetError(); // called at init only, so one check for all parameters is cheap
 	if( GL_NO_ERROR != err )
 	{
 		logStr( 0, "ERROR: %d at glTexParameteri:\n", err );
@@ -715,6 +711,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLenum res = GL_NO_ERROR;
 	GLint iSrc = (GLint)(long long)inputTexture;
 	GLint url = -1;
+	VWB_ERROR ret = VWB_ERROR_NONE;
 	bool overlay = false;
 
 	GLint                       matrix_mode = -1;
@@ -726,6 +723,17 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 	GLint                       active_texture_unit = -1;
 	GLint						active_client_texture_unit = -1;
 	GLint						oldVA = -1;
+
+	if( -1 != iSrc && !glIsTexture( iSrc ) )
+	{
+		static bool bLogged = false; // once per process, not every frame
+		if( !bLogged )
+		{
+			bLogged = true;
+			logStr( 0, "ERROR: Render: input %d is not a texture of the current context.\n", iSrc );
+		}
+		return VWB_ERROR_PARAMETER;
+	}
 
 	// record current state
 	if( ( ( VWB_STATEMASK_RASTERSTATE | VWB_STATEMASK_SAMPLER ) & stateMask ) && bUseGL110 )
@@ -833,24 +841,50 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 		logStr( 4, "Input texture (%dx%d) saved as \"%s\".", m_sizeIn.cx, m_sizeIn.cy, o );
 	}
 
+	// Until the first successful draw: clear errors left pending, so they are not mistaken for ours below.
+	// The first one is logged.
+	static bool bCheckTexParams = true;
+	static bool bLoggedPending = false;
+	if( bCheckTexParams )
+		for( int i = 0; i < 16; i++ )
+		{
+			GLenum errPending = ::glGetError();
+			if( GL_NO_ERROR == errPending )
+				break;
+			if( !bLoggedPending )
+			{
+				bLoggedPending = true;
+				logStr( 1, "WARNING: GL error %#x pending at VWB_render entry (left by the host or a previous call).\n", errPending );
+			}
+		}
+
 	// set own params
 	if( overlay )
 		::glUseProgram( m_ProgramBypass );
 	else
 		::glUseProgram(m_Program);
-    res = ::glGetError();
-	if( GL_NO_ERROR == res )
+	GLint curProgram = 0;
+	glGetIntegerv( GL_CURRENT_PROGRAM, &curProgram ); // a failed glUseProgram leaves the current program unchanged
+	if( (GLuint)curProgram == ( overlay ? m_ProgramBypass : m_Program ) )
 	{
 		// Set the texturing modes
+		// They are set every frame, but checked on the first call only: glGetError can stall the driver.
 		if( !overlay )
 		{
-			SetTexture( m_locWarp, m_texWarp, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locBlend, m_texBlend, GL_CLAMP, GL_NEAREST );
-			SetTexture( m_locBlack, m_texBlack, GL_CLAMP, GL_NEAREST );
+			SetTexture( m_locWarp, m_texWarp, GL_CLAMP_TO_BORDER, GL_NEAREST );
+			SetTexture( m_locBlend, m_texBlend, GL_CLAMP_TO_BORDER, GL_NEAREST );
+			SetTexture( m_locBlack, m_texBlack, GL_CLAMP_TO_BORDER, GL_NEAREST );
 			SetTexture( m_locContent, iSrc, bFixWraparound ? GL_REPEAT : GL_CLAMP_TO_BORDER );
 		}
 		else
 			SetTexture( m_locContentBypass, iSrc );
+		if( bCheckTexParams )
+		{
+			bCheckTexParams = false;
+			res = ::glGetError();
+			if( GL_NO_ERROR != res )
+				logStr( 0, "ERROR: %#x at setting the texture parameters.\n", res );
+		}
 
 		//res = glGetError();
 		//if( GL_NO_ERROR == res )
@@ -975,6 +1009,16 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 			}
 		}
 	}
+	else
+	{
+		static bool bLogged = false; // once per process, not every frame
+		if( !bLogged )
+		{
+			bLogged = true;
+			logStr( 0, "ERROR: Render: glUseProgram failed, current program is %d.\n", curProgram );
+		}
+		ret = VWB_ERROR_SHADER;
+	}
 
 	if( VWB_STATEMASK_SHADER_RESOURCE & stateMask )
 	{
@@ -1008,7 +1052,7 @@ VWB_ERROR GLWarpBlend::Render( VWB_param inputTexture, VWB_uint stateMask )
 
 	if( 0 != url && -1 != url )
 		glPixelStorei( GL_UNPACK_ROW_LENGTH, url );
-    return VWB_ERROR_NONE;
+    return ret;
 }
 	
 void GLWarpBlend::SetTexture( GLuint loc, GLuint tex, GLuint wrapMode, GLuint filter ) const

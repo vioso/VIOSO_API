@@ -7,6 +7,7 @@
 
 #include "DX10WarpBlend.h"
 #include "pixelshader.h"
+#include <cmath>
 
 #pragma comment( lib, "d3d10.lib" )
 
@@ -340,7 +341,7 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 		else
 		{
 			// 2D: float, not 16 bit normalised. The records are normalised to the whole content space, so with a content space of
-			// some 100000 pixels one 16 bit step is more than two pixels. Still clamped to [0,1] as before.
+			// some 100000 pixels one 16 bit step is more than two pixels. Not clamped to [0,1]: an area outside the content is black.
 			UINT sz = 2 * m_sizeMap.cx;
 			dataWarp.SysMemPitch = sizeof( float ) * sz;
 			sz *= m_sizeMap.cy;
@@ -349,8 +350,9 @@ VWB_ERROR DX10WarpBlend::Init( VWB_WarpBlendSet& wbs )
 			float* d = (float*)dataWarp.pSysMem;
 			for( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + (ptrdiff_t)m_sizeMap.cx * (ptrdiff_t)m_sizeMap.cy; s != sE; d += 2, s++ )
 			{
-				d[0] = MIN( 1.0f, MAX( 0.0f, s->x ) );
-				d[1] = MIN( 1.0f, MAX( 0.0f, s->y ) );
+				// keep values outside [0,1], the content sampler returns black there; NaN and Inf would sample undefined
+				d[0] = std::isfinite( s->x ) ? s->x : -1.0f;
+				d[1] = std::isfinite( s->y ) ? s->y : -1.0f;
 			}
 		}
 

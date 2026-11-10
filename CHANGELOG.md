@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.7.2
+
+Drop-in replacement for 1.7.1: the interface, the ABI and the .vwf format are unchanged. Known limits: docs/integration-guide.md. The entries marked **Behaviour change** show in the output or in a return value: read them before you update a host.
+
+### Fixed
+
+- Direct3D 10, 11 and 12: `bFixWraparound=1` works. `FixWraparound` moves the coordinates of one region beyond 1, so that the content space of a 360 degree panorama is coherent; the warp texture was clamped to 0 to 1 on upload, so the wrapped region showed the smeared edge pixel of the content instead of the panorama. Hosts that switched `bFixWraparound` off as a workaround can switch it on again with 1.7.2. OpenGL was not affected.
+- OpenGL: a Core profile context works (`bUseGL110=0`, the default). The wrap mode of the warp, blend and black level textures was set to `GL_CLAMP`, which is not valid in a Core profile: every frame raised `GL_INVALID_ENUM` in `glTexParameteri` (18 debug messages in 3 frames). It is `GL_CLAMP_TO_BORDER` with a black border now; the image in a Compatibility context does not change. `bUseGL110=1` (fixed pipeline) stays Compatibility only.
+- OpenGL: a GL error that the host left behind no longer makes `VWB_render` skip the frame. `Render()` read the error state of the whole context after `glUseProgram` and drew nothing on any error, so a host that leaves one error per frame got an empty output and `VWB_ERROR_NONE`. It now checks that its own program is the current one (`GL_CURRENT_PROGRAM`). Errors that are pending at the first calls of `VWB_render` (until a frame was drawn) are read away, up to 16 per call, and logged once as a warning (log level 1: "GL error 0x... pending at VWB_render entry (left by the host or a previous call)").
+
+### Changed
+
+- **Behaviour change.** Direct3D 10, 11 and 12 (2D calibrations): an area whose warp coordinate lies outside the content (below 0 or above 1) is black, as in OpenGL. Up to 1.7.1 the warp texture was clamped to 0 to 1 on upload (a leftover from the 16 bit format of 1.5), so such an area repeated the edge pixel of the content and showed grey or coloured areas, for example outside the content in a test file whose blend is 1.0 everywhere. Where the warp lies just outside 0 to 1 at the edge of the content, a thin dark rim can appear instead of a stretched edge pixel, as in OpenGL. NaN and Inf in a warp map are black (they gave undefined pixels). The black level correction is not part of this: with a black level map it raises the output everywhere, outside the mesh too, in all backends, as before.
+- **Behaviour change.** OpenGL, return value of `VWB_render`: `VWB_ERROR_PARAMETER` if the source is not a texture of the current context; the frame is not drawn (before, the warper drew with it, which gave a black image, and returned `VWB_ERROR_NONE`). Texture name 0 is not a texture. To read the back buffer pass `VWB_UNDEFINED_GL_TEXTURE` (-1), not NULL and not 0 (`VIOSOWarpBlend.h` says NULL for DirectX and -1 for OpenGL); a host that passes NULL in OpenGL mode gets the error and a log line now. `VWB_ERROR_SHADER` if the shader program cannot be made current (before, the frame was skipped and `VWB_ERROR_NONE` returned). Each of the two is logged once per process.
+- **Behaviour change (tool, not the library).** `MakeTestVwf`: a relative path of `make` and `info` is relative to the working directory. Up to 1.7.1 it was relative to the folder of the program on Windows, so `make out.vwf` wrote next to `MakeTestVwf.exe`. A missing folder of the output file is created, `.vwf` is added if the name has no extension, and the messages show the full path.
+
+### Added
+
+- `MakeTestVwf`: `make --edge N` and `--edge-left`, `--edge-right`, `--edge-top`, `--edge-bottom N` write a soft blend edge on the outer sides of the arrangement; a single channel has a blend map of 1 without them. The ramp is the one of the overlaps. Without the options the files are byte-identical to those of 1.7.1.
+- Documentation: black outside the picture and the black level correction are two different things (integration guide, "Where things go wrong"; `docs/vwf-format.md`); the OpenGL Core profile, the source texture -1 and the return codes of `VWB_render` in the integration guide, the README, `docs/agent-integration.md` and `VIOSOWarpBlend.h` (comments only); relative paths on Linux are resolved against the working directory (`docs/eyepoint-provider.md`, `PathHelper.h`, as `docs/ini-reference.md` says).
+
 ## 1.7.1
 
 Drop-in replacement for 1.7.0: the interface, the ABI and the .vwf format are unchanged. Known limits: docs/integration-guide.md.

@@ -1,8 +1,8 @@
 # The .vwf file (VIOSO warp file)
 
 A .vwf file holds the calibration of one or more outputs ("channels"): where each pixel of an output looks into the content (**warp**), how the images of overlapping projectors are blended (**blend**), and optionally a
-black level correction. This page tells what an integrator needs to know and describes what the code of version 1.7 does (`LoadVWF` in [`VIOSOWarpBlend/VWF.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/VIOSOWarpBlend/VWF.cpp), the structures in `Include/VWBTypes.h`, the writing rules in
-[`VIOSOWarpBlend/VWF.h`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/VIOSOWarpBlend/VWF.h)). Statements about the exports concern the files of the VIOSO calibration software.
+black level correction. This page tells what an integrator needs to know and describes what the code of version 1.7 does (`LoadVWF` in [`VIOSOWarpBlend/VWF.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/VIOSOWarpBlend/VWF.cpp), the structures in `Include/VWBTypes.h`, the writing rules in
+[`VIOSOWarpBlend/VWF.h`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/VIOSOWarpBlend/VWF.h)). Statements about the exports concern the files of the VIOSO calibration software.
 
 ## Layout and channels
 
@@ -48,7 +48,7 @@ and sized by one of them does not fit the others. This is a property of these ex
 
 - Up to 1.6 the Direct3D warp texture of a 2D map was `R16G16_UNORM` (16 bit normalised). Because the records are normalised to the whole content space, one 16 bit step is `content width / 65535` pixels: 2.34 pixels at a content
   space of 153600 pixels, which showed as steps in the image. OpenGL has always used float.
-- Since 1.7 it is `R32G32_FLOAT` in Direct3D 10, 11 and 12 (Direct3D 10 has the same change, see "Known limits" in the integration guide), still clamped to 0 to 1. Measured with [`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/WarpPrecision.cpp) (one channel of 3840 x 2160 in a content space of
+- Since 1.7 it is `R32G32_FLOAT` in Direct3D 10, 11 and 12 (Direct3D 10 has the same change, see "Known limits" in the integration guide). Up to 1.7.1 the coordinates were clamped to 0 to 1 on upload, so an area outside the content repeated the edge pixel; since 1.7.2 it is black, as in OpenGL. Measured with [`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/tools/WarpPrecision.cpp) (one channel of 3840 x 2160 in a content space of
   153600 x 2160, `bPartialInput`): Direct3D 11, 12 and OpenGL are identical now, the largest error is 0.0039 pixel. The warp texture needs twice the memory (a 4K channel about 66 instead of about 33 MB).
 - The 3D warp has always been float.
 - At the last pixel of an output, which samples on the edge of the last source texel, the GPU mixes in the border color (black) with a weight of 1/256: an image value there is 0.4 % too dark. That is no error of the mapping.
@@ -59,7 +59,9 @@ and sized by one of them does not fit the others. This is a property of these ex
   a mask that is multiplied to all. For the GPU the map is converted to 16 bit normalised.
 - The blend maps of the exporters contain the gamma correction of the projector; the library multiplies them as they are. The `gamma` setting of the .ini file is an additional correction on top (`integration-guide.md`, "Colour and gamma").
 - The optional **black level map** is a second bitmap (RGB, 8 bit) with the parameters `blackScale`, `blackDark` and `blackBright` in the header. The correction is done in the shader; `bDoNoBlack` switches it off.
-  The formulas are in [`VIOSOWarpBlend/VWF.h`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/VIOSOWarpBlend/VWF.h).
+  The formulas are in [`VIOSOWarpBlend/VWF.h`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/VIOSOWarpBlend/VWF.h).
+- **Black outside the picture is not the black level.** The image (warp and blend) is black where the warp points outside the content and where the blend map is 0. The black level correction is a separate step in the shader:
+  with a black level map it raises the output by the black level of the projector everywhere, also outside the mesh, whatever the content shows. That is its purpose. Without a black level map, or with `bDoNoBlack=1`, nothing is added.
 
 ## Looking into a file
 

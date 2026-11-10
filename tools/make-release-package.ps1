@@ -7,7 +7,7 @@
 # Besides the archive a second one, <name>-symbols.zip, holds the .pdb files of the library, the examples and the tools (bin/<name>.pdb);
 #   the main archive has no .pdb.
 # -Label makes a test package for the coming release without touching resource.h: the version in the name is then fixed to the
-#   coming release (1.7.1) and the label is appended, e.g. -Label rc1 gives VIOSO_API-1.7.1-rc1-win-x64.zip.
+#   coming release (1.7.2) and the label is appended, e.g. -Label rc1 gives VIOSO_API-1.7.2-rc1-win-x64.zip.
 # Prerequisite: a Release build of the repository (cmake --preset windows-x64-release, cmake --build ...),
 # without -DVIOSO_BUILD_TOOLS (MakeTestVwf is always built and goes into the package, WarpPrecision does not).
 param(
@@ -25,7 +25,7 @@ foreach ($l in Get-Content "$repo/VIOSOWarpBlend/resource.h") {
     if ($l -match '^#define VWB_Version_(MAJ|MIN|MAI)\s+(\d+)') { $ver[$Matches[1]] = $Matches[2] }
 }
 $version = "$($ver.MAJ).$($ver.MIN).$($ver.MAI)"
-if ($Label) { $version = "1.7.1-$Label" } # the coming release, until resource.h says so
+if ($Label) { $version = "1.7.2-$Label" } # the coming release, until resource.h says so
 
 if (-not $BuildDir) { $BuildDir = "$repo/out/build/windows-x64-release" }
 if (-not $OutDir) { $OutDir = $repo }

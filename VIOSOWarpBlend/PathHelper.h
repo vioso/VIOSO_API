@@ -12,7 +12,8 @@
 #include <string>
 /// @brief creates a full canonical path from a filename
 /// @description if it does not start with a / or a drive letter (no root path)
-/// it is set relative to the module currently set in g_hModule
+/// it is set relative to the folder of the module currently set in g_hModDll (Windows: the library or, without a module,
+/// the executable) and to the working directory on Linux
 /// @param [IN|OUT] path the input path or file name
 /// @param [IN] nMaxPath the maximum number of chars path can hold
 /// @param [IN_OPT] ext an extension to add, set to 

@@ -95,7 +95,10 @@ if( VWB_ERROR_NONE != pWarper->Init() ) /* ... */;
 pWarper->Render( VWB_UNDEFINED_GL_TEXTURE, VWB_STATEMASK_PIXEL_SHADER | VWB_STATEMASK_SHADER_RESOURCE );
 ```
 
-With `VWB_UNDEFINED_GL_TEXTURE` the warper copies the back buffer first; pass an OpenGL texture name instead, if you render into a texture. `Examples/OpenGL_4/gl3_2.cpp` is the
+With `VWB_UNDEFINED_GL_TEXTURE` (-1, not NULL and not 0) the warper copies the back buffer first; pass an OpenGL texture name instead, if you render into a texture. From 1.7.2 `VWB_render` returns
+`VWB_ERROR_PARAMETER` for a name that is not a texture of the current context (the frame is not drawn) and `VWB_ERROR_SHADER` if its shader program cannot be made current; each is logged once, so check the result.
+The default path (`bUseGL110=0`, shader version 330) runs in a Core profile context (3.3 or newer) and in a Compatibility context; `bUseGL110=1` uses the fixed pipeline and needs a Compatibility context.
+A GL error that the host leaves behind does not stop the warper; errors pending at its first calls are cleared and logged once as a warning. `Examples/OpenGL_4/gl3_2.cpp` is the
 example (the OpenGL one and the Linux one are in the same file). The sample .ini sets `base` to the identity (right handed) for OpenGL.
 
 ### Direct3D 12
@@ -170,7 +173,7 @@ a projector whose gamma was changed after calibration; leave it at 1 otherwise. 
 ## Precision
 
 The 2D warp was a 16 bit normalised texture in Direct3D up to 1.6; one step was `content width / 65535` pixels: 2.3 pixels at a content width of 153600. It is float since 1.7. OpenGL was always float.
-Measurement and method: `vwf-format.md`, [`tools/WarpPrecision.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/WarpPrecision.cpp). The float texture needs twice the memory (about 66 instead of 33 MB for a 4K channel).
+Measurement and method: `vwf-format.md`, [`tools/WarpPrecision.cpp`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/tools/WarpPrecision.cpp). The float texture needs twice the memory (about 66 instead of 33 MB for a 4K channel).
 
 ## 3D mappings and eye points
 
@@ -186,17 +189,21 @@ The sample plugin for eye points is described in `eyepoint-provider.md`.
 
 - **The log.** `VIOSOWarpBlend.log` in the folder of the library (set `logFile` and `logLevel` in the .ini; 2 shows the parameters, 3 more, 4 is a trace that also dumps debug textures).
   `bLogClear=1` starts a new file. Warnings that matter are written at every level.
-- **Error codes** (`VWB_ERROR`): -1 generic (the log says more), -2 parameter, -3 .ini file could not be loaded, -4 blend, -5 warp (could not be loaded to the GPU),
-  -6 shader (usually unsupported hardware), -7 .vwf broken or wrong version, -8 .vwf not found, -9 not implemented, -10 network, -11 NDI, -16 nothing done (no error). `VWB::GetErrorCStr` gives text.
+- **Error codes** (`VWB_ERROR`): -1 generic (the log says more), -2 parameter (OpenGL: the source texture is not a texture of the current context), -3 .ini file could not be loaded, -4 blend, -5 warp (could not be loaded to the GPU),
+  -6 shader (usually unsupported hardware; OpenGL: the shader program cannot be made current), -7 .vwf broken or wrong version, -8 .vwf not found, -9 not implemented, -10 network, -11 NDI, -16 nothing done (no error). `VWB::GetErrorCStr` gives text.
 - **Blank output, not black:** check `calibFile` (the error shows it as read), the render target at `Init`, that your content texture is not empty, `calibIndex`.
 - **Wrong or flipped projection from `VWB_getViewProj`:** `base` (pitfall 1). `bFlipDXVs` is a field only, it is *not* read from the .ini.
-- **A dark line at the outermost pixel column:** the sampler uses the border color black; at the exact edge of the content the GPU mixes in 1/256 of it. Not an error of the mapping.
+- **A dark line at the outermost pixel column:** the sampler uses the border color black; at the exact edge of the content the GPU mixes in 1/256 of it. Not an error of the mapping. Since 1.7.2 the same rim can appear in Direct3D 10, 11 and 12 where the warp lies just outside the content (before, the edge pixel was stretched there), as in OpenGL.
+- **Light areas outside the picture:** two different things. The *image* is black where the warp points outside the content and where the blend map is 0; since 1.7.2 in all backends (up to 1.7.1 Direct3D 10, 11 and 12 repeated
+  the edge pixel of the content outside it, which showed as grey). The *black level correction* is separate: a calibration with a black level map raises the output by the black level of the projector everywhere, also outside the mesh, whatever the
+  content shows. That is intended; `bDoNoBlack=1` switches it off. A file without a black level map adds nothing.
 
 ## Known limits of 1.7
 
-- Direct3D 10 with `bPartialInput`: with a very wide content space ([`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.1/tools/WarpPrecision.cpp): content space 153600 px, channel 3840 px) the output in Direct3D 10 is almost empty, while Direct3D 11, 12 and OpenGL are
+- Direct3D 10 with `bPartialInput`: with a very wide content space ([`tools/WarpPrecision`](https://github.com/vioso/VIOSO_API/blob/v1.7.2/tools/WarpPrecision.cpp): content space 153600 px, channel 3840 px) the output in Direct3D 10 is almost empty, while Direct3D 11, 12 and OpenGL are
   correct; with a small file Direct3D 10 is correct. If you use Direct3D 10 with `bPartialInput`, check the output.
 - 3D mappings and eye points: unchanged in 1.7, without test data in this repository.
+- OpenGL Core profile: tested with a Core 3.3 context on Windows (GLFW, debug output on, one Intel GPU) and with a Core 4.1 context on Linux (Mesa 23.2.1 llvmpipe under Xvfb), without a message from the warper; not tested on other GPUs and drivers or on macOS. `bUseGL110=1` and the X-Plane variant of the OpenGL path (`GLWarpBlendXPL.cpp`) are not changed for Core.
 - Linux: the OpenGL example builds and runs (a synthetic two-channel .vwf), so far under Xvfb with Mesa software rendering, not on graphics hardware. Windows is the main platform of 1.7.
 - Texture interop (above): the output arrives a few frames late because the fences are only polled, and the start-up period and the margin of the ring depend on the engine; tested with UNIGINE 2.20. Determine them again with the frame counter test for another engine or version.
 - The Direct3D 9 render paths are still in the library; the examples for them are gone.

@@ -45,10 +45,10 @@ This is the reference for the settings of `VIOSOWarpBlend.ini`, version 1.7.
 | `bTurnWithView` | the world turns and moves with the view direction (motion platforms) | 0 |
 | `bDoNotBlend`, `bDoNoBlack` | switch off blending, switch off black level correction | 0 |
 | `bBicubic` (or `bicubic`) | bicubic sampling of the source texture; `bBicubic` wins | 0 |
-| `bUseGL110` | OpenGL shader version 1.1 with fixed pipeline | 0 |
+| `bUseGL110` | OpenGL shader version 1.1 with fixed pipeline; needs a Compatibility context. With 0 the warper runs in a Core profile (3.3 or newer) or Compatibility context | 0 |
 | `bPartialInput` | your source texture contains only `optimalRect` | 0 |
 | `optimalRes`, `optimalRect` | `[w,h]`, `[l,t,r,b]`; calculated by `bAutoView` | `[0,0]`, `[0,0,0,0]` |
-| `bFixWraparound` | one coherent content space on wrap-arounds (360 degree panoramas) | 0 |
+| `bFixWraparound` | one coherent content space on wrap-arounds (360 degree panoramas); works in Direct3D 10, 11 and 12 from 1.7.2 | 0 |
 | `gamma` | gamma correction on top of the gamma that is part of the blend map | 1 |
 | `inputGamma` | gamma for the black level compensation | 2.2 |
 | `blackScale`, `blackDarkAdjust`, `blackBrightAdjust` | black level adjustments; 0.5 keeps the value from the vwf | 1, 0.5, 0.5 |

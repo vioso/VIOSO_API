@@ -53,7 +53,8 @@ In this order (integration guide, "How it works" and the code samples):
 3. `VWB_Init`. Check the result; on an error write the text (`VWB::GetErrorCStr`) and the entry `calibFile` as read to the host's log.
 4. After `Init`, read `optimalRes` and `optimalRect`. `optimalRes` is the content size for a 1:1 assignment, but every content size works: a host with a given content resolution, such as a media server, keeps it. If the content space is larger than the graphics API allows (Direct3D 11: 16384 pixels) or the host sends
    only a part to each output, use `bPartialInput` as described in the integration guide.
-5. Each frame: render the content into the texture, bind the output's render target, `VWB_render`. Set the state again that the warper does not restore (integration guide, pitfall 6).
+5. Each frame: render the content into the texture, bind the output's render target, `VWB_render`. Set the state again that the warper does not restore (integration guide, pitfall 6). In OpenGL pass a texture name, or `VWB_UNDEFINED_GL_TEXTURE` (-1) to copy the back buffer, never NULL or 0;
+   check the result of `VWB_render` (from 1.7.2 `VWB_ERROR_PARAMETER` for a name that is no texture, `VWB_ERROR_SHADER` if the shader program cannot be made current). The OpenGL path runs in a Core profile context (3.3 or newer) with the default `bUseGL110=0`; do not ask for a Compatibility context.
 6. Destroy the warper before the device.
 
 On Windows build from a Developer Command Prompt, or run `vcvars64.bat` of Visual Studio first.
@@ -73,6 +74,8 @@ On Windows build from a Developer Command Prompt, or run `vcvars64.bat` of Visua
    (for example the frame number as 16 bars of black and white in the top rows) and read back every output, a few frames later without waiting for the GPU. Each output has to show the counter of the content frame it was made from.
    Run it with the Direct3D 12 debug layer on and with two or three frames in flight; the debug layer reports the overlap errors (integration guide, pitfall 13) only while the executions overlap, the readback finds the wrong picture. A host
    with texture interop uses the same test to find the margin and the start-up skip of its ring.
+5. **Outside the content.** The image is black where the warp points outside the content, with every backend (1.7.2). `MakeTestVwf.exe make out.vwf --size 1920x1200 --content 1280x720` makes a file with such an area: the content fills the top left 1280 x 720 pixels of the output, the rest has to be black. Grey or coloured areas there are an error. A calibration with a black level map
+   raises the output outside the mesh as well: that is the black level correction, not the image (`docs/vwf-format.md`, "Blend and black level").
 
 ## 7. Read the log
 

@@ -12,6 +12,7 @@
 
 #include "pixelshader.h"
 #include <wrl/client.h>
+#include <cmath>
 
 using Microsoft::WRL::ComPtr;
 //#pragma comment( lib, "d3d12.lib" )
@@ -511,8 +512,9 @@ VWB_ERROR DX12WarpBlend::Init( VWB_WarpBlendSet& wbs )
 				float* d = (float*)data.pData;
 				for( const VWB_WarpRecord* s = wb.pWarp, *sE = wb.pWarp + (ptrdiff_t)m_sizeMap.cx * (ptrdiff_t)m_sizeMap.cy; s != sE; d += 2, s++ )
 				{
-					d[0] = MIN( 1.0f, MAX( 0.0f, s->x ) );
-					d[1] = MIN( 1.0f, MAX( 0.0f, s->y ) );
+					// keep values outside [0,1], the content sampler returns black there; NaN and Inf would sample undefined
+					d[0] = std::isfinite( s->x ) ? s->x : -1.0f;
+					d[1] = std::isfinite( s->y ) ? s->y : -1.0f;
 				}
 			}
 

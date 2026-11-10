@@ -20,7 +20,7 @@ Get updates from
 https://bitbucket.org/VIOSO/vioso_api
 
 This library is meant to be used in image generators to do warping and blending. It takes a .vwf export and a texture buffer
-to sample from. If no texture buffer is given, it uses a copy of the current back buffer. It will render to the currently set back buffer.
+to sample from. If no texture buffer is given (NULL, in OpenGL -1), it uses a copy of the current back buffer. It will render to the currently set back buffer.
 It provides image based warping, suitable for most cases and, if a 3D map is provided, dynamc eye warping.
 NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 
@@ -124,7 +124,8 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* @remark for DirectX 9, call inside BeginScene/EndScene statements
 	* @param [IN]			pWarper	a valid warper
     * @param [IN,OPT]		pSrc    the source texture, a IDirect3DTexture9*, ID3D10Texture2D*, ID3D11Texture2D*, VWB_D3D12_RENDERINPUT* or a GLint texture index; 
-	* if current backbuffer must be read, set to NULL in any DX mode except 12 or to -1 in OpenGL mode
+	* if current backbuffer must be read, set to NULL in any DX mode except 12 or to -1 (VWB_UNDEFINED_GL_TEXTURE) in OpenGL mode.
+	* In OpenGL mode 0 (NULL) is not a texture name: it gives VWB_ERROR_PARAMETER.
 	* in case of directX 12 you need to provide a @see VWB_D3D12_RENDERINPUT as parameter.
 	* @param [IN,OPT]		stateMask @see VWB_STATEMASK enumeration, default is 0 to restore usual stuff:
 	* 0 is VWB_STATEMASK_DEFAULT, that is vertex buffer, input layout, primitive topology and raster state (rasterizer, blend and
@@ -136,7 +137,8 @@ NOTE: to build for Windows 7, #define VWB_WIN7_COMPAT
 	* With pSrc = NULL (DirectX) or -1 (OpenGL) the backbuffer is copied first. In DirectX 10 and 11 it is cleared before the warped image is drawn.
 	* In D3D12 all flags except VWB_STATEMASK_CLEARBACKBUFFER are ignored.
 	* The application is required to set inputs and shader in each term anyway.
-	* @return VWB_ERROR_NONE on success, VWB_ERROR_GENERIC otherwise */
+	* @return VWB_ERROR_NONE on success, VWB_ERROR_PARAMETER if pWarper is NULL or, in OpenGL, if src is not a texture of the current context
+	* (the frame is not drawn), VWB_ERROR_SHADER if the OpenGL shader program cannot be made current, VWB_ERROR_GENERIC otherwise */
     VIOSOWARPBLEND_API( VWB_ERROR, VWB_render, ( VWB_Warper* pWarper, VWB_param src, VWB_uint stateMask ) );  
 
 	/** get info about .vwf, reads all warp headers
